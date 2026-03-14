@@ -26,7 +26,7 @@ const INITIAL_PASSWORDS = {
   Huguito: "Trama5!Sable"
 } satisfies Record<string, string>;
 
-const REMOVED_TEST_USERNAMES = new Set(["xisma25"]);
+const REMOVED_TEST_USER_IDS = new Set(["user_xisma25"]);
 const DEFAULT_ADMIN_IDS = new Set(["user_isma"]);
 const DEFAULT_ADMIN_IDENTITIES = new Set(["isma"]);
 
@@ -194,7 +194,7 @@ function ensureStateIntegrity(source: AppState) {
   const removedUserIds = new Set<string>();
   const users = source.users
     .filter((user) => {
-      const shouldRemove = REMOVED_TEST_USERNAMES.has(normalizeUsername(user.username || user.name || ""));
+      const shouldRemove = REMOVED_TEST_USER_IDS.has(user.id);
       if (shouldRemove) {
         removedUserIds.add(user.id);
       }
