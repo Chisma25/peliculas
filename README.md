@@ -11,6 +11,7 @@ App web privada para reemplazar un Excel compartido de peliculas vistas, notas i
 - Busqueda libre en TMDb con caratulas y metadatos.
 - Login por usuario y contrasena.
 - Perfil propio editable y perfiles del grupo en solo lectura.
+- Reset de emergencia por codigo de administracion en `/reset-credenciales`.
 - Capa de recomendacion hibrida basada en historial, afinidad y variedad.
 - Persistencia local para desarrollo y snapshot persistente en PostgreSQL con Prisma para despliegue.
 
@@ -63,6 +64,7 @@ DATABASE_URL=...
 DIRECT_URL=...
 APP_SNAPSHOT_ID=main
 TMDB_API_KEY=...
+ADMIN_RESET_CODE=...
 ```
 
 7. Despliega.

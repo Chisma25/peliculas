@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -68,6 +69,12 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
           <strong>{message}</strong>
         </div>
       ) : null}
+
+      <div className="inline-actions">
+        <Link href="/reset-credenciales" className="secondary-button">
+          Reset de emergencia
+        </Link>
+      </div>
     </section>
   );
 }

@@ -15,6 +15,7 @@ const SESSION_COOKIE = "cine.session";
 const DATA_DIR = join(process.cwd(), "data");
 const STATE_FILE = join(DATA_DIR, "runtime-state.json");
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
+const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
 
 const INITIAL_PASSWORDS = {
   Isma: "Roca7!Marea",
@@ -60,6 +61,20 @@ type ProfileData = {
 
 function normalizeUsername(value: string) {
   return slugify(value).replace(/-/g, "");
+}
+
+function normalizeIdentity(value: string) {
+  return normalizeUsername(value.trim());
+}
+
+function secureStringMatch(left: string, right: string) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 function hashPassword(password: string) {
@@ -293,6 +308,19 @@ function findUserById(state: AppState, userId?: string | null) {
 function findUserByUsername(state: AppState, username?: string | null) {
   const normalizedUsername = normalizeUsername(username ?? "");
   return state.users.find((user) => normalizeUsername(user.username) === normalizedUsername) ?? null;
+}
+
+function findUserByIdentity(state: AppState, identifier?: string | null) {
+  const normalizedIdentifier = normalizeIdentity(identifier ?? "");
+  if (!normalizedIdentifier) {
+    return null;
+  }
+
+  return (
+    state.users.find((user) => normalizeUsername(user.username) === normalizedIdentifier) ??
+    state.users.find((user) => normalizeIdentity(user.name) === normalizedIdentifier) ??
+    null
+  );
 }
 
 function getMovieById(state: AppState, movieId: string) {
@@ -683,6 +711,63 @@ export async function updateUserProfile(
 
   await saveAppState(state);
   return user;
+}
+
+export async function resetUserCredentials(input: {
+  adminCode: string;
+  identifier: string;
+  username: string;
+  password: string;
+}) {
+  if (!ADMIN_RESET_CODE) {
+    throw new Error("El reset no esta disponible todavia. Falta configurar ADMIN_RESET_CODE.");
+  }
+
+  if (!secureStringMatch(input.adminCode.trim(), ADMIN_RESET_CODE)) {
+    throw new Error("El codigo de administracion no es valido.");
+  }
+
+  const state = await loadAppState();
+  const user = findUserByIdentity(state, input.identifier);
+  if (!user) {
+    throw new Error("No se encontro ninguna cuenta con ese usuario o nombre visible.");
+  }
+
+  const nextUsername = input.username.trim();
+  const nextPassword = input.password.trim();
+
+  if (!nextUsername) {
+    throw new Error("El nuevo usuario es obligatorio.");
+  }
+
+  if (!nextPassword) {
+    throw new Error("La nueva contrasena es obligatoria.");
+  }
+
+  const usernameTaken = state.users.some(
+    (entry) => entry.id !== user.id && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
+  );
+  if (usernameTaken) {
+    throw new Error("Ese usuario ya lo esta usando otra persona.");
+  }
+
+  user.username = nextUsername;
+  user.passwordHash = hashPassword(nextPassword);
+
+  addActivity(state, {
+    type: "rated",
+    label: `Se restablecio el acceso de ${user.name}`,
+    userId: user.id,
+    date: new Date().toISOString()
+  });
+
+  await saveAppState(state);
+
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username
+  };
 }
 
 export async function getSeededCredentials() {

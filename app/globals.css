@@ -799,6 +799,12 @@ textarea {
   background: rgba(57, 25, 26, 0.68);
 }
 
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .detail-sidebar,
 .member-card,
 .catalog-card {
