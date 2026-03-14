@@ -1,0 +1,73 @@
+"use client";
+
+import type { Route } from "next";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+
+type LoginPanelProps = {
+  nextPath?: string;
+};
+
+export function LoginPanel({ nextPath }: LoginPanelProps) {
+  const router = useRouter();
+  const [message, setMessage] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  async function login(formData: FormData) {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      body: formData
+    });
+
+    const payload = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      setMessage(payload.error ?? "No se pudo iniciar sesión.");
+      return;
+    }
+
+    const destination = nextPath && nextPath.startsWith("/") ? nextPath : "/";
+    router.push(destination as Route);
+    router.refresh();
+  }
+
+  return (
+    <section className="panel login-panel">
+      <div className="panel-header">
+        <p className="eyebrow">Acceso del grupo</p>
+        <h1>Entrad con usuario y contraseña</h1>
+        <p className="body-copy">
+          Cada uno tiene ya su cuenta creada. En cuanto entréis podéis cambiar el nombre visible, el usuario y la
+          contraseña desde vuestro perfil.
+        </p>
+      </div>
+
+      <form
+        className="stack-form"
+        action={(formData) =>
+          startTransition(() => {
+            void login(formData);
+          })
+        }
+      >
+        {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
+        <label>
+          Usuario
+          <input type="text" name="username" placeholder="Isma" required autoComplete="username" />
+        </label>
+        <label>
+          Contraseña
+          <input type="password" name="password" placeholder="Tu contraseña" required autoComplete="current-password" />
+        </label>
+        <button type="submit" className="primary-button" disabled={isPending}>
+          {isPending ? "Entrando..." : "Entrar"}
+        </button>
+      </form>
+
+      {message ? (
+        <div className="inline-card error-card">
+          <strong>{message}</strong>
+        </div>
+      ) : null}
+    </section>
+  );
+}
