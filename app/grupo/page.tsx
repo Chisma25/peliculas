@@ -1,10 +1,11 @@
 import Link from "next/link";
 
-import { getDashboardData, getProfileDataHydrated, listMembers } from "@/lib/store";
+import { AdminAccountsPanel } from "@/components/admin-accounts-panel";
+import { getDashboardData, getProfileDataHydrated, getSessionUser, listMembers } from "@/lib/store";
 import { formatScore } from "@/lib/utils";
 
 export default async function GroupPage() {
-  const [members, dashboard] = await Promise.all([listMembers(), getDashboardData()]);
+  const [members, dashboard, sessionUser] = await Promise.all([listMembers(), getDashboardData(), getSessionUser()]);
   const memberCards = await Promise.all(
     members.map(async (member) => ({
       member,
@@ -67,6 +68,8 @@ export default async function GroupPage() {
           </article>
         </div>
       </section>
+
+      {sessionUser?.isAdmin ? <AdminAccountsPanel members={members} /> : null}
     </div>
   );
 }

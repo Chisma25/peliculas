@@ -30,6 +30,7 @@ export function SiteHeader({ user }: SiteHeaderProps) {
         <span>{user?.name?.slice(0, 1) ?? "?"}</span>
         <div>
           <strong>{user?.name ?? "Invitado"}</strong>
+          {user?.isAdmin ? <p className="user-chip-role">Administrador</p> : null}
           <div className="user-chip-actions">
             <Link href="/perfil">Editar perfil</Link>
             <form action="/api/auth/logout" method="post">

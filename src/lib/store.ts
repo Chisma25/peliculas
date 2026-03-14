@@ -27,6 +27,8 @@ const INITIAL_PASSWORDS = {
 } satisfies Record<string, string>;
 
 const REMOVED_TEST_USERNAMES = new Set(["xisma25"]);
+const DEFAULT_ADMIN_IDS = new Set(["user_isma"]);
+const DEFAULT_ADMIN_IDENTITIES = new Set(["isma"]);
 
 type HistoryFilters = {
   genre?: string;
@@ -104,7 +106,12 @@ function ensureUserCredentials(user: User) {
     ...user,
     username,
     avatarSeed: user.avatarSeed || slugify(user.name || username),
-    passwordHash: user.passwordHash || hashPassword(getInitialPasswordForUser(user.name))
+    passwordHash: user.passwordHash || hashPassword(getInitialPasswordForUser(user.name)),
+    isAdmin:
+      Boolean(user.isAdmin) ||
+      DEFAULT_ADMIN_IDS.has(user.id) ||
+      DEFAULT_ADMIN_IDENTITIES.has(normalizeUsername(user.name)) ||
+      DEFAULT_ADMIN_IDENTITIES.has(normalizeUsername(username))
   };
 }
 
@@ -711,6 +718,65 @@ export async function updateUserProfile(
 
   await saveAppState(state);
   return user;
+}
+
+export async function updateUserCredentialsByAdmin(
+  adminUserId: string,
+  input: {
+    userId: string;
+    username: string;
+    password?: string;
+  }
+) {
+  const state = await loadAppState();
+  const adminUser = findUserById(state, adminUserId);
+  if (!adminUser?.isAdmin) {
+    throw new Error("No tienes permisos para gestionar cuentas del grupo.");
+  }
+
+  const targetUser = findUserById(state, input.userId);
+  if (!targetUser) {
+    throw new Error("No se encontro la cuenta que quieres editar.");
+  }
+
+  const nextUsername = input.username.trim();
+  const nextPassword = input.password?.trim() ?? "";
+
+  if (!nextUsername) {
+    throw new Error("El usuario no puede quedar vacio.");
+  }
+
+  const usernameTaken = state.users.some(
+    (entry) => entry.id !== targetUser.id && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
+  );
+  if (usernameTaken) {
+    throw new Error("Ese usuario ya lo esta usando otra persona.");
+  }
+
+  const previousUsername = targetUser.username;
+  targetUser.username = nextUsername;
+
+  if (nextPassword) {
+    targetUser.passwordHash = hashPassword(nextPassword);
+  }
+
+  addActivity(state, {
+    type: "rated",
+    label:
+      previousUsername === nextUsername
+        ? `${adminUser.name} actualizo el acceso de ${targetUser.name}`
+        : `${adminUser.name} cambio el usuario de ${targetUser.name} a @${nextUsername}`,
+    userId: targetUser.id,
+    date: new Date().toISOString()
+  });
+
+  await saveAppState(state);
+
+  return {
+    id: targetUser.id,
+    name: targetUser.name,
+    username: targetUser.username
+  };
 }
 
 export async function resetUserCredentials(input: {

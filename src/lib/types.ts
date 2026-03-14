@@ -33,6 +33,7 @@ export type User = {
   email: string;
   avatarSeed: string;
   passwordHash: string;
+  isAdmin?: boolean;
 };
 
 export type Group = {
