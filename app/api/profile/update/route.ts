@@ -12,12 +12,16 @@ export async function POST(request: Request) {
   const name = String(formData.get("name") ?? "");
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
+  const avatarAction = String(formData.get("avatarAction") ?? "keep");
+  const avatarDataUrl = String(formData.get("avatarDataUrl") ?? "");
 
   try {
     const user = await updateUserProfile(sessionUser.id, {
       name,
       username,
-      password
+      password,
+      avatarAction: avatarAction === "remove" ? "remove" : avatarAction === "replace" ? "replace" : "keep",
+      avatarDataUrl
     });
 
     return NextResponse.json({

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminAccountsPanel } from "@/components/admin-accounts-panel";
+import { UserAvatar } from "@/components/user-avatar";
 import { getDashboardData, getProfileDataHydrated, getSessionUser, listMembers } from "@/lib/store";
 import { formatScore } from "@/lib/utils";
 
@@ -28,9 +29,12 @@ export default async function GroupPage() {
           {memberCards.map(({ member, profile }) => {
             return (
               <article key={member.id} className="member-card">
-                <div className="stat-row">
-                  <strong>{member.name}</strong>
-                  <span>@{member.username}</span>
+                <div className="member-card-head">
+                  <UserAvatar user={member} size="md" />
+                  <div className="member-card-heading">
+                    <strong>{member.name}</strong>
+                    <span>@{member.username}</span>
+                  </div>
                 </div>
                 <p className="muted-copy">
                   {profile?.ratingsCount
@@ -63,7 +67,8 @@ export default async function GroupPage() {
           <article className="member-card">
             <strong>Encaje estimado</strong>
             <p className="body-copy">
-              Cada recomendación muestra un encaje relativo dentro del pool actual. La media del grupo ahora mismo es {formatScore(dashboard.stats.averageScore)}.
+              Cada recomendación muestra un encaje relativo dentro del pool actual. La media del grupo ahora mismo es{" "}
+              {formatScore(dashboard.stats.averageScore)}.
             </p>
           </article>
         </div>

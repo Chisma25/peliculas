@@ -18,7 +18,7 @@ export default async function ProfilePage() {
   return (
     <div className="profile-page-stack">
       <ProfileOverview profile={profile} />
-      <ProfileForm initialName={user.name} initialUsername={user.username} />
+      <ProfileForm initialName={user.name} initialUsername={user.username} initialAvatarUrl={user.avatarUrl} />
     </div>
   );
 }

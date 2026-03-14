@@ -677,6 +677,8 @@ export async function updateUserProfile(
     name: string;
     username: string;
     password?: string;
+    avatarAction?: "keep" | "replace" | "remove";
+    avatarDataUrl?: string;
   }
 ) {
   const state = await loadAppState();
@@ -705,6 +707,11 @@ export async function updateUserProfile(
   user.name = nextName;
   user.username = nextUsername;
   user.avatarSeed = slugify(nextName);
+  if (input.avatarAction === "remove") {
+    user.avatarUrl = undefined;
+  } else if (input.avatarAction === "replace" && input.avatarDataUrl?.trim()) {
+    user.avatarUrl = input.avatarDataUrl.trim();
+  }
   if (input.password?.trim()) {
     user.passwordHash = hashPassword(input.password.trim());
   }

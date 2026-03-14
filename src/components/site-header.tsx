@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { UserAvatar } from "@/components/user-avatar";
 import { User } from "@/lib/types";
 
 type SiteHeaderProps = {
@@ -27,7 +28,11 @@ export function SiteHeader({ user }: SiteHeaderProps) {
       </nav>
 
       <div className="user-chip">
-        <span>{user?.name?.slice(0, 1) ?? "?"}</span>
+        <UserAvatar
+          user={{ name: user?.name ?? "Invitado", avatarUrl: user?.avatarUrl }}
+          size="sm"
+          className="user-chip-avatar"
+        />
         <div>
           <strong>{user?.name ?? "Invitado"}</strong>
           {user?.isAdmin ? <p className="user-chip-role">Administrador</p> : null}

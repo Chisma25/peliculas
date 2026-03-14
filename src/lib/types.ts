@@ -32,6 +32,7 @@ export type User = {
   username: string;
   email: string;
   avatarSeed: string;
+  avatarUrl?: string;
   passwordHash: string;
   isAdmin?: boolean;
 };

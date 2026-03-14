@@ -26,13 +26,48 @@ type SearchMovie = {
   };
 };
 
+type PendingResultStatus = "idle" | "loading" | "added" | "already_pending" | "already_watched" | "error";
+
+type ToastState = {
+  tone: "success" | "info" | "error";
+  title: string;
+  body: string;
+} | null;
+
+function getButtonLabel(status: PendingResultStatus) {
+  switch (status) {
+    case "loading":
+      return "Añadiendo...";
+    case "added":
+      return "Añadida";
+    case "already_pending":
+      return "Ya en pendientes";
+    case "already_watched":
+      return "Ya vista";
+    case "error":
+      return "Reintentar";
+    default:
+      return "Añadir a pendientes";
+  }
+}
+
 export function MovieExplorer() {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [results, setResults] = useState<SearchMovie[]>([]);
   const [status, setStatus] = useState("Busca una película para consultar TMDb.");
-  const [actionMessage, setActionMessage] = useState("");
+  const [toast, setToast] = useState<ToastState>(null);
+  const [movieStates, setMovieStates] = useState<Record<string, PendingResultStatus>>({});
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => setToast(null), 2600);
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
 
   useEffect(() => {
     if (!deferredQuery.trim()) {
@@ -65,16 +100,49 @@ export function MovieExplorer() {
   }, [deferredQuery]);
 
   async function addToPending(movie: SearchMovie) {
-    const response = await fetch("/api/pending/add", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(movie)
-    });
+    setMovieStates((current) => ({ ...current, [movie.id]: "loading" }));
 
-    const payload = (await response.json()) as { message?: string; error?: string };
-    setActionMessage(payload.message ?? payload.error ?? "No se pudo añadir la película.");
+    try {
+      const response = await fetch("/api/pending/add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(movie)
+      });
+
+      const payload = (await response.json()) as { status?: PendingResultStatus; message?: string; error?: string };
+      const nextStatus = payload.status ?? (response.ok ? "added" : "error");
+
+      setMovieStates((current) => ({ ...current, [movie.id]: nextStatus }));
+      setToast({
+        tone:
+          nextStatus === "added"
+            ? "success"
+            : nextStatus === "already_pending" || nextStatus === "already_watched"
+              ? "info"
+              : "error",
+        title:
+          nextStatus === "added"
+            ? `${movie.title} ya está en pendientes`
+            : nextStatus === "already_pending"
+              ? "Esa película ya estaba guardada"
+              : nextStatus === "already_watched"
+                ? "Esa película ya figura en vistas"
+                : "No se pudo añadir la película",
+        body:
+          payload.message ??
+          payload.error ??
+          (nextStatus === "added" ? "La hemos dejado preparada en pendientes." : "Prueba otra vez dentro de un momento.")
+      });
+    } catch {
+      setMovieStates((current) => ({ ...current, [movie.id]: "error" }));
+      setToast({
+        tone: "error",
+        title: "No se pudo añadir la película",
+        body: "Ha fallado la conexión justo al guardarla. Prueba otra vez."
+      });
+    }
   }
 
   return (
@@ -101,55 +169,73 @@ export function MovieExplorer() {
       </div>
 
       <p className="status-text">{isPending ? "Buscando..." : status}</p>
-      {actionMessage ? <p className="status-text">{actionMessage}</p> : null}
 
       <div className="catalog-grid">
-        {results.map((movie) => (
-          <article key={movie.id} className="catalog-card">
-            <div
-              className="search-poster"
-              style={
-                movie.posterUrl
-                  ? {
-                      backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.1), rgba(10, 15, 24, 0.7)), url(${movie.posterUrl})`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center"
-                    }
-                  : undefined
-              }
-            />
-            <div className="stat-row">
-              <p className="eyebrow">{movie.year > 0 ? movie.year : "Año pendiente"}</p>
-              <span>
-                {movie.externalRating.source}: {movie.externalRating.value}
-              </span>
-            </div>
-            <strong>{movie.title}</strong>
-            <p className="body-copy">{movie.synopsis}</p>
-            <div className="recommendation-actions">
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => {
-                  void addToPending(movie);
-                }}
-              >
-                Añadir a pendientes
-              </button>
-              {movie.sourceIds?.tmdb ? (
-                <a
-                  href={`https://www.themoviedb.org/movie/${movie.sourceIds.tmdb}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="secondary-button"
+        {results.map((movie) => {
+          const pendingState = movieStates[movie.id] ?? "idle";
+          const isActionDisabled =
+            pendingState === "loading" || pendingState === "added" || pendingState === "already_pending" || pendingState === "already_watched";
+
+          return (
+            <article key={movie.id} className="catalog-card explorer-card">
+              <div
+                className="search-poster"
+                style={
+                  movie.posterUrl
+                    ? {
+                        backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.1), rgba(10, 15, 24, 0.7)), url(${movie.posterUrl})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center"
+                      }
+                    : undefined
+                }
+              />
+              <div className="stat-row">
+                <p className="eyebrow">{movie.year > 0 ? movie.year : "Año pendiente"}</p>
+                <span>
+                  {movie.externalRating.source}: {movie.externalRating.value}
+                </span>
+              </div>
+              <strong>{movie.title}</strong>
+              <p className="body-copy">{movie.synopsis}</p>
+              <div className="chips explorer-genres">
+                {movie.genres.slice(0, 3).map((genre) => (
+                  <span key={`${movie.id}-${genre}`}>{genre}</span>
+                ))}
+              </div>
+              <div className="recommendation-actions">
+                <button
+                  type="button"
+                  className={`primary-button ${pendingState !== "idle" ? "primary-button-quiet" : ""}`}
+                  disabled={isActionDisabled}
+                  onClick={() => {
+                    void addToPending(movie);
+                  }}
                 >
-                  Abrir en TMDb
-                </a>
-              ) : null}
-            </div>
-          </article>
-        ))}
+                  {getButtonLabel(pendingState)}
+                </button>
+                {movie.sourceIds?.tmdb ? (
+                  <a
+                    href={`https://www.themoviedb.org/movie/${movie.sourceIds.tmdb}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="secondary-button"
+                  >
+                    Abrir en TMDb
+                  </a>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
       </div>
+
+      {toast ? (
+        <div className={`explorer-toast explorer-toast-${toast.tone}`} role="status" aria-live="polite">
+          <strong>{toast.title}</strong>
+          <p>{toast.body}</p>
+        </div>
+      ) : null}
     </section>
   );
 }
