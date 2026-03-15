@@ -7,15 +7,16 @@ import { formatScore } from "@/lib/utils";
 type RecommendationCardProps = {
   item: WeeklyRecommendationItem & { movie: Movie; selected: boolean };
   batchId: string;
+  eyebrow?: string;
 };
 
-export function RecommendationCard({ item, batchId }: RecommendationCardProps) {
+export function RecommendationCard({ item, batchId, eyebrow }: RecommendationCardProps) {
   return (
     <article className={`recommendation-card ${item.selected ? "selected-card" : ""}`}>
       <MoviePoster movie={item.movie} href={`/peliculas/${item.movie.slug}`} compact />
       <div className="recommendation-copy">
         <div className="recommendation-topline">
-          <p className="eyebrow">{item.selected ? "Elegida esta semana" : "Opción semanal"}</p>
+          <p className="eyebrow">{item.selected ? "Elegida esta semana" : eyebrow ?? "Opción semanal"}</p>
           <span>{formatScore(item.score / 10)}/10 encaje</span>
         </div>
         <h3>{item.movie.title}</h3>

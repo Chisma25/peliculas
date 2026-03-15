@@ -985,6 +985,12 @@ textarea {
   margin-bottom: 1rem;
 }
 
+.pending-weekly-block {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
 .pending-card-genres {
   grid-template-columns: repeat(auto-fit, minmax(80px, max-content));
 }

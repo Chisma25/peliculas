@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
 import { seedState } from "@/lib/demo-data";
 import { loadManualHistorySeed } from "@/lib/manual-history";
 import { resolveMovieMetadata, searchMovies } from "@/lib/movie-provider";
-import { generateWeeklyRecommendations } from "@/lib/recommendations";
+import { generatePendingWeeklyOptions, generateWeeklyRecommendations } from "@/lib/recommendations";
 import { ActivityItem, AppState, Movie, User, UserRating } from "@/lib/types";
 import { average, getMovieAverage, safeId, slugify } from "@/lib/utils";
 
@@ -346,6 +346,41 @@ function getCurrentBatchFromState(state: AppState) {
   return [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
 }
 
+function isDashboardBatchValid(state: AppState, batch: AppState["weeklyBatches"][number] | null) {
+  if (!batch || batch.items.length !== 3) {
+    return false;
+  }
+
+  const seenIds = new Set(state.watchEntries.map((entry) => entry.movieId));
+  const pendingIds = new Set(state.pendingMovieIds);
+
+  return batch.items.every((item) => {
+    const movie = getMovieById(state, item.movieId);
+    return Boolean(movie) && !seenIds.has(item.movieId) && !pendingIds.has(item.movieId);
+  });
+}
+
+async function ensureDashboardBatch(state: AppState) {
+  const currentBatch = getCurrentBatchFromState(state);
+  if (isDashboardBatchValid(state, currentBatch)) {
+    return {
+      batch: currentBatch,
+      changed: false
+    };
+  }
+
+  const refreshedBatch = generateWeeklyRecommendations(state);
+  if (currentBatch?.selectedMovieId) {
+    refreshedBatch.selectedMovieId = currentBatch.selectedMovieId;
+  }
+
+  state.weeklyBatches.unshift(refreshedBatch);
+  return {
+    batch: refreshedBatch,
+    changed: true
+  };
+}
+
 function getWatchEntryForMovieFromState(state: AppState, movieId: string) {
   return state.watchEntries.find((entry) => entry.movieId === movieId) ?? null;
 }
@@ -554,7 +589,11 @@ export async function getProfileDataHydrated(userId: string) {
 
 export async function getCurrentBatch() {
   const state = await loadAppState();
-  return getCurrentBatchFromState(state);
+  const { batch, changed } = await ensureDashboardBatch(state);
+  if (changed) {
+    await saveAppState(state);
+  }
+  return batch;
 }
 
 export async function getWatchEntryForMovie(movieId: string) {
@@ -579,7 +618,10 @@ export async function getMovieBySlugHydrated(slug: string) {
 
 export async function getDashboardData() {
   const state = await loadAppState();
-  const batch = getCurrentBatchFromState(state);
+  const { batch, changed } = await ensureDashboardBatch(state);
+  if (changed) {
+    await saveAppState(state);
+  }
   const recommendations =
     batch?.items
       .map((item) => {
@@ -615,7 +657,7 @@ export async function getDashboardData() {
 
 export async function getDashboardDataHydrated() {
   const state = await loadAppState();
-  const batch = getCurrentBatchFromState(state);
+  const { batch, changed: batchChanged } = await ensureDashboardBatch(state);
   const recommendations =
     batch?.items
       .map((item) => {
@@ -640,7 +682,7 @@ export async function getDashboardDataHydrated() {
     hydrateMovie(state, selectedMovie)
   ]);
 
-  if (hydrated.some(Boolean)) {
+  if (batchChanged || hydrated.some(Boolean)) {
     await saveAppState(state);
   }
 
@@ -659,6 +701,33 @@ export async function getDashboardDataHydrated() {
       pendingCount: state.pendingMovieIds.length
     }
   };
+}
+
+export async function getPendingWeeklySuggestionsHydrated() {
+  const state = await loadAppState();
+  const suggestions = generatePendingWeeklyOptions(state);
+  const movies = suggestions
+    .map((item) => getMovieById(state, item.movieId))
+    .filter((movie): movie is Movie => Boolean(movie));
+
+  const hydrated = await Promise.all(movies.map((movie) => hydrateMovie(state, movie)));
+  if (hydrated.some(Boolean)) {
+    await saveAppState(state);
+  }
+
+  return suggestions
+    .map((item) => {
+      const movie = getMovieById(state, item.movieId);
+      if (!movie) {
+        return null;
+      }
+
+      return {
+        ...item,
+        movie
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
 }
 
 export async function authenticateUser(username: string, password: string) {
@@ -889,7 +958,11 @@ export async function upsertRating(input: { movieId: string; userId: string; sco
 
 export async function generateBatch() {
   const state = await loadAppState();
+  const currentBatch = getCurrentBatchFromState(state);
   const batch = generateWeeklyRecommendations(state);
+  if (currentBatch?.selectedMovieId) {
+    batch.selectedMovieId = currentBatch.selectedMovieId;
+  }
   state.weeklyBatches.unshift(batch);
   addActivity(state, {
     type: "recommended",

@@ -13,21 +13,21 @@ export default async function HomePage() {
       <section className="hero-grid">
         <article className="hero-card hero-card-main">
           <p className="eyebrow">Nuestro grupo de cine</p>
-          <h1>Este es vuestro rincon para decidir la peli de la semana.</h1>
+          <h1>Este es vuestro rincón para decidir la peli de la semana.</h1>
           <div className="hero-copy-stack">
             <p className="body-copy">
-              Aqui esta todo lo vuestro: las peliculas que ya habeis visto, las que teneis en pendientes y las
+              Aquí está todo lo vuestro: las películas que ya habéis visto, las que tenéis en pendientes y las
               recomendaciones semanales pensadas para vuestro grupo, no para cualquiera.
             </p>
             <p className="body-copy">
-              La idea es simple: tener en un solo sitio lo que antes llevabais en el Excel, pero con mejor pinta y mas
-              facil para decidir entre vosotros que toca ver esta semana.
+              El dashboard ahora os enseña tres descubrimientos reales: películas que todavía no habéis visto y que ni
+              siquiera están en pendientes, para que siempre entren ideas nuevas al radar.
             </p>
           </div>
           <div className="chips">
             <span>Vuestras vistas</span>
             <span>Vuestras notas</span>
-            <span>Vuestra peli de la semana</span>
+            <span>Descubrimientos nuevos</span>
           </div>
           <div className="hero-actions">
             <form action="/api/weekly-recommendations/generate" method="post">
@@ -42,7 +42,7 @@ export default async function HomePage() {
         </article>
 
         <article className="hero-card selected-hero-card">
-          <p className="eyebrow">Pelicula elegida</p>
+          <p className="eyebrow">Película elegida</p>
           {dashboard.selectedMovie ? (
             <div className="selected-hero-layout">
               <div className="selected-hero-poster">
@@ -51,7 +51,7 @@ export default async function HomePage() {
               <div className="selected-hero-copy">
                 <h2 className="selected-hero-title">{dashboard.selectedMovie.title}</h2>
                 <div className="selected-hero-facts">
-                  <span>{dashboard.selectedMovie.year > 0 ? dashboard.selectedMovie.year : "Ano pendiente"}</span>
+                  <span>{dashboard.selectedMovie.year > 0 ? dashboard.selectedMovie.year : "Año pendiente"}</span>
                   <span>{dashboard.selectedMovie.genres.slice(0, 2).join(" / ")}</span>
                 </div>
                 <div className="selected-hero-rating">
@@ -60,30 +60,30 @@ export default async function HomePage() {
                 </div>
                 <p className="body-copy selected-hero-text">
                   {dashboard.selectedWatchEntry
-                    ? "Ya esta dentro de vuestras vistas y podeis seguir puntuandola desde su ficha."
-                    : "Es la peli marcada para esta semana. Podeis abrir su ficha o pasarla a vistas cuando la hayais visto."}
+                    ? "Ya está dentro de vuestras vistas y podéis seguir puntuándola desde su ficha."
+                    : "Es la peli marcada para esta semana. Podéis abrir su ficha o pasarla a vistas cuando la hayáis visto."}
                 </p>
                 <div className="hero-actions">
-                <Link href={`/peliculas/${dashboard.selectedMovie.slug}`} className="secondary-button">
-                  Abrir ficha
-                </Link>
-                {dashboard.selectedWatchEntry ? (
-                  <span className="secondary-button">Ya esta en vistas</span>
-                ) : (
-                  <form action="/api/watch/mark-watched" method="post">
-                    <input type="hidden" name="movieId" value={dashboard.selectedMovie.id} />
-                    <input type="hidden" name="redirectTo" value="/" />
-                    <button type="submit" className="primary-button">
-                      Marcar como vista
-                    </button>
-                  </form>
-                )}
+                  <Link href={`/peliculas/${dashboard.selectedMovie.slug}`} className="secondary-button">
+                    Abrir ficha
+                  </Link>
+                  {dashboard.selectedWatchEntry ? (
+                    <span className="secondary-button">Ya está en vistas</span>
+                  ) : (
+                    <form action="/api/watch/mark-watched" method="post">
+                      <input type="hidden" name="movieId" value={dashboard.selectedMovie.id} />
+                      <input type="hidden" name="redirectTo" value="/" />
+                      <button type="submit" className="primary-button">
+                        Marcar como vista
+                      </button>
+                    </form>
+                  )}
                 </div>
               </div>
             </div>
           ) : (
             <div className="empty-state">
-              <p className="body-copy">Aun no hay pelicula marcada para esta semana.</p>
+              <p className="body-copy">Aún no hay película marcada para esta semana.</p>
             </div>
           )}
         </article>
@@ -91,9 +91,9 @@ export default async function HomePage() {
 
       <section className="stat-grid dashboard-stat-grid">
         <article className="stat-card">
-          <p className="eyebrow">Peliculas vistas</p>
+          <p className="eyebrow">Películas vistas</p>
           <strong>{dashboard.stats.watchedCount}</strong>
-          <p className="body-copy">Todas las pelis que ya habeis visto juntos.</p>
+          <p className="body-copy">Todas las pelis que ya habéis visto juntos.</p>
         </article>
         <article className="stat-card">
           <p className="eyebrow">Nota media del grupo</p>
@@ -103,19 +103,27 @@ export default async function HomePage() {
         <article className="stat-card">
           <p className="eyebrow">Pendientes</p>
           <strong>{dashboard.stats.pendingCount}</strong>
-          <p className="body-copy">Peliculas guardadas para decidir proximas semanas.</p>
+          <p className="body-copy">Películas guardadas para decidir próximas semanas.</p>
         </article>
       </section>
 
       <section className="dashboard-grid">
         <article className="panel dashboard-panel-main">
           <div className="panel-header">
-            <p className="eyebrow">5 opciones para esta semana</p>
+            <p className="eyebrow">3 descubrimientos fuera de pendientes</p>
             <h2>{dashboard.batch ? `Tanda del ${formatLongDate(dashboard.batch.weekOf)}` : "Sin tanda generada"}</h2>
           </div>
           <div className="recommendation-stack">
-            {dashboard.recommendations.map((item) =>
-              dashboard.batch ? <RecommendationCard key={item.id} item={item} batchId={dashboard.batch.id} /> : null
+            {dashboard.recommendations.length > 0 ? (
+              dashboard.recommendations.map((item) =>
+                dashboard.batch ? (
+                  <RecommendationCard key={item.id} item={item} batchId={dashboard.batch.id} eyebrow="Descubrimiento semanal" />
+                ) : null
+              )
+            ) : (
+              <div className="empty-state">
+                <p className="body-copy">Ahora mismo no hay suficientes descubrimientos nuevos fuera de vistas y pendientes.</p>
+              </div>
             )}
           </div>
         </article>

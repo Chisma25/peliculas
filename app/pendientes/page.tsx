@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { getCurrentBatch, listPendingHydrated } from "@/lib/store";
+import { RecommendationCard } from "@/components/recommendation-card";
+import { getCurrentBatch, getPendingWeeklySuggestionsHydrated, listPendingHydrated } from "@/lib/store";
 
 const PAGE_SIZE = 12;
 
@@ -38,7 +39,12 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   const pageFromQuery = Number.parseInt(getSingleParam(params.page), 10);
   const currentPage = Number.isFinite(pageFromQuery) && pageFromQuery > 0 ? pageFromQuery : 1;
 
-  const [pending, batch] = await Promise.all([listPendingHydrated(), getCurrentBatch()]);
+  const [pending, batch, weeklyOptions] = await Promise.all([
+    listPendingHydrated(),
+    getCurrentBatch(),
+    getPendingWeeklySuggestionsHydrated()
+  ]);
+
   const genres = Array.from(
     new Set(
       pending
@@ -55,7 +61,8 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         .toLocaleLowerCase("es")
         .includes(search.toLocaleLowerCase("es"));
 
-    const matchesGenre = !activeGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === activeGenre.toLocaleLowerCase("es"));
+    const matchesGenre =
+      !activeGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === activeGenre.toLocaleLowerCase("es"));
 
     return matchesSearch && matchesGenre;
   });
@@ -71,9 +78,34 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         <p className="eyebrow">Pendientes</p>
         <h1>Películas pendientes de ver</h1>
         <p className="body-copy">
-          Aquí guardáis las pelis que queréis tener a mano antes de que entren en la selección semanal.
+          Aquí guardáis las pelis que queréis tener a mano antes de decidir qué cae esa semana.
         </p>
       </div>
+
+      {weeklyOptions.length > 0 ? (
+        <div className="pending-weekly-block">
+          <div className="panel-header">
+            <p className="eyebrow">5 posibles para esta semana</p>
+            <h2>Las más fuertes dentro de pendientes</h2>
+            <p className="body-copy">
+              Aquí el motor solo mira pelis que ya tenéis guardadas en pendientes y os ordena las cinco que mejor
+              encajan ahora mismo para plan de grupo.
+            </p>
+          </div>
+          <div className="recommendation-stack">
+            {weeklyOptions.map((item) =>
+              batch ? (
+                <RecommendationCard
+                  key={item.id}
+                  item={{ ...item, selected: batch.selectedMovieId === item.movie.id }}
+                  batchId={batch.id}
+                  eyebrow="Desde pendientes"
+                />
+              ) : null
+            )}
+          </div>
+        </div>
+      ) : null}
 
       <form action="/pendientes" method="get" className="pending-toolbar">
         <label className="pending-search-field">
@@ -177,7 +209,11 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                     </Link>
                     <form action="/api/pending/remove" method="post">
                       <input type="hidden" name="movieId" value={movie.id} />
-                      <input type="hidden" name="redirectTo" value={buildPendingQuery({ search, genre: activeGenre, page: safePage })} />
+                      <input
+                        type="hidden"
+                        name="redirectTo"
+                        value={buildPendingQuery({ search, genre: activeGenre, page: safePage })}
+                      />
                       <button type="submit" className="ghost-button">
                         Quitar de pendientes
                       </button>
