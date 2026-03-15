@@ -13,7 +13,7 @@ type SeenPageProps = {
 };
 
 const SORT_OPTIONS = [
-  { value: "watched-desc", label: "Ultima vista primero" },
+  { value: "watched-desc", label: "Última vista primero" },
   { value: "group-desc", label: "Grupo: mayor a menor" },
   { value: "group-asc", label: "Grupo: menor a mayor" },
   { value: "mine-desc", label: "Mi nota: mayor a menor" },
@@ -90,12 +90,14 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                 }
               />
               <div className="history-card-copy">
-                <strong>{item.movie.title}</strong>
-                <div className="stat-row">
+                <strong className="history-card-title">{item.movie.title}</strong>
+                <div className="history-card-meta">
                   <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
                   <span>Grupo: {formatScore(item.groupAverage)}</span>
                 </div>
-                {typeof item.userRating === "number" ? <span className="muted-copy">Tu nota: {formatScore(item.userRating)}</span> : null}
+                <span className={`history-card-my-score muted-copy ${typeof item.userRating === "number" ? "" : "history-card-my-score-empty"}`}>
+                  {typeof item.userRating === "number" ? `Tu nota: ${formatScore(item.userRating)}` : "Tu nota: -"}
+                </span>
               </div>
             </article>
           </Link>
