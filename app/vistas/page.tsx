@@ -48,13 +48,13 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
     <section className="panel">
       <div className="panel-header">
         <p className="eyebrow">Vistas del grupo</p>
-        <h1>Peliculas vistas y notas</h1>
-        <p className="body-copy">Un resumen rapido de lo que ya habeis visto. Si quieres mas detalle, entra en la ficha.</p>
+        <h1>Películas vistas y notas</h1>
+        <p className="body-copy">Un resumen rápido de lo que ya habéis visto. Si quieres más detalle, entra en la ficha.</p>
       </div>
 
-      <form className="filter-row" method="get">
-        <input type="search" name="search" defaultValue={filters.search} placeholder="Buscar por titulo" />
-        <input type="text" name="year" defaultValue={filters.year} placeholder="Ano" />
+      <form className="filter-row history-filter-row" method="get">
+        <input type="search" name="search" defaultValue={filters.search} placeholder="Buscar por título" />
+        <input type="text" name="year" defaultValue={filters.year} placeholder="Año" />
         <input type="hidden" name="sort" value={activeSort} />
         <button type="submit" className="secondary-button">
           Filtrar
@@ -92,7 +92,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
               <div className="history-card-copy">
                 <strong>{item.movie.title}</strong>
                 <div className="stat-row">
-                  <span>{item.movie.year > 0 ? item.movie.year : "Ano pendiente"}</span>
+                  <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
                   <span>Grupo: {formatScore(item.groupAverage)}</span>
                 </div>
                 {typeof item.userRating === "number" ? <span className="muted-copy">Tu nota: {formatScore(item.userRating)}</span> : null}

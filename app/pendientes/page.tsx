@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { getCurrentBatch, getPendingWeeklySuggestionsHydrated, listPendingHydrated } from "@/lib/store";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 15;
 
 type PendingPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -76,9 +76,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       <div className="panel-header">
         <p className="eyebrow">Pendientes</p>
         <h1>Películas pendientes de ver</h1>
-        <p className="body-copy">
-          Aquí guardáis las pelis que queréis tener a mano antes de decidir qué cae esa semana.
-        </p>
+        <p className="body-copy">Aquí guardáis las pelis que queréis tener a mano antes de decidir qué cae esa semana.</p>
       </div>
 
       {weeklyOptions.length > 0 ? (
@@ -91,7 +89,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               encajan ahora mismo para plan de grupo.
             </p>
           </div>
-          <div className="pending-weekly-row">
+          <div className="pending-weekly-grid">
             {weeklyOptions.map((item) =>
               batch ? (
                 <article
@@ -210,7 +208,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         </div>
       ) : (
         <>
-          <div className="history-grid-compact">
+          <div className="pending-grid">
             {pagedPending.map((movie) => (
               <article key={movie.id} className="history-card-compact history-card-pending">
                 <Link href={`/peliculas/${movie.slug}`} className="history-card-link">
