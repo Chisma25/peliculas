@@ -8,9 +8,10 @@ type MoviePosterProps = {
   href?: string;
   compact?: boolean;
   showDetails?: boolean;
+  showDuration?: boolean;
 };
 
-export function MoviePoster({ movie, href, compact = false, showDetails = true }: MoviePosterProps) {
+export function MoviePoster({ movie, href, compact = false, showDetails = true, showDuration = true }: MoviePosterProps) {
   const hasImage = Boolean(movie.posterUrl || movie.backdrop);
   const imageUrl = movie.posterUrl || movie.backdrop;
   const content = (
@@ -30,7 +31,7 @@ export function MoviePoster({ movie, href, compact = false, showDetails = true }
       <div className="poster-noise" />
       <div className="poster-meta">
         <span>{movie.year > 0 ? movie.year : "Año pendiente"}</span>
-        <span>{movie.durationMinutes > 0 ? `${movie.durationMinutes} min` : "Duración pendiente"}</span>
+        {showDuration ? <span>{movie.durationMinutes > 0 ? `${movie.durationMinutes} min` : "Duración pendiente"}</span> : null}
       </div>
       {showDetails ? (
         <div className="poster-bottom">

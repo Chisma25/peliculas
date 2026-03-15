@@ -75,7 +75,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
                 {profile.topThree.map((item, index) => (
                   <Link key={item.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
                     <article className="top-poster-card">
-                      <MoviePoster movie={item.movie} compact showDetails={false} />
+                      <MoviePoster movie={item.movie} compact showDetails={false} showDuration={false} />
                       <div className="top-poster-rank">#{index + 1}</div>
                       <div className="top-poster-score">{formatScore(item.score)}</div>
                     </article>
@@ -100,7 +100,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
                 {profile.bottomThree.map((item, index) => (
                   <Link key={item.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
                     <article className="top-poster-card">
-                      <MoviePoster movie={item.movie} compact showDetails={false} />
+                      <MoviePoster movie={item.movie} compact showDetails={false} showDuration={false} />
                       <div className="top-poster-rank">#{index + 1}</div>
                       <div className="top-poster-score top-poster-score-muted">{formatScore(item.score)}</div>
                     </article>
