@@ -1,8 +1,9 @@
-import { AppState, Movie, RecommendationReason, UserRating, WeeklyRecommendationBatch, WeeklyRecommendationItem } from "@/lib/types";
+import { AppState, Movie, RecommendationReason, WeeklyRecommendationBatch, WeeklyRecommendationItem } from "@/lib/types";
 import { average, safeId, startOfWeek } from "@/lib/utils";
 
-type FeatureMap = Map<string, number>;
-type CountMap = Map<string, number>;
+type FeatureMap = Record<string, number>;
+type CountMap = Record<string, number>;
+type CandidateMode = "discovery" | "pending";
 
 type TasteProfile = {
   genre: FeatureMap;
@@ -12,15 +13,55 @@ type TasteProfile = {
   language: FeatureMap;
   country: FeatureMap;
   tokens: FeatureMap;
+  concepts: FeatureMap;
   historyGenreCount: CountMap;
   historyDirectorCount: CountMap;
+  historyCastCount: CountMap;
+  historyDecadeCount: CountMap;
+  historyLanguageCount: CountMap;
   historyCountryCount: CountMap;
+  historyConceptCount: CountMap;
   targetDuration: number;
   durationTolerance: number;
+  targetQuality: number;
   ratingsCount: number;
+  averageScore: number;
 };
 
-type CandidateMode = "discovery" | "pending";
+type WeeklyContext = {
+  recentMovieIds: string[];
+  genres: FeatureMap;
+  directors: FeatureMap;
+  concepts: FeatureMap;
+  averageDuration: number;
+};
+
+type FeedbackProfile = {
+  selectedGenres: FeatureMap;
+  selectedDirectors: FeatureMap;
+  selectedConcepts: FeatureMap;
+  skippedGenres: FeatureMap;
+  skippedDirectors: FeatureMap;
+  skippedConcepts: FeatureMap;
+  pendingMomentum: FeatureMap;
+};
+
+type PredictionMetrics = {
+  averagePrediction: number;
+  disagreement: number;
+};
+
+type ScoreBreakdown = {
+  structured: number;
+  semantic: number;
+  prediction: number;
+  disagreement: number;
+  watchability: number;
+  quality: number;
+  novelty: number;
+  context: number;
+  feedback: number;
+};
 
 type ReasonSignal = {
   label: string;
@@ -30,161 +71,438 @@ type ReasonSignal = {
 
 type ScoredCandidate = {
   movie: Movie;
-  score: number;
+  rawScore: number;
+  displayScore: number;
+  breakdown: ScoreBreakdown;
   reasons: RecommendationReason[];
   summary: string;
 };
 
 const DISCOVERY_COUNT = 3;
 const PENDING_COUNT = 5;
+
 const TOKEN_STOPWORDS = new Set([
-  "about",
-  "ademas",
+  "a",
+  "al",
   "algo",
-  "algun",
-  "alguna",
-  "algunas",
-  "algunos",
+  "alla",
+  "alli",
+  "alto",
   "ante",
-  "aquel",
-  "aquella",
-  "aquellas",
-  "aquello",
-  "aquellos",
-  "aqui",
+  "antes",
+  "as",
+  "at",
+  "aun",
+  "away",
+  "bajo",
+  "be",
+  "but",
+  "by",
+  "cada",
   "como",
   "con",
   "contra",
+  "cuando",
+  "de",
+  "del",
   "desde",
   "donde",
-  "durante",
-  "ellos",
+  "dos",
+  "during",
+  "el",
+  "ella",
   "ellas",
+  "ellos",
+  "en",
   "entre",
+  "era",
+  "es",
+  "esa",
+  "ese",
+  "eso",
   "esta",
-  "estaba",
-  "estado",
-  "estar",
   "estas",
   "este",
   "esto",
-  "estos",
+  "for",
+  "from",
+  "ha",
   "hacia",
   "hasta",
+  "he",
+  "her",
+  "him",
+  "his",
+  "i",
+  "in",
   "into",
-  "mientras",
-  "mucho",
-  "muchos",
+  "it",
+  "its",
+  "la",
+  "las",
+  "le",
+  "les",
+  "lo",
+  "los",
+  "mas",
+  "mi",
+  "mis",
+  "my",
+  "no",
+  "nos",
+  "o",
+  "of",
+  "on",
+  "otra",
+  "otro",
+  "otras",
+  "otros",
   "para",
   "pero",
-  "poco",
-  "porque",
+  "por",
+  "que",
+  "se",
+  "sin",
   "sobre",
-  "solo",
-  "tanto",
+  "su",
+  "sus",
+  "the",
   "their",
   "them",
-  "then",
-  "they",
   "through",
+  "to",
   "tras",
+  "tu",
   "una",
-  "unas",
+  "uno",
   "unos",
-  "when",
-  "where",
+  "unas",
+  "un",
+  "was",
   "with",
-  "your"
+  "y"
 ]);
 
-function normalizeText(value: string) {
-  return value
+const CONCEPT_KEYWORDS: Record<string, string[]> = {
+  intimate: ["family", "father", "mother", "daughter", "son", "friendship", "relationship", "vacaciones", "memoria", "memory", "grief", "duelo", "cotidiano", "intimate", "padre", "madre", "pareja"],
+  dark: ["dark", "bleak", "violent", "violencia", "corrupcion", "corruption", "noir", "grim", "desesperacion", "nihilist", "brutal"],
+  tense: ["thriller", "tension", "tense", "suspense", "investigation", "asesinato", "murder", "detective", "hostage", "manhunt", "obsession"],
+  funny: ["comedia", "comedy", "funny", "humor", "satira", "satire", "absurd", "witty", "buddy"],
+  romantic: ["romance", "love", "lovers", "pareja", "amor", "relationship", "encuentro"],
+  reflective: ["memory", "recuerdo", "identidad", "identity", "soledad", "loneliness", "existential", "introspective", "coming to terms", "tiempo"],
+  hopeful: ["hope", "hopeful", "uplifting", "redemption", "redencion", "amistad", "friendship", "inspiring", "healing"],
+  crime: ["crime", "crimen", "criminal", "mafia", "gangster", "heist", "robbery", "police", "murder", "serial", "court"],
+  spectacle: ["epic", "blockbuster", "battle", "war", "hero", "action", "setpiece", "spectacle", "disaster"],
+  adventure: ["adventure", "journey", "quest", "road", "viaje", "expedition", "odyssey", "treasure"],
+  family: ["family", "familia", "children", "child", "kid", "kids", "pixar", "parents", "coming home"],
+  sci_fi: ["alien", "future", "futuristic", "robot", "space", "dystopia", "science", "scientist", "time", "extraterrestre", "distopia"],
+  animation: ["animation", "animated", "animacion", "anime", "pixar", "dreamworks"],
+  historical: ["historical", "history", "war", "period", "biopic", "based on a true story", "siglo", "imperio", "epoca", "civil war"],
+  musical: ["music", "musician", "band", "singer", "concert", "musical", "rock", "jazz", "composer"],
+  survival: ["survival", "escape", "prison", "rescue", "isolated", "desierto", "ocean", "lost", "hunt", "persecucion"],
+  coming_of_age: ["teen", "teenager", "adolescence", "school", "coming of age", "juventud", "infancia", "growing up"],
+  mystery: ["mystery", "secret", "enigmatic", "enigma", "missing", "unknown", "twist", "misterio"]
+};
+
+const GENRE_CONCEPTS: Record<string, string[]> = {
+  accion: ["spectacle", "adventure"],
+  adventure: ["adventure", "spectacle"],
+  aventura: ["adventure", "spectacle"],
+  animation: ["animation", "family"],
+  animacion: ["animation", "family"],
+  comedy: ["funny", "hopeful"],
+  comedia: ["funny", "hopeful"],
+  "comedia dramatica": ["funny", "intimate"],
+  crime: ["crime", "tense", "dark"],
+  crimen: ["crime", "tense", "dark"],
+  drama: ["intimate", "reflective"],
+  fantasia: ["adventure", "hopeful"],
+  family: ["family", "hopeful"],
+  familia: ["family", "hopeful"],
+  history: ["historical", "reflective"],
+  historia: ["historical", "reflective"],
+  horror: ["dark", "tense"],
+  misterio: ["mystery", "tense"],
+  mystery: ["mystery", "tense"],
+  musical: ["musical", "hopeful"],
+  "neo noir": ["dark", "crime", "reflective"],
+  "science fiction": ["sci_fi", "spectacle"],
+  "ciencia ficcion": ["sci_fi", "spectacle"],
+  suspense: ["tense", "mystery"],
+  thriller: ["tense", "dark", "mystery"],
+  romance: ["romantic", "intimate"],
+  western: ["historical", "adventure"],
+  belica: ["historical", "spectacle"],
+  guerra: ["historical", "spectacle"],
+  documental: ["reflective", "historical"]
+};
+
+const CONCEPT_LABELS: Record<string, string> = {
+  intimate: "íntimo",
+  dark: "oscuro",
+  tense: "tenso",
+  funny: "más ligero",
+  romantic: "romántico",
+  reflective: "reflexivo",
+  hopeful: "esperanzador",
+  crime: "criminal",
+  spectacle: "de gran escala",
+  adventure: "de aventura",
+  family: "familiar",
+  sci_fi: "de ciencia ficción",
+  animation: "animado",
+  historical: "de época",
+  musical: "musical",
+  survival: "de supervivencia",
+  coming_of_age: "de paso a la adultez",
+  mystery: "misterioso"
+};
+
+const tokenCache = new Map<string, string[]>();
+const conceptCache = new Map<string, FeatureMap>();
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeText(value: string | undefined | null) {
+  return (value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+    .toLowerCase()
+    .trim();
 }
 
-function tokenize(text: string) {
-  return normalizeText(text)
-    .split(/[^a-z0-9]+/g)
-    .filter((token) => token.length >= 4 && !TOKEN_STOPWORDS.has(token));
+function tokenize(value: string) {
+  return normalizeText(value)
+    .match(/[a-z0-9]+/g)
+    ?.filter((token) => token.length > 2 && !TOKEN_STOPWORDS.has(token)) ?? [];
 }
 
-function updateWeight(map: FeatureMap, key: string, value: number) {
-  const normalizedKey = key.trim();
-  if (!normalizedKey) {
+function unique<T>(values: T[]) {
+  return [...new Set(values)];
+}
+
+function uniqueNormalized(values: string[]) {
+  return unique(values.map((value) => normalizeText(value)).filter(Boolean));
+}
+
+function getMovieTokens(movie: Movie) {
+  const cached = tokenCache.get(movie.id);
+  if (cached) {
+    return cached;
+  }
+
+  const tokens = unique(
+    tokenize(
+      [
+        movie.title,
+        movie.synopsis,
+        movie.genres.join(" "),
+        movie.director,
+        movie.cast.slice(0, 5).join(" "),
+        movie.language,
+        movie.country
+      ].join(" ")
+    )
+  );
+
+  tokenCache.set(movie.id, tokens);
+  return tokens;
+}
+
+function toTokenFrequency(tokens: string[]) {
+  const frequency: CountMap = {};
+  for (const token of tokens) {
+    frequency[token] = (frequency[token] ?? 0) + 1;
+  }
+  return frequency;
+}
+
+function normalizeFeatureMap(map: FeatureMap) {
+  const entries = Object.entries(map);
+  if (entries.length === 0) {
+    return {};
+  }
+
+  const maxMagnitude = Math.max(...entries.map(([, value]) => Math.abs(value))) || 1;
+  return Object.fromEntries(entries.map(([key, value]) => [key, value / maxMagnitude]));
+}
+
+function normalizeCountMap(map: CountMap) {
+  const entries = Object.entries(map);
+  if (entries.length === 0) {
+    return {};
+  }
+
+  const maxValue = Math.max(...entries.map(([, value]) => value)) || 1;
+  return Object.fromEntries(entries.map(([key, value]) => [key, value / maxValue]));
+}
+
+function incrementCount(map: CountMap, key: string, amount = 1) {
+  if (!key) {
     return;
   }
 
-  map.set(normalizedKey, (map.get(normalizedKey) ?? 0) + value);
+  map[key] = (map[key] ?? 0) + amount;
 }
 
-function updateCount(map: CountMap, key: string) {
-  const normalizedKey = key.trim();
-  if (!normalizedKey) {
+function adjustFeature(map: FeatureMap, key: string, amount: number) {
+  if (!key || amount === 0) {
     return;
   }
 
-  map.set(normalizedKey, (map.get(normalizedKey) ?? 0) + 1);
+  map[key] = (map[key] ?? 0) + amount;
 }
 
 function getMovieDecade(movie: Movie) {
+  if (!Number.isFinite(movie.year) || movie.year <= 0) {
+    return "";
+  }
+
   return `${Math.floor(movie.year / 10) * 10}s`;
+}
+
+function parseExternalRating(movie: Movie) {
+  const raw = movie.externalRating?.value?.trim();
+  if (!raw) {
+    return null;
+  }
+
+  if (raw.includes("%")) {
+    const value = Number.parseFloat(raw.replace("%", ""));
+    return Number.isFinite(value) ? clamp(value / 10, 0, 10) : null;
+  }
+
+  if (raw.includes("/10")) {
+    const value = Number.parseFloat(raw.split("/10")[0]);
+    return Number.isFinite(value) ? clamp(value, 0, 10) : null;
+  }
+
+  if (raw.includes("/100")) {
+    const value = Number.parseFloat(raw.split("/100")[0]);
+    return Number.isFinite(value) ? clamp(value / 10, 0, 10) : null;
+  }
+
+  const numeric = Number.parseFloat(raw.replace(",", "."));
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+
+  return numeric > 10 ? clamp(numeric / 10, 0, 10) : clamp(numeric, 0, 10);
+}
+
+function getMovieConcepts(movie: Movie) {
+  const cached = conceptCache.get(movie.id);
+  if (cached) {
+    return cached;
+  }
+
+  const tokens = getMovieTokens(movie);
+  const tokenFrequency = toTokenFrequency(tokens);
+  const joinedText = normalizeText(
+    [
+      movie.title,
+      movie.synopsis,
+      movie.genres.join(" "),
+      movie.director,
+      movie.cast.slice(0, 5).join(" "),
+      movie.language,
+      movie.country
+    ].join(" ")
+  );
+
+  const concepts: CountMap = {};
+
+  for (const [concept, keywords] of Object.entries(CONCEPT_KEYWORDS)) {
+    for (const keyword of keywords) {
+      const normalizedKeyword = normalizeText(keyword);
+      if (!normalizedKeyword) {
+        continue;
+      }
+
+      if (normalizedKeyword.includes(" ")) {
+        if (joinedText.includes(normalizedKeyword)) {
+          incrementCount(concepts, concept, 1.35);
+        }
+      } else if (tokenFrequency[normalizedKeyword]) {
+        incrementCount(concepts, concept, tokenFrequency[normalizedKeyword]);
+      }
+    }
+  }
+
+  for (const genre of movie.genres) {
+    const normalizedGenre = normalizeText(genre);
+    for (const [genreKey, genreConcepts] of Object.entries(GENRE_CONCEPTS)) {
+      if (normalizedGenre.includes(genreKey)) {
+        for (const concept of genreConcepts) {
+          incrementCount(concepts, concept, 1.15);
+        }
+      }
+    }
+  }
+
+  if (movie.durationMinutes >= 150) {
+    incrementCount(concepts, "spectacle", 0.35);
+    incrementCount(concepts, "historical", 0.15);
+  }
+
+  if (movie.durationMinutes <= 105) {
+    incrementCount(concepts, "funny", 0.1);
+    incrementCount(concepts, "hopeful", 0.1);
+  }
+
+  const normalized = normalizeCountMap(concepts);
+  conceptCache.set(movie.id, normalized);
+  return normalized;
+}
+
+function getPreferenceSignal(score: number) {
+  return clamp((score - 6.25) / 2.75, -1, 1.2);
+}
+
+function getPositiveSignal(score: number) {
+  return clamp((score - 5) / 5, 0, 1.25);
+}
+
+function createEmptyProfile(): TasteProfile {
+  return {
+    genre: {},
+    director: {},
+    cast: {},
+    decade: {},
+    language: {},
+    country: {},
+    tokens: {},
+    concepts: {},
+    historyGenreCount: {},
+    historyDirectorCount: {},
+    historyCastCount: {},
+    historyDecadeCount: {},
+    historyLanguageCount: {},
+    historyCountryCount: {},
+    historyConceptCount: {},
+    targetDuration: 118,
+    durationTolerance: 32,
+    targetQuality: 7.8,
+    ratingsCount: 0,
+    averageScore: 0
+  };
 }
 
 function getMovieById(state: AppState, movieId: string) {
   return state.movies.find((movie) => movie.id === movieId) ?? null;
 }
 
-function getRatingsForMovie(state: AppState, movieId: string) {
-  return state.ratings.filter((rating) => rating.movieId === movieId);
-}
-
-function parseExternalRating(movie: Movie) {
-  const raw = movie.externalRating.value.trim();
-  const number = Number.parseFloat(raw.replace(",", ".").replace(/[^\d.]/g, ""));
-  if (!Number.isFinite(number)) {
-    return 70;
-  }
-
-  if (movie.externalRating.source === "IMDb" && raw.includes("/10")) {
-    return Math.max(0, Math.min(100, number * 10));
-  }
-
-  if (movie.externalRating.source === "Metacritic") {
-    return Math.max(0, Math.min(100, number));
-  }
-
-  return Math.max(0, Math.min(100, number));
-}
-
-function createEmptyProfile(): TasteProfile {
-  return {
-    genre: new Map(),
-    director: new Map(),
-    cast: new Map(),
-    decade: new Map(),
-    language: new Map(),
-    country: new Map(),
-    tokens: new Map(),
-    historyGenreCount: new Map(),
-    historyDirectorCount: new Map(),
-    historyCountryCount: new Map(),
-    targetDuration: 120,
-    durationTolerance: 24,
-    ratingsCount: 0
-  };
-}
-
-function buildTasteProfile(ratings: UserRating[], state: AppState): TasteProfile {
+function buildTasteProfile(state: AppState, userId: string) {
   const profile = createEmptyProfile();
-  if (ratings.length === 0) {
-    return profile;
-  }
+  const ratings = state.ratings.filter((rating) => rating.userId === userId);
 
-  const meanScore = average(ratings.map((rating) => rating.score));
-  const positiveDurations: Array<{ duration: number; weight: number }> = [];
-  const ratedMovies: Movie[] = [];
+  let durationWeighted = 0;
+  let durationWeight = 0;
+  let durationVarianceWeighted = 0;
+  let qualityWeighted = 0;
+  let qualityWeight = 0;
 
   for (const rating of ratings) {
     const movie = getMovieById(state, rating.movieId);
@@ -192,448 +510,845 @@ function buildTasteProfile(ratings: UserRating[], state: AppState): TasteProfile
       continue;
     }
 
-    ratedMovies.push(movie);
-    const centered = rating.score - meanScore;
-    const absolute = rating.score - 6.5;
-    const weight = centered * 0.7 + absolute * 0.9;
+    const sentiment = getPreferenceSignal(rating.score);
+    const positive = getPositiveSignal(rating.score);
 
-    for (const genre of movie.genres) {
-      updateWeight(profile.genre, genre, weight * 1.8);
-      updateCount(profile.historyGenreCount, genre);
+    for (const genre of uniqueNormalized(movie.genres)) {
+      adjustFeature(profile.genre, genre, sentiment * 1.35);
+      incrementCount(profile.historyGenreCount, genre, positive + 0.2);
     }
 
-    updateWeight(profile.director, movie.director, weight * 1.45);
-    updateCount(profile.historyDirectorCount, movie.director);
-    updateWeight(profile.decade, getMovieDecade(movie), weight * 0.9);
-    updateWeight(profile.language, movie.language, weight * 0.7);
-    updateWeight(profile.country, movie.country, weight * 0.55);
-    updateCount(profile.historyCountryCount, movie.country);
-
-    for (const castName of movie.cast.slice(0, 3)) {
-      updateWeight(profile.cast, castName, weight * 0.9);
+    const director = normalizeText(movie.director);
+    if (director) {
+      adjustFeature(profile.director, director, sentiment * 1.15);
+      incrementCount(profile.historyDirectorCount, director, positive + 0.2);
     }
 
-    const tokenWeight = Math.max(-1.2, Math.min(1.8, weight * 0.18));
-    for (const token of new Set(tokenize(`${movie.title} ${movie.synopsis} ${movie.genres.join(" ")} ${movie.director} ${movie.cast.join(" ")}`))) {
-      updateWeight(profile.tokens, token, tokenWeight);
+    for (const actor of uniqueNormalized(movie.cast.slice(0, 4))) {
+      adjustFeature(profile.cast, actor, sentiment * 0.85);
+      incrementCount(profile.historyCastCount, actor, positive + 0.15);
     }
 
-    if (rating.score >= meanScore) {
-      positiveDurations.push({
-        duration: movie.durationMinutes,
-        weight: Math.max(0.75, rating.score - meanScore + 1)
-      });
+    const decade = getMovieDecade(movie);
+    if (decade) {
+      adjustFeature(profile.decade, decade, sentiment * 0.7);
+      incrementCount(profile.historyDecadeCount, decade, positive + 0.1);
+    }
+
+    const language = normalizeText(movie.language);
+    if (language) {
+      adjustFeature(profile.language, language, sentiment * 0.55);
+      incrementCount(profile.historyLanguageCount, language, positive + 0.05);
+    }
+
+    const country = normalizeText(movie.country);
+    if (country) {
+      adjustFeature(profile.country, country, sentiment * 0.45);
+      incrementCount(profile.historyCountryCount, country, positive + 0.05);
+    }
+
+    for (const token of getMovieTokens(movie).slice(0, 18)) {
+      adjustFeature(profile.tokens, token, sentiment * 0.22);
+    }
+
+    const concepts = getMovieConcepts(movie);
+    for (const [concept, value] of Object.entries(concepts)) {
+      adjustFeature(profile.concepts, concept, value * sentiment * 1.6);
+      incrementCount(profile.historyConceptCount, concept, value * (positive + 0.1));
+    }
+
+    if (movie.durationMinutes > 0) {
+      durationWeighted += movie.durationMinutes * (positive + 0.25);
+      durationWeight += positive + 0.25;
+    }
+
+    const externalRating = parseExternalRating(movie);
+    if (externalRating !== null) {
+      qualityWeighted += externalRating * (positive + 0.25);
+      qualityWeight += positive + 0.25;
     }
   }
 
-  if (positiveDurations.length > 0) {
-    const totalWeight = positiveDurations.reduce((sum, entry) => sum + entry.weight, 0);
-    profile.targetDuration = positiveDurations.reduce((sum, entry) => sum + entry.duration * entry.weight, 0) / totalWeight;
-    const variance =
-      positiveDurations.reduce((sum, entry) => sum + entry.weight * Math.pow(entry.duration - profile.targetDuration, 2), 0) / totalWeight;
-    profile.durationTolerance = Math.max(18, Math.min(50, Math.sqrt(variance)));
-  } else if (ratedMovies.length > 0) {
-    profile.targetDuration = average(ratedMovies.map((movie) => movie.durationMinutes));
-    profile.durationTolerance = 28;
+  if (durationWeight > 0) {
+    profile.targetDuration = durationWeighted / durationWeight;
+    for (const rating of ratings) {
+      const movie = getMovieById(state, rating.movieId);
+      if (!movie?.durationMinutes) {
+        continue;
+      }
+
+      const positive = getPositiveSignal(rating.score) + 0.25;
+      durationVarianceWeighted += Math.abs(movie.durationMinutes - profile.targetDuration) * positive;
+    }
+
+    profile.durationTolerance = clamp(durationVarianceWeighted / durationWeight + 18, 22, 60);
+  }
+
+  if (qualityWeight > 0) {
+    profile.targetQuality = qualityWeighted / qualityWeight;
   }
 
   profile.ratingsCount = ratings.length;
+  profile.averageScore = average(ratings.map((rating) => rating.score));
+  profile.genre = normalizeFeatureMap(profile.genre);
+  profile.director = normalizeFeatureMap(profile.director);
+  profile.cast = normalizeFeatureMap(profile.cast);
+  profile.decade = normalizeFeatureMap(profile.decade);
+  profile.language = normalizeFeatureMap(profile.language);
+  profile.country = normalizeFeatureMap(profile.country);
+  profile.tokens = normalizeFeatureMap(profile.tokens);
+  profile.concepts = normalizeFeatureMap(profile.concepts);
+
   return profile;
 }
 
-function mergeProfiles(profiles: TasteProfile[]): TasteProfile {
-  if (profiles.length === 0) {
-    return createEmptyProfile();
-  }
+function mergeFeatureMaps(items: Array<{ map: FeatureMap; weight: number }>) {
+  const merged: FeatureMap = {};
 
-  const merged = createEmptyProfile();
-
-  for (const profile of profiles) {
-    for (const [key, value] of profile.genre) {
-      updateWeight(merged.genre, key, value);
-    }
-    for (const [key, value] of profile.director) {
-      updateWeight(merged.director, key, value);
-    }
-    for (const [key, value] of profile.cast) {
-      updateWeight(merged.cast, key, value);
-    }
-    for (const [key, value] of profile.decade) {
-      updateWeight(merged.decade, key, value);
-    }
-    for (const [key, value] of profile.language) {
-      updateWeight(merged.language, key, value);
-    }
-    for (const [key, value] of profile.country) {
-      updateWeight(merged.country, key, value);
-    }
-    for (const [key, value] of profile.tokens) {
-      updateWeight(merged.tokens, key, value);
-    }
-    for (const [key, value] of profile.historyGenreCount) {
-      merged.historyGenreCount.set(key, (merged.historyGenreCount.get(key) ?? 0) + value);
-    }
-    for (const [key, value] of profile.historyDirectorCount) {
-      merged.historyDirectorCount.set(key, (merged.historyDirectorCount.get(key) ?? 0) + value);
-    }
-    for (const [key, value] of profile.historyCountryCount) {
-      merged.historyCountryCount.set(key, (merged.historyCountryCount.get(key) ?? 0) + value);
+  for (const { map, weight } of items) {
+    for (const [key, value] of Object.entries(map)) {
+      merged[key] = (merged[key] ?? 0) + value * weight;
     }
   }
 
-  const count = profiles.length;
-  merged.targetDuration = average(profiles.map((profile) => profile.targetDuration));
-  merged.durationTolerance = average(profiles.map((profile) => profile.durationTolerance));
-  merged.ratingsCount = profiles.reduce((sum, profile) => sum + profile.ratingsCount, 0);
+  return normalizeFeatureMap(merged);
+}
 
-  for (const featureMap of [merged.genre, merged.director, merged.cast, merged.decade, merged.language, merged.country, merged.tokens]) {
-    for (const [key, value] of featureMap) {
-      featureMap.set(key, value / count);
+function mergeCountMaps(items: Array<{ map: CountMap; weight: number }>) {
+  const merged: CountMap = {};
+
+  for (const { map, weight } of items) {
+    for (const [key, value] of Object.entries(map)) {
+      merged[key] = (merged[key] ?? 0) + value * weight;
     }
   }
 
   return merged;
 }
 
-function buildProfiles(state: AppState) {
-  const userProfiles = listGroupUsers(state)
-    .map((user) => buildTasteProfile(state.ratings.filter((rating) => rating.userId === user.id), state))
-    .filter((profile) => profile.ratingsCount > 0);
+function mergeProfiles(profiles: TasteProfile[]) {
+  if (profiles.length === 0) {
+    return createEmptyProfile();
+  }
+
+  const weighted = profiles.map((profile) => ({
+    profile,
+    weight: Math.max(1, Math.sqrt(Math.max(profile.ratingsCount, 1)))
+  }));
+
+  const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0) || 1;
 
   return {
-    userProfiles,
-    groupProfile: mergeProfiles(userProfiles)
+    genre: mergeFeatureMaps(weighted.map(({ profile, weight }) => ({ map: profile.genre, weight }))),
+    director: mergeFeatureMaps(weighted.map(({ profile, weight }) => ({ map: profile.director, weight }))),
+    cast: mergeFeatureMaps(weighted.map(({ profile, weight }) => ({ map: profile.cast, weight }))),
+    decade: mergeFeatureMaps(weighted.map(({ profile, weight }) => ({ map: profile.decade, weight }))),
+    language: mergeFeatureMaps(weighted.map(({ profile, weight }) => ({ map: profile.language, weight }))),
+    country: mergeFeatureMaps(weighted.map(({ profile, weight }) => ({ map: profile.country, weight }))),
+    tokens: mergeFeatureMaps(weighted.map(({ profile, weight }) => ({ map: profile.tokens, weight }))),
+    concepts: mergeFeatureMaps(weighted.map(({ profile, weight }) => ({ map: profile.concepts, weight }))),
+    historyGenreCount: mergeCountMaps(weighted.map(({ profile, weight }) => ({ map: profile.historyGenreCount, weight }))),
+    historyDirectorCount: mergeCountMaps(weighted.map(({ profile, weight }) => ({ map: profile.historyDirectorCount, weight }))),
+    historyCastCount: mergeCountMaps(weighted.map(({ profile, weight }) => ({ map: profile.historyCastCount, weight }))),
+    historyDecadeCount: mergeCountMaps(weighted.map(({ profile, weight }) => ({ map: profile.historyDecadeCount, weight }))),
+    historyLanguageCount: mergeCountMaps(weighted.map(({ profile, weight }) => ({ map: profile.historyLanguageCount, weight }))),
+    historyCountryCount: mergeCountMaps(weighted.map(({ profile, weight }) => ({ map: profile.historyCountryCount, weight }))),
+    historyConceptCount: mergeCountMaps(weighted.map(({ profile, weight }) => ({ map: profile.historyConceptCount, weight }))),
+    targetDuration: weighted.reduce((sum, entry) => sum + entry.profile.targetDuration * entry.weight, 0) / totalWeight,
+    durationTolerance: weighted.reduce((sum, entry) => sum + entry.profile.durationTolerance * entry.weight, 0) / totalWeight,
+    targetQuality: weighted.reduce((sum, entry) => sum + entry.profile.targetQuality * entry.weight, 0) / totalWeight,
+    ratingsCount: weighted.reduce((sum, entry) => sum + entry.profile.ratingsCount, 0),
+    averageScore: weighted.reduce((sum, entry) => sum + entry.profile.averageScore * entry.weight, 0) / totalWeight
   };
 }
 
-function listGroupUsers(state: AppState) {
-  return state.group.memberIds
-    .map((userId) => state.users.find((user) => user.id === userId))
-    .filter((user): user is AppState["users"][number] => Boolean(user));
+function buildProfiles(state: AppState) {
+  const userProfiles = state.users.map((user) => ({
+    userId: user.id,
+    profile: buildTasteProfile(state, user.id)
+  }));
+
+  return {
+    userProfiles,
+    groupProfile: mergeProfiles(userProfiles.map((entry) => entry.profile))
+  };
 }
 
-function getMapAverage(map: FeatureMap, keys: string[]) {
-  const normalizedKeys = keys.map((key) => key.trim()).filter(Boolean);
+function scoreKeySet(preferences: FeatureMap, keys: string[]) {
+  const normalizedKeys = uniqueNormalized(keys);
+  if (normalizedKeys.length === 0) {
+    return 0.5;
+  }
+
+  const values = normalizedKeys.map((key) => preferences[key] ?? 0);
+  return clamp(0.5 + average(values) / 2, 0, 1);
+}
+
+function scoreWeightedMap(preferences: FeatureMap, values: FeatureMap) {
+  const entries = Object.entries(values);
+  if (entries.length === 0) {
+    return 0.5;
+  }
+
+  let totalWeight = 0;
+  let totalValue = 0;
+
+  for (const [key, weight] of entries) {
+    totalWeight += Math.abs(weight);
+    totalValue += (preferences[key] ?? 0) * weight;
+  }
+
+  if (totalWeight === 0) {
+    return 0.5;
+  }
+
+  return clamp(0.5 + totalValue / (totalWeight * 2), 0, 1);
+}
+
+function scoreStructuredAffinity(profile: TasteProfile, movie: Movie) {
+  const tokenScore = scoreKeySet(profile.tokens, getMovieTokens(movie).slice(0, 18));
+
+  return clamp(
+    scoreKeySet(profile.genre, movie.genres) * 0.29 +
+      scoreKeySet(profile.director, [movie.director]) * 0.16 +
+      scoreKeySet(profile.cast, movie.cast.slice(0, 4)) * 0.12 +
+      scoreKeySet(profile.decade, [getMovieDecade(movie)]) * 0.09 +
+      scoreKeySet(profile.language, [movie.language]) * 0.08 +
+      scoreKeySet(profile.country, [movie.country]) * 0.06 +
+      tokenScore * 0.2,
+    0,
+    1
+  );
+}
+
+function scoreSemanticAffinity(profile: TasteProfile, movie: Movie) {
+  return clamp(scoreWeightedMap(profile.concepts, getMovieConcepts(movie)) * 0.8 + scoreKeySet(profile.tokens, getMovieTokens(movie)) * 0.2, 0, 1);
+}
+
+function getDurationFit(movie: Movie, profile: TasteProfile) {
+  if (!movie.durationMinutes) {
+    return 0.55;
+  }
+
+  const distance = Math.abs(movie.durationMinutes - profile.targetDuration);
+  const allowed = Math.max(profile.durationTolerance * 2.4, 70);
+  return clamp(1 - distance / allowed, 0, 1);
+}
+
+function getWatchability(movie: Movie, profile: TasteProfile, mode: CandidateMode) {
+  const durationFit = getDurationFit(movie, profile);
+  const genres = uniqueNormalized(movie.genres);
+  const easyGenres = ["comedia", "comedy", "aventura", "adventure", "familia", "family", "drama", "animacion", "animation", "romance"];
+  const demandingGenres = ["horror", "terror", "war", "guerra", "crime", "crimen", "thriller", "noir"];
+
+  const easyFactor = genres.some((genre) => easyGenres.some((key) => genre.includes(key))) ? 0.16 : 0;
+  const demandingFactor = genres.some((genre) => demandingGenres.some((key) => genre.includes(key))) ? 0.08 : 0;
+  const rating = parseExternalRating(movie);
+  const qualityLift = rating ? clamp((rating - 6.5) / 4, 0, 1) : 0.45;
+  const modeBonus = mode === "pending" ? 0.05 : 0;
+
+  return clamp(0.42 * durationFit + 0.26 * qualityLift + 0.22 * (0.5 + easyFactor - demandingFactor) + 0.1 * (0.5 + modeBonus), 0, 1);
+}
+
+function getQualityScore(movie: Movie, profile: TasteProfile) {
+  const rating = parseExternalRating(movie);
+  if (rating === null) {
+    return 0.55;
+  }
+
+  const raw = clamp(rating / 10, 0, 1);
+  const harmony = clamp(1 - Math.abs(rating - profile.targetQuality) / 3.25, 0, 1);
+  return clamp(raw * 0.58 + harmony * 0.42, 0, 1);
+}
+
+function getNoveltyFromCounts(counts: CountMap, keys: string[]) {
+  const normalizedKeys = uniqueNormalized(keys);
+  if (normalizedKeys.length === 0) {
+    return 0.55;
+  }
+
+  return average(
+    normalizedKeys.map((key) => {
+      const count = counts[key] ?? 0;
+      return 1 / (1 + count);
+    })
+  );
+}
+
+function getConceptNovelty(counts: CountMap, concepts: FeatureMap) {
+  const keys = Object.keys(concepts);
+  if (keys.length === 0) {
+    return 0.55;
+  }
+
+  return average(
+    keys.map((key) => {
+      const count = counts[key] ?? 0;
+      return 1 / (1 + count);
+    })
+  );
+}
+
+function getNoveltyScore(movie: Movie, profile: TasteProfile, mode: CandidateMode) {
+  const genreNovelty = getNoveltyFromCounts(profile.historyGenreCount, movie.genres);
+  const directorNovelty = getNoveltyFromCounts(profile.historyDirectorCount, [movie.director]);
+  const conceptNovelty = getConceptNovelty(profile.historyConceptCount, getMovieConcepts(movie));
+  const base = genreNovelty * 0.45 + directorNovelty * 0.2 + conceptNovelty * 0.35;
+
+  return clamp(mode === "discovery" ? 0.35 + base * 0.65 : 0.45 + base * 0.45, 0, 1);
+}
+
+function buildWeeklyContext(state: AppState) {
+  const recentEntries = [...state.watchEntries]
+    .sort((left, right) => (right.watchedOn ?? "").localeCompare(left.watchedOn ?? ""))
+    .slice(0, 4);
+
+  const genres: CountMap = {};
+  const directors: CountMap = {};
+  const concepts: CountMap = {};
+  const durations: number[] = [];
+
+  recentEntries.forEach((entry, index) => {
+    const movie = getMovieById(state, entry.movieId);
+    if (!movie) {
+      return;
+    }
+
+    const weight = (recentEntries.length - index) / recentEntries.length;
+    for (const genre of uniqueNormalized(movie.genres)) {
+      incrementCount(genres, genre, weight);
+    }
+
+    const director = normalizeText(movie.director);
+    if (director) {
+      incrementCount(directors, director, weight);
+    }
+
+    for (const [concept, value] of Object.entries(getMovieConcepts(movie))) {
+      incrementCount(concepts, concept, value * weight);
+    }
+
+    if (movie.durationMinutes > 0) {
+      durations.push(movie.durationMinutes);
+    }
+  });
+
+  return {
+    recentMovieIds: recentEntries.map((entry) => entry.movieId),
+    genres: normalizeCountMap(genres),
+    directors: normalizeCountMap(directors),
+    concepts: normalizeCountMap(concepts),
+    averageDuration: average(durations)
+  };
+}
+
+function buildFeedbackProfile(state: AppState) {
+  const sortedBatches = [...state.weeklyBatches]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, 12);
+
+  const selectedGenres: CountMap = {};
+  const selectedDirectors: CountMap = {};
+  const selectedConcepts: CountMap = {};
+  const skippedGenres: CountMap = {};
+  const skippedDirectors: CountMap = {};
+  const skippedConcepts: CountMap = {};
+
+  sortedBatches.forEach((batch, index) => {
+    const recency = 1 - index / (sortedBatches.length + 2);
+    const selectedMovie = batch.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null;
+
+    if (selectedMovie) {
+      for (const genre of uniqueNormalized(selectedMovie.genres)) {
+        incrementCount(selectedGenres, genre, 1.2 * recency);
+      }
+
+      const director = normalizeText(selectedMovie.director);
+      if (director) {
+        incrementCount(selectedDirectors, director, 1.1 * recency);
+      }
+
+      for (const [concept, value] of Object.entries(getMovieConcepts(selectedMovie))) {
+        incrementCount(selectedConcepts, concept, value * recency);
+      }
+    }
+
+    for (const item of batch.items) {
+      if (item.movieId === batch.selectedMovieId) {
+        continue;
+      }
+
+      const movie = getMovieById(state, item.movieId);
+      if (!movie) {
+        continue;
+      }
+
+      for (const genre of uniqueNormalized(movie.genres)) {
+        incrementCount(skippedGenres, genre, 0.35 * recency);
+      }
+
+      const director = normalizeText(movie.director);
+      if (director) {
+        incrementCount(skippedDirectors, director, 0.3 * recency);
+      }
+
+      for (const [concept, value] of Object.entries(getMovieConcepts(movie))) {
+        incrementCount(skippedConcepts, concept, value * 0.3 * recency);
+      }
+    }
+  });
+
+  const pendingMomentum: FeatureMap = {};
+  state.pendingMovieIds.forEach((movieId, index) => {
+    const total = Math.max(state.pendingMovieIds.length - 1, 1);
+    pendingMomentum[movieId] = clamp(1 - index / total, 0.15, 1);
+  });
+
+  return {
+    selectedGenres: normalizeCountMap(selectedGenres),
+    selectedDirectors: normalizeCountMap(selectedDirectors),
+    selectedConcepts: normalizeCountMap(selectedConcepts),
+    skippedGenres: normalizeCountMap(skippedGenres),
+    skippedDirectors: normalizeCountMap(skippedDirectors),
+    skippedConcepts: normalizeCountMap(skippedConcepts),
+    pendingMomentum
+  };
+}
+
+function getContextOverlap(map: FeatureMap, keys: string[]) {
+  const normalizedKeys = uniqueNormalized(keys);
   if (normalizedKeys.length === 0) {
     return 0;
   }
 
-  return normalizedKeys.reduce((sum, key) => sum + (map.get(key) ?? 0), 0) / normalizedKeys.length;
+  return average(normalizedKeys.map((key) => map[key] ?? 0));
 }
 
-function getTokenAffinity(movie: Movie, profile: TasteProfile) {
-  const tokens = new Set(tokenize(`${movie.title} ${movie.synopsis} ${movie.genres.join(" ")} ${movie.director} ${movie.cast.join(" ")}`));
-  if (tokens.size === 0) {
+function getContextConceptOverlap(context: FeatureMap, movieConcepts: FeatureMap) {
+  const entries = Object.entries(movieConcepts);
+  if (entries.length === 0) {
     return 0;
   }
 
-  return [...tokens].reduce((sum, token) => sum + (profile.tokens.get(token) ?? 0), 0) / Math.sqrt(tokens.size);
-}
+  let total = 0;
+  let weight = 0;
 
-function scoreProfileAgainstMovie(movie: Movie, profile: TasteProfile) {
-  const genreAffinity = getMapAverage(profile.genre, movie.genres);
-  const castAffinity = getMapAverage(profile.cast, movie.cast.slice(0, 3));
-  const directorAffinity = profile.director.get(movie.director) ?? 0;
-  const decadeAffinity = profile.decade.get(getMovieDecade(movie)) ?? 0;
-  const languageAffinity = profile.language.get(movie.language) ?? 0;
-  const countryAffinity = profile.country.get(movie.country) ?? 0;
-  const tokenAffinity = getTokenAffinity(movie, profile);
-
-  return genreAffinity * 1.8 + directorAffinity * 1.45 + castAffinity * 1.05 + decadeAffinity * 0.8 + languageAffinity * 0.65 + countryAffinity * 0.55 + tokenAffinity * 1.15;
-}
-
-function getDurationFit(movie: Movie, profile: TasteProfile) {
-  const delta = Math.abs(movie.durationMinutes - profile.targetDuration);
-  if (delta <= profile.durationTolerance) {
-    return 6;
+  for (const [concept, value] of entries) {
+    total += (context[concept] ?? 0) * value;
+    weight += Math.abs(value);
   }
 
-  const overflow = delta - profile.durationTolerance;
-  return Math.max(-4, 6 - overflow / 8);
+  return weight > 0 ? total / weight : 0;
 }
 
-function getNoveltyScore(movie: Movie, profile: TasteProfile, mode: CandidateMode) {
-  const genreFreshness = average(movie.genres.map((genre) => 1 / ((profile.historyGenreCount.get(genre) ?? 0) + 1)));
-  const unseenDirectorBonus = (profile.historyDirectorCount.get(movie.director) ?? 0) === 0 ? 0.9 : 0;
-  const unseenCountryBonus = (profile.historyCountryCount.get(movie.country) ?? 0) === 0 ? 0.5 : 0;
-  const discoveryMultiplier = mode === "discovery" ? 1.25 : 0.75;
+function getWeeklyContextScore(movie: Movie, context: WeeklyContext, mode: CandidateMode) {
+  const movieConcepts = getMovieConcepts(movie);
+  const genreOverlap = getContextOverlap(context.genres, movie.genres);
+  const directorOverlap = getContextOverlap(context.directors, [movie.director]);
+  const conceptOverlap = getContextConceptOverlap(context.concepts, movieConcepts);
+  const durationComfort =
+    context.averageDuration > 0
+      ? clamp(1 - Math.abs(movie.durationMinutes - context.averageDuration) / 110, 0, 1)
+      : 0.55;
 
-  return (genreFreshness * 4.2 + unseenDirectorBonus + unseenCountryBonus) * discoveryMultiplier;
+  const repeatPressure = clamp(genreOverlap * 0.42 + directorOverlap * 0.22 + conceptOverlap * 0.36, 0, 1);
+
+  if (mode === "discovery") {
+    const contrast = 1 - repeatPressure;
+    return clamp(0.34 + contrast * 0.52 + durationComfort * 0.14, 0, 1);
+  }
+
+  const bridge = 1 - Math.abs(repeatPressure - 0.35);
+  return clamp(0.32 + bridge * 0.48 + durationComfort * 0.2, 0, 1);
 }
 
-function getWeeklyWatchability(movie: Movie, groupProfile: TasteProfile, mode: CandidateMode) {
-  const quality = parseExternalRating(movie);
-  const durationFit = getDurationFit(movie, groupProfile);
-  const runtimePenalty = movie.durationMinutes > 170 ? 2.2 : movie.durationMinutes > 150 ? 1.2 : 0;
-  const shortNightBonus = movie.durationMinutes <= 130 ? 1.4 : movie.durationMinutes <= 150 ? 0.5 : 0;
-  const modeBonus = mode === "pending" ? 1.1 : 0.35;
+function getFeedbackScore(movie: Movie, feedback: FeedbackProfile, mode: CandidateMode) {
+  const movieConcepts = getMovieConcepts(movie);
+  const positive =
+    getContextOverlap(feedback.selectedGenres, movie.genres) * 0.38 +
+    getContextOverlap(feedback.selectedDirectors, [movie.director]) * 0.17 +
+    getContextConceptOverlap(feedback.selectedConcepts, movieConcepts) * 0.45;
+  const negative =
+    getContextOverlap(feedback.skippedGenres, movie.genres) * 0.42 +
+    getContextOverlap(feedback.skippedDirectors, [movie.director]) * 0.18 +
+    getContextConceptOverlap(feedback.skippedConcepts, movieConcepts) * 0.4;
+  const momentum = mode === "pending" ? feedback.pendingMomentum[movie.id] ?? 0 : 0;
 
-  return durationFit + shortNightBonus + modeBonus + (quality - 70) / 12 - runtimePenalty;
+  return clamp(0.5 + positive * 0.33 - negative * 0.18 + momentum * 0.16, 0, 1);
 }
 
-function getPredictionMetrics(movie: Movie, userProfiles: TasteProfile[]) {
-  const predictions = userProfiles.map((profile) => scoreProfileAgainstMovie(movie, profile));
+function getPredictionMetrics(movie: Movie, profiles: Array<{ userId: string; profile: TasteProfile }>): PredictionMetrics {
+  const predictions = profiles
+    .filter((entry) => entry.profile.ratingsCount > 0)
+    .map(({ profile }) => {
+      const structured = scoreStructuredAffinity(profile, movie);
+      const semantic = scoreSemanticAffinity(profile, movie);
+      const watchability = getWatchability(movie, profile, "pending");
+      const quality = getQualityScore(movie, profile);
+      return clamp(structured * 0.38 + semantic * 0.3 + watchability * 0.18 + quality * 0.14, 0, 1);
+    });
+
   if (predictions.length === 0) {
     return {
-      averagePrediction: 0,
-      disagreementPenalty: 0
+      averagePrediction: 0.55,
+      disagreement: 0.12
     };
   }
 
-  const averagePrediction = average(predictions);
-  const variance = average(predictions.map((value) => Math.pow(value - averagePrediction, 2)));
+  const mean = average(predictions);
+  const variance = average(predictions.map((value) => (value - mean) ** 2));
 
   return {
-    averagePrediction,
-    disagreementPenalty: Math.sqrt(variance)
+    averagePrediction: mean,
+    disagreement: clamp(Math.sqrt(variance) / 0.35, 0, 1)
   };
 }
 
-function buildReasonSignals(movie: Movie, profile: TasteProfile, mode: CandidateMode, metrics: {
-  averagePrediction: number;
-  quality: number;
-  weeklyWatchability: number;
-  novelty: number;
-}) {
+function findTopPositiveKey(profile: FeatureMap, keys: string[]) {
+  let bestKey = "";
+  let bestScore = -Infinity;
+
+  for (const key of uniqueNormalized(keys)) {
+    const score = profile[key] ?? -Infinity;
+    if (score > bestScore) {
+      bestScore = score;
+      bestKey = key;
+    }
+  }
+
+  return {
+    key: bestKey,
+    score: Number.isFinite(bestScore) ? bestScore : 0
+  };
+}
+
+function findTopConcept(profile: FeatureMap, concepts: FeatureMap) {
+  let bestKey = "";
+  let bestScore = -Infinity;
+
+  for (const [concept, weight] of Object.entries(concepts)) {
+    const score = (profile[concept] ?? 0) * weight;
+    if (score > bestScore) {
+      bestScore = score;
+      bestKey = concept;
+    }
+  }
+
+  return {
+    key: bestKey,
+    score: Number.isFinite(bestScore) ? bestScore : 0
+  };
+}
+
+function buildReasonSignals(movie: Movie, profile: TasteProfile, breakdown: ScoreBreakdown, mode: CandidateMode) {
+  const genreMatch = findTopPositiveKey(profile.genre, movie.genres);
+  const directorMatch = findTopPositiveKey(profile.director, [movie.director]);
+  const conceptMatch = findTopConcept(profile.concepts, getMovieConcepts(movie));
   const signals: ReasonSignal[] = [];
 
-  const topGenre = movie.genres
-    .map((genre) => ({ genre, weight: profile.genre.get(genre) ?? 0 }))
-    .sort((left, right) => right.weight - left.weight)[0];
-  if (topGenre && topGenre.weight > 0.35) {
+  if (genreMatch.key && genreMatch.score > 0.12) {
     signals.push({
-      label: "Género",
-      detail: `recoge vuestro gusto por el ${topGenre.genre.toLowerCase()}`,
-      weight: topGenre.weight
+      label: "Afinidad de grupo",
+      detail: `${movie.title} pisa un terreno que al grupo le suele ir bien: ${genreMatch.key}.`,
+      weight: breakdown.structured + genreMatch.score
     });
   }
 
-  const directorWeight = profile.director.get(movie.director) ?? 0;
-  if (directorWeight > 0.4) {
+  if (directorMatch.key && directorMatch.score > 0.14) {
     signals.push({
       label: "Director",
-      detail: `${movie.director} os suele funcionar bastante bien`,
-      weight: directorWeight
+      detail: `${movie.director} ya conecta con vuestro histórico, así que aquí hay bastante base para que funcione.`,
+      weight: breakdown.structured + directorMatch.score
     });
   }
 
-  const castMatch = movie.cast
-    .map((castName) => ({ castName, weight: profile.cast.get(castName) ?? 0 }))
-    .sort((left, right) => right.weight - left.weight)[0];
-  if (castMatch && castMatch.weight > 0.3) {
+  if (conceptMatch.key && conceptMatch.score > 0.08) {
+    const conceptLabel = CONCEPT_LABELS[conceptMatch.key] ?? conceptMatch.key;
     signals.push({
-      label: "Reparto",
-      detail: `vuelve a tocar una zona de confort con ${castMatch.castName}`,
-      weight: castMatch.weight
+      label: "Tono",
+      detail: `Tiene un aire más ${conceptLabel} que encaja con cómo estáis puntuando últimamente.`,
+      weight: breakdown.semantic + conceptMatch.score
     });
   }
 
-  if (metrics.weeklyWatchability > 4.8) {
+  if (breakdown.context > 0.64) {
     signals.push({
-      label: "Plan de grupo",
-      detail:
-        mode === "pending"
-          ? "encaja muy bien como peli de esta semana por duración y accesibilidad"
-          : "tiene muy buena pinta para una sesión de grupo sin hacerse cuesta arriba",
-      weight: metrics.weeklyWatchability
-    });
-  }
-
-  if (metrics.quality >= 82) {
-    signals.push({
-      label: "Calidad",
-      detail: `viene respaldada por una nota externa sólida de ${Math.round(metrics.quality)} sobre 100`,
-      weight: metrics.quality / 18
-    });
-  }
-
-  if (metrics.novelty > 3.8) {
-    signals.push({
-      label: "Variedad",
+      label: "Semana",
       detail:
         mode === "discovery"
-          ? "os saca un poco del carril habitual sin alejarse demasiado de lo que mejor valoráis"
-          : "añade una opción distinta dentro de pendientes sin parecer una apuesta random",
-      weight: metrics.novelty
+          ? "Aporta un cambio de aire razonable respecto a lo último que habéis visto, sin salirse de vuestro radar."
+          : "Dentro de pendientes es de las que mejor equilibran continuidad de gusto y plan cómodo para esta semana.",
+      weight: breakdown.context
     });
   }
 
-  if (metrics.averagePrediction > 1.8) {
+  if (breakdown.feedback > 0.63) {
     signals.push({
-      label: "Consenso",
-      detail: "parece de esas pelis que pueden reunir bastante bien los gustos del grupo",
-      weight: metrics.averagePrediction
+      label: "Feedback del grupo",
+      detail:
+        mode === "pending"
+          ? "Se parece bastante a las pendientes que acabáis eligiendo cuando toca decidir en grupo."
+          : "Recoge señales que suelen convertir bien cuando termináis escogiendo una película de la tanda.",
+      weight: breakdown.feedback
     });
   }
 
-  return signals
-    .sort((left, right) => right.weight - left.weight)
-    .slice(0, 3);
+  if (breakdown.quality > 0.68) {
+    signals.push({
+      label: "Calidad externa",
+      detail: `Fuera del grupo también viene fuerte: ${movie.externalRating.value} en ${movie.externalRating.source}.`,
+      weight: breakdown.quality
+    });
+  }
+
+  if (mode === "discovery" && breakdown.novelty > 0.62) {
+    signals.push({
+      label: "Aire nuevo",
+      detail: "Trae novedad real sin caer en una recomendación caprichosa ni totalmente fuera de tono.",
+      weight: breakdown.novelty
+    });
+  }
+
+  if (signals.length === 0) {
+    signals.push({
+      label: "Encaje general",
+      detail: `${movie.title} equilibra bastante bien afinidad, calidad externa y viabilidad para el plan semanal.`,
+      weight: breakdown.structured + breakdown.semantic + breakdown.watchability
+    });
+  }
+
+  return signals.sort((left, right) => right.weight - left.weight);
 }
 
 function signalsToReasons(signals: ReasonSignal[]): RecommendationReason[] {
-  return signals.map((signal) => ({
+  return signals.slice(0, 3).map((signal) => ({
     label: signal.label,
-    detail: `${signal.detail.charAt(0).toUpperCase()}${signal.detail.slice(1)}.`
+    detail: signal.detail
   }));
 }
 
-function summarizeSignals(signals: ReasonSignal[], movie: Movie, mode: CandidateMode) {
-  if (signals.length === 0) {
-    return mode === "pending"
-      ? `${movie.title} puede ser una buena elección porque ya la tenéis a mano y encaja bien para una semana normal.`
-      : `${movie.title} puede ser un descubrimiento interesante para el grupo sin pisar lo que ya tenéis en pendientes.`;
+function summarizeSignals(movie: Movie, signals: ReasonSignal[], mode: CandidateMode) {
+  const topSignals = signals.slice(0, 2);
+  if (topSignals.length === 0) {
+    return `${movie.title} entra porque equilibra bastante bien lo que os suele gustar con una opción razonable para esta semana.`;
   }
 
-  const [first, second] = signals;
-  if (!second) {
-    return `${movie.title} entra porque ${first.detail}.`;
-  }
-
-  return `${movie.title} entra porque ${first.detail}, y además ${second.detail}.`;
+  const snippets = topSignals.map((signal) => signal.detail.charAt(0).toLowerCase() + signal.detail.slice(1));
+  return mode === "pending"
+    ? `${movie.title} asoma arriba en pendientes porque ${snippets.join(" Además, ")}`
+    : `${movie.title} aparece como descubrimiento porque ${snippets.join(" Además, ")}`;
 }
 
-function normalizeRecommendationScore(score: number, allScores: number[], mode: CandidateMode) {
-  if (allScores.length === 0) {
-    return mode === "pending" ? 86 : 84;
-  }
+function scoreMovie(
+  movie: Movie,
+  groupProfile: TasteProfile,
+  userProfiles: Array<{ userId: string; profile: TasteProfile }>,
+  context: WeeklyContext,
+  feedback: FeedbackProfile,
+  mode: CandidateMode,
+  previousMovieIds: Set<string>
+): ScoredCandidate {
+  const structured = scoreStructuredAffinity(groupProfile, movie);
+  const semantic = scoreSemanticAffinity(groupProfile, movie);
+  const predictionMetrics = getPredictionMetrics(movie, userProfiles);
+  const watchability = getWatchability(movie, groupProfile, mode);
+  const quality = getQualityScore(movie, groupProfile);
+  const novelty = getNoveltyScore(movie, groupProfile, mode);
+  const weeklyContext = getWeeklyContextScore(movie, context, mode);
+  const feedbackScore = getFeedbackScore(movie, feedback, mode);
+  const freshnessPenalty = previousMovieIds.has(movie.id) ? 0.34 : 0;
+  const discoveryBonus = mode === "discovery" ? 0.22 : 0;
+  const pendingMomentum = mode === "pending" ? feedback.pendingMomentum[movie.id] ?? 0 : 0;
 
-  const minScore = Math.min(...allScores);
-  const maxScore = Math.max(...allScores);
-  if (Math.abs(maxScore - minScore) < 0.01) {
-    return mode === "pending" ? 88 : 85;
-  }
-
-  const normalized = (score - minScore) / (maxScore - minScore);
-  const floor = mode === "pending" ? 76 : 73;
-  const spread = mode === "pending" ? 21 : 18;
-  return Math.round(floor + normalized * spread);
-}
-
-function scoreMovie(movie: Movie, state: AppState, mode: CandidateMode, previousIds: Set<string>, profiles: ReturnType<typeof buildProfiles>) {
-  const quality = parseExternalRating(movie);
-  const groupAffinity = scoreProfileAgainstMovie(movie, profiles.groupProfile);
-  const { averagePrediction, disagreementPenalty } = getPredictionMetrics(movie, profiles.userProfiles);
-  const novelty = getNoveltyScore(movie, profiles.groupProfile, mode);
-  const weeklyWatchability = getWeeklyWatchability(movie, profiles.groupProfile, mode);
-  const qualityLift = (quality - 70) / 3.8;
-  const freshnessPenalty = previousIds.has(movie.id) ? 4.8 : 0;
-  const pendingBonus = mode === "pending" ? 1.8 : 0;
-  const discoveryBonus = mode === "discovery" ? novelty * 0.55 : 0;
-
-  const score =
-    groupAffinity * 2.35 +
-    averagePrediction * 2.65 +
-    weeklyWatchability * 1.6 +
-    qualityLift * 1.35 +
-    novelty * 0.9 +
-    pendingBonus +
+  const rawScore =
+    structured * 2.15 +
+    semantic * 1.75 +
+    predictionMetrics.averagePrediction * 2.3 +
+    watchability * 1.18 +
+    quality * 1.0 +
+    novelty * (mode === "discovery" ? 1.02 : 0.58) +
+    weeklyContext * 1.08 +
+    feedbackScore * 0.94 +
+    pendingMomentum * 0.36 +
     discoveryBonus -
-    disagreementPenalty * 0.85 -
+    predictionMetrics.disagreement * 1.05 -
     freshnessPenalty;
 
-  const reasonSignals = buildReasonSignals(movie, profiles.groupProfile, mode, {
-    averagePrediction,
+  const breakdown: ScoreBreakdown = {
+    structured,
+    semantic,
+    prediction: predictionMetrics.averagePrediction,
+    disagreement: predictionMetrics.disagreement,
+    watchability,
     quality,
-    weeklyWatchability,
-    novelty
-  });
+    novelty,
+    context: weeklyContext,
+    feedback: feedbackScore
+  };
+
+  const signals = buildReasonSignals(movie, groupProfile, breakdown, mode);
 
   return {
     movie,
-    score,
-    reasons: signalsToReasons(reasonSignals),
-    summary: summarizeSignals(reasonSignals, movie, mode)
+    rawScore,
+    displayScore: 0,
+    breakdown,
+    reasons: signalsToReasons(signals),
+    summary: summarizeSignals(movie, signals, mode)
   };
 }
 
-function overlapPenalty(candidate: Movie, selected: Movie[]) {
-  return selected.reduce((penalty, movie) => {
-    const sharedGenres = movie.genres.filter((genre) => candidate.genres.includes(genre)).length;
-    const sharedCast = movie.cast.filter((castName) => candidate.cast.includes(castName)).length;
-
-    return (
-      penalty +
-      (movie.director === candidate.director ? 5.5 : 0) +
-      sharedGenres * 1.45 +
-      (movie.country === candidate.country ? 0.85 : 0) +
-      (getMovieDecade(movie) === getMovieDecade(candidate) ? 0.75 : 0) +
-      sharedCast * 0.8
-    );
-  }, 0);
-}
-
-function pickDiverseCandidates(candidates: ScoredCandidate[], limit: number, mode: CandidateMode) {
-  const picked: ScoredCandidate[] = [];
-  const remaining = [...candidates];
-
-  while (picked.length < limit && remaining.length > 0) {
-    const best = remaining
-      .map((candidate) => ({
-        candidate,
-        adjustedScore: candidate.score - overlapPenalty(candidate.movie, picked.map((item) => item.movie)) * (mode === "discovery" ? 1.15 : 0.95)
-      }))
-      .sort((left, right) => right.adjustedScore - left.adjustedScore)[0];
-
-    picked.push(best.candidate);
-    const index = remaining.findIndex((candidate) => candidate.movie.id === best.candidate.movie.id);
-    remaining.splice(index, 1);
+function jaccard(left: string[], right: string[]) {
+  const a = new Set(uniqueNormalized(left));
+  const b = new Set(uniqueNormalized(right));
+  const union = new Set([...a, ...b]);
+  if (union.size === 0) {
+    return 0;
   }
 
-  return picked;
+  let intersection = 0;
+  for (const value of a) {
+    if (b.has(value)) {
+      intersection += 1;
+    }
+  }
+
+  return intersection / union.size;
 }
 
-function buildItems(scored: ScoredCandidate[], mode: CandidateMode) {
-  const scores = scored.map((candidate) => candidate.score);
-  return scored.map<WeeklyRecommendationItem>((candidate) => ({
-    id: safeId(mode === "pending" ? "pending_rec" : "rec", candidate.movie.id),
+function conceptOverlap(left: FeatureMap, right: FeatureMap) {
+  let total = 0;
+  let weight = 0;
+
+  for (const [concept, value] of Object.entries(left)) {
+    if (!(concept in right)) {
+      continue;
+    }
+
+    total += Math.min(value, right[concept]);
+    weight += Math.max(value, right[concept]);
+  }
+
+  return weight > 0 ? total / weight : 0;
+}
+
+function movieOverlap(left: Movie, right: Movie) {
+  const sameDirector = normalizeText(left.director) && normalizeText(left.director) === normalizeText(right.director) ? 1 : 0;
+  const sameDecade = getMovieDecade(left) && getMovieDecade(left) === getMovieDecade(right) ? 1 : 0;
+  const castOverlap = jaccard(left.cast.slice(0, 4), right.cast.slice(0, 4));
+  const genreOverlap = jaccard(left.genres, right.genres);
+  const semanticOverlap = conceptOverlap(getMovieConcepts(left), getMovieConcepts(right));
+
+  return clamp(sameDirector * 0.34 + genreOverlap * 0.28 + semanticOverlap * 0.24 + castOverlap * 0.1 + sameDecade * 0.04, 0, 1);
+}
+
+function pickDiverseCandidates(candidates: ScoredCandidate[], desiredCount: number) {
+  const ordered = [...candidates].sort((left, right) => right.rawScore - left.rawScore);
+  const selected: ScoredCandidate[] = [];
+  const remaining = [...ordered];
+
+  while (selected.length < desiredCount && remaining.length > 0) {
+    let bestIndex = 0;
+    let bestAdjusted = -Infinity;
+
+    remaining.forEach((candidate, index) => {
+      const overlapPenalty =
+        selected.length === 0
+          ? 0
+          : average(selected.map((picked) => movieOverlap(picked.movie, candidate.movie))) * 0.58;
+      const adjustedScore = candidate.rawScore - overlapPenalty;
+
+      if (adjustedScore > bestAdjusted) {
+        bestAdjusted = adjustedScore;
+        bestIndex = index;
+      }
+    });
+
+    selected.push(remaining.splice(bestIndex, 1)[0]);
+  }
+
+  return selected.sort((left, right) => right.rawScore - left.rawScore);
+}
+
+function applyDisplayScores(candidates: ScoredCandidate[], mode: CandidateMode) {
+  if (candidates.length === 0) {
+    return candidates;
+  }
+
+  const rawValues = candidates.map((candidate) => candidate.rawScore);
+  const minScore = Math.min(...rawValues);
+  const maxScore = Math.max(...rawValues);
+  const base = mode === "discovery" ? 74 : 72;
+  const range = mode === "discovery" ? 24 : 26;
+
+  if (Math.abs(maxScore - minScore) < 0.001) {
+    return candidates.map((candidate, index) => ({
+      ...candidate,
+      displayScore: clamp(94 - index * 2.2, 70, 98)
+    }));
+  }
+
+  return candidates.map((candidate) => ({
+    ...candidate,
+    displayScore: Number((base + ((candidate.rawScore - minScore) / (maxScore - minScore)) * range).toFixed(1))
+  }));
+}
+
+function buildCandidatePool(state: AppState, mode: CandidateMode) {
+  const seenIds = new Set(state.watchEntries.map((entry) => entry.movieId));
+  const pendingIds = new Set(state.pendingMovieIds);
+
+  return state.movies.filter((movie) => {
+    if (mode === "discovery") {
+      return !seenIds.has(movie.id) && !pendingIds.has(movie.id);
+    }
+
+    return pendingIds.has(movie.id);
+  });
+}
+
+function createRecommendationItems(candidates: ScoredCandidate[]): WeeklyRecommendationItem[] {
+  return candidates.map((candidate, index) => ({
+    id: safeId("rec", `${candidate.movie.id}_${index}`),
     movieId: candidate.movie.id,
-    score: normalizeRecommendationScore(candidate.score, scores, mode),
+    score: candidate.displayScore,
     summary: candidate.summary,
     reasons: candidate.reasons
   }));
 }
 
-function rankCandidates(state: AppState, mode: CandidateMode) {
-  const seenIds = new Set(state.watchEntries.map((entry) => entry.movieId));
-  const pendingIds = new Set(state.pendingMovieIds);
-  const previousBatch = [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
-  const previousIds = new Set(previousBatch?.items.map((item) => item.movieId) ?? []);
-  const profiles = buildProfiles(state);
-
-  const baseCandidates = state.movies.filter((movie) => {
-    if (seenIds.has(movie.id)) {
-      return false;
-    }
-
-    if (mode === "discovery") {
-      return !pendingIds.has(movie.id);
-    }
-
-    return pendingIds.has(movie.id);
-  });
-
-  return baseCandidates
-    .map((movie) => scoreMovie(movie, state, mode, previousIds, profiles))
-    .sort((left, right) => right.score - left.score);
-}
-
 export function generateWeeklyRecommendations(state: AppState): WeeklyRecommendationBatch {
-  const ranked = rankCandidates(state, "discovery");
-  const picks = pickDiverseCandidates(ranked, DISCOVERY_COUNT, "discovery");
-  const items = buildItems(picks, "discovery");
+  const { groupProfile, userProfiles } = buildProfiles(state);
+  const context = buildWeeklyContext(state);
+  const feedback = buildFeedbackProfile(state);
+  const previousBatch = [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  const previousMovieIds = new Set(previousBatch?.items.map((item) => item.movieId) ?? []);
+
+  const candidates = buildCandidatePool(state, "discovery").map((movie) =>
+    scoreMovie(movie, groupProfile, userProfiles, context, feedback, "discovery", previousMovieIds)
+  );
+
+  const selected = applyDisplayScores(pickDiverseCandidates(candidates, DISCOVERY_COUNT), "discovery");
 
   return {
-    id: safeId("batch", `${state.group.id}-${Date.now()}`),
+    id: safeId("batch", "weekly"),
     groupId: state.group.id,
     weekOf: startOfWeek().toISOString(),
     createdAt: new Date().toISOString(),
-    items
+    items: createRecommendationItems(selected)
   };
 }
 
-export function generatePendingWeeklyOptions(state: AppState) {
-  const ranked = rankCandidates(state, "pending");
-  const picks = pickDiverseCandidates(ranked, PENDING_COUNT, "pending");
-  return buildItems(picks, "pending");
+export function generatePendingWeeklyOptions(state: AppState): WeeklyRecommendationItem[] {
+  const { groupProfile, userProfiles } = buildProfiles(state);
+  const context = buildWeeklyContext(state);
+  const feedback = buildFeedbackProfile(state);
+  const previousBatch = [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  const previousMovieIds = new Set(previousBatch?.items.map((item) => item.movieId) ?? []);
+
+  const candidates = buildCandidatePool(state, "pending").map((movie) =>
+    scoreMovie(movie, groupProfile, userProfiles, context, feedback, "pending", previousMovieIds)
+  );
+
+  return createRecommendationItems(applyDisplayScores(pickDiverseCandidates(candidates, PENDING_COUNT), "pending"));
 }
