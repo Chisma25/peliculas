@@ -204,7 +204,7 @@ select {
 }
 
 .page-shell {
-  width: min(1480px, calc(100vw - 2.75rem));
+  width: min(1560px, calc(100vw - 3rem));
   margin: 0 auto;
   padding: 2rem 0 4rem;
 }
@@ -1337,7 +1337,7 @@ code {
   }
 
   .page-shell {
-    width: min(100vw - 1rem, 1480px);
+    width: min(100vw - 1rem, 1560px);
   }
 
   .stat-grid {
