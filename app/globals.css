@@ -1183,6 +1183,13 @@ textarea {
   display: block;
 }
 
+.pending-card-linkblock {
+  display: grid;
+  gap: 0.8rem;
+  color: inherit;
+  text-decoration: none;
+}
+
 .history-card-compact {
   display: grid;
   gap: 0.8rem;
@@ -1201,6 +1208,10 @@ textarea {
 .history-card-copy {
   display: grid;
   gap: 0.45rem;
+}
+
+.pending-card-linkblock:hover strong {
+  color: var(--accent-soft);
 }
 
 .pending-grid {

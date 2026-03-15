@@ -96,7 +96,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                   key={item.id}
                   className={`history-card-compact pending-weekly-card ${batch.selectedMovieId === item.movie.id ? "selected-card" : ""}`}
                 >
-                  <Link href={`/peliculas/${item.movie.slug}`} className="history-card-link">
+                  <Link href={`/peliculas/${item.movie.slug}`} className="pending-card-linkblock">
                     <div
                       className="history-poster-compact"
                       style={
@@ -109,31 +109,28 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                           : undefined
                       }
                     />
+                    <div className="history-card-copy">
+                      <p className="eyebrow">{batch.selectedMovieId === item.movie.id ? "Elegida" : "Desde pendientes"}</p>
+                      <strong>{item.movie.title}</strong>
+                      <div className="stat-row">
+                        <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
+                        <span>{item.score / 10}/10</span>
+                      </div>
+                      <div className="chips pending-card-genres">
+                        {item.movie.genres.slice(0, 2).map((genre) => (
+                          <span key={`${item.movie.id}-${genre}`}>{genre}</span>
+                        ))}
+                      </div>
+                    </div>
                   </Link>
-                  <div className="history-card-copy">
-                    <p className="eyebrow">{batch.selectedMovieId === item.movie.id ? "Elegida" : "Desde pendientes"}</p>
-                    <strong>{item.movie.title}</strong>
-                    <div className="stat-row">
-                      <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
-                      <span>{item.score / 10}/10</span>
-                    </div>
-                    <div className="chips pending-card-genres">
-                      {item.movie.genres.slice(0, 2).map((genre) => (
-                        <span key={`${item.movie.id}-${genre}`}>{genre}</span>
-                      ))}
-                    </div>
-                    <div className="recommendation-actions recommendation-actions-compact-card">
-                      <Link href={`/peliculas/${item.movie.slug}`} className="secondary-button">
-                        Ver ficha
-                      </Link>
-                      <form action="/api/weekly-recommendations/select" method="post">
-                        <input type="hidden" name="batchId" value={batch.id} />
-                        <input type="hidden" name="movieId" value={item.movie.id} />
-                        <button type="submit" className="primary-button">
-                          {batch.selectedMovieId === item.movie.id ? "Ya elegida" : "Elegir"}
-                        </button>
-                      </form>
-                    </div>
+                  <div className="recommendation-actions recommendation-actions-compact-card">
+                    <form action="/api/weekly-recommendations/select" method="post">
+                      <input type="hidden" name="batchId" value={batch.id} />
+                      <input type="hidden" name="movieId" value={item.movie.id} />
+                      <button type="submit" className="primary-button">
+                        {batch.selectedMovieId === item.movie.id ? "Ya elegida" : "Elegir"}
+                      </button>
+                    </form>
                   </div>
                 </article>
               ) : null
@@ -211,7 +208,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           <div className="pending-grid">
             {pagedPending.map((movie) => (
               <article key={movie.id} className="history-card-compact history-card-pending">
-                <Link href={`/peliculas/${movie.slug}`} className="history-card-link">
+                <Link href={`/peliculas/${movie.slug}`} className="pending-card-linkblock">
                   <div
                     className="history-poster-compact"
                     style={
@@ -224,45 +221,42 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                         : undefined
                     }
                   />
+                  <div className="history-card-copy">
+                    <strong>{movie.title}</strong>
+                    <div className="stat-row">
+                      <span>{movie.year > 0 ? movie.year : "Año pendiente"}</span>
+                      <span>
+                        {movie.externalRating.source}: {movie.externalRating.value}
+                      </span>
+                    </div>
+                    <div className="chips pending-card-genres">
+                      {movie.genres.slice(0, 3).map((genre) => (
+                        <span key={`${movie.id}-${genre}`}>{genre}</span>
+                      ))}
+                    </div>
+                  </div>
                 </Link>
-                <div className="history-card-copy">
-                  <strong>{movie.title}</strong>
-                  <div className="stat-row">
-                    <span>{movie.year > 0 ? movie.year : "Año pendiente"}</span>
-                    <span>
-                      {movie.externalRating.source}: {movie.externalRating.value}
-                    </span>
-                  </div>
-                  <div className="chips pending-card-genres">
-                    {movie.genres.slice(0, 3).map((genre) => (
-                      <span key={`${movie.id}-${genre}`}>{genre}</span>
-                    ))}
-                  </div>
-                  <div className="recommendation-actions">
-                    <Link href={`/peliculas/${movie.slug}`} className="secondary-button">
-                      Ver ficha
-                    </Link>
-                    <form action="/api/pending/remove" method="post">
+                <div className="recommendation-actions">
+                  <form action="/api/pending/remove" method="post">
+                    <input type="hidden" name="movieId" value={movie.id} />
+                    <input
+                      type="hidden"
+                      name="redirectTo"
+                      value={buildPendingQuery({ search, genre: activeGenre, page: safePage })}
+                    />
+                    <button type="submit" className="ghost-button">
+                      Quitar de pendientes
+                    </button>
+                  </form>
+                  {batch ? (
+                    <form action="/api/weekly-recommendations/select" method="post">
+                      <input type="hidden" name="batchId" value={batch.id} />
                       <input type="hidden" name="movieId" value={movie.id} />
-                      <input
-                        type="hidden"
-                        name="redirectTo"
-                        value={buildPendingQuery({ search, genre: activeGenre, page: safePage })}
-                      />
-                      <button type="submit" className="ghost-button">
-                        Quitar de pendientes
+                      <button type="submit" className="primary-button">
+                        Elegir para esta semana
                       </button>
                     </form>
-                    {batch ? (
-                      <form action="/api/weekly-recommendations/select" method="post">
-                        <input type="hidden" name="batchId" value={batch.id} />
-                        <input type="hidden" name="movieId" value={movie.id} />
-                        <button type="submit" className="primary-button">
-                          Elegir para esta semana
-                        </button>
-                      </form>
-                    ) : null}
-                  </div>
+                  ) : null}
                 </div>
               </article>
             ))}
