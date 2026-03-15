@@ -9,9 +9,17 @@ type MoviePosterProps = {
   compact?: boolean;
   showDetails?: boolean;
   showDuration?: boolean;
+  metaLabel?: string;
 };
 
-export function MoviePoster({ movie, href, compact = false, showDetails = true, showDuration = true }: MoviePosterProps) {
+export function MoviePoster({
+  movie,
+  href,
+  compact = false,
+  showDetails = true,
+  showDuration = true,
+  metaLabel
+}: MoviePosterProps) {
   const hasImage = Boolean(movie.posterUrl || movie.backdrop);
   const imageUrl = movie.posterUrl || movie.backdrop;
   const content = (
@@ -38,6 +46,10 @@ export function MoviePoster({ movie, href, compact = false, showDetails = true, 
           <p className="eyebrow">{movie.director}</p>
           <h3>{movie.title}</h3>
           <p>{movie.genres.slice(0, compact ? 1 : 2).join(" / ")}</p>
+        </div>
+      ) : metaLabel ? (
+        <div className="poster-minimal-footer">
+          <span>{metaLabel}</span>
         </div>
       ) : null}
     </article>

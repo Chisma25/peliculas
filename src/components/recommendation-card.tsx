@@ -55,13 +55,22 @@ export function RecommendationCard({ item, batchId, eyebrow, compact = false }: 
 
   return (
     <article className={`recommendation-card ${item.selected ? "selected-card" : ""}`}>
-      <MoviePoster movie={item.movie} href={`/peliculas/${item.movie.slug}`} compact />
+      <MoviePoster
+        movie={item.movie}
+        href={`/peliculas/${item.movie.slug}`}
+        compact
+        showDetails={false}
+        metaLabel={item.movie.genres.slice(0, 1).join(" / ")}
+      />
       <div className="recommendation-copy">
         <div className="recommendation-topline">
           <p className="eyebrow">{item.selected ? "Elegida esta semana" : eyebrow ?? "Descubrimiento semanal"}</p>
           <span className="recommendation-fit-badge">{formatFitScore(item.score)}/100</span>
         </div>
-        <h3>{item.movie.title}</h3>
+        <div className="recommendation-title-stack">
+          <h3>{item.movie.title}</h3>
+          <p className="recommendation-director">Dirige {item.movie.director}</p>
+        </div>
         {metrics.length > 0 ? (
           <div className="recommendation-metrics">
             {metrics.map((metric) => (
