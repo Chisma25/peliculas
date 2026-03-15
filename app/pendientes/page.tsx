@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { RecommendationCard } from "@/components/recommendation-card";
 import { getCurrentBatch, getPendingWeeklySuggestionsHydrated, listPendingHydrated } from "@/lib/store";
 
 const PAGE_SIZE = 12;
@@ -95,13 +94,50 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           <div className="pending-weekly-row">
             {weeklyOptions.map((item) =>
               batch ? (
-                <RecommendationCard
+                <article
                   key={item.id}
-                  item={{ ...item, selected: batch.selectedMovieId === item.movie.id }}
-                  batchId={batch.id}
-                  eyebrow="Desde pendientes"
-                  compact
-                />
+                  className={`history-card-compact pending-weekly-card ${batch.selectedMovieId === item.movie.id ? "selected-card" : ""}`}
+                >
+                  <Link href={`/peliculas/${item.movie.slug}`} className="history-card-link">
+                    <div
+                      className="history-poster-compact"
+                      style={
+                        item.movie.posterUrl
+                          ? {
+                              backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.08), rgba(10, 15, 24, 0.55)), url(${item.movie.posterUrl})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center"
+                            }
+                          : undefined
+                      }
+                    />
+                  </Link>
+                  <div className="history-card-copy">
+                    <p className="eyebrow">{batch.selectedMovieId === item.movie.id ? "Elegida" : "Desde pendientes"}</p>
+                    <strong>{item.movie.title}</strong>
+                    <div className="stat-row">
+                      <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
+                      <span>{item.score / 10}/10</span>
+                    </div>
+                    <div className="chips pending-card-genres">
+                      {item.movie.genres.slice(0, 2).map((genre) => (
+                        <span key={`${item.movie.id}-${genre}`}>{genre}</span>
+                      ))}
+                    </div>
+                    <div className="recommendation-actions recommendation-actions-compact-card">
+                      <Link href={`/peliculas/${item.movie.slug}`} className="secondary-button">
+                        Ver ficha
+                      </Link>
+                      <form action="/api/weekly-recommendations/select" method="post">
+                        <input type="hidden" name="batchId" value={batch.id} />
+                        <input type="hidden" name="movieId" value={item.movie.id} />
+                        <button type="submit" className="primary-button">
+                          {batch.selectedMovieId === item.movie.id ? "Ya elegida" : "Elegir"}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </article>
               ) : null
             )}
           </div>

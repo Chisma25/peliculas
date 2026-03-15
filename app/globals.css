@@ -1027,7 +1027,7 @@ textarea {
 .pending-weekly-row {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(280px, 320px);
+  grid-auto-columns: minmax(190px, 220px);
   gap: 1rem;
   overflow-x: auto;
   padding-bottom: 0.35rem;
@@ -1036,6 +1036,21 @@ textarea {
 
 .pending-weekly-row > * {
   scroll-snap-align: start;
+}
+
+.pending-weekly-card {
+  width: 100%;
+}
+
+.recommendation-actions-compact-card {
+  justify-content: flex-start;
+}
+
+.recommendation-actions-compact-card .secondary-button,
+.recommendation-actions-compact-card .primary-button,
+.recommendation-actions-compact-card .ghost-button {
+  min-height: 2.6rem;
+  padding: 0.62rem 0.95rem;
 }
 
 .pending-card-genres {
