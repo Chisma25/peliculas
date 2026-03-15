@@ -381,7 +381,13 @@ function isDashboardBatchValid(state: AppState, batch: AppState["weeklyBatches"]
 
   return batch.items.every((item) => {
     const movie = getMovieById(state, item.movieId);
-    return Boolean(movie) && !seenIds.has(item.movieId) && !pendingIds.has(item.movieId);
+    return (
+      Boolean(movie) &&
+      !seenIds.has(item.movieId) &&
+      !pendingIds.has(item.movieId) &&
+      Array.isArray(item.metrics) &&
+      item.metrics.length >= 4
+    );
   });
 }
 

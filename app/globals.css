@@ -767,11 +767,83 @@ select {
 
 .recommendation-copy {
   padding: 1.2rem;
+  display: grid;
+  gap: 0.95rem;
 }
 
 .recommendation-copy h3 {
-  margin: 0.35rem 0 0.8rem;
+  margin: 0;
   font-size: 2rem;
+}
+
+.recommendation-fit-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.3rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 196, 141, 0.34);
+  background: linear-gradient(135deg, rgba(214, 101, 53, 0.16), rgba(242, 177, 112, 0.1));
+  color: var(--accent-soft);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.recommendation-fit-badge-compact {
+  min-height: 2rem;
+  padding-inline: 0.68rem;
+  font-size: 0.86rem;
+}
+
+.recommendation-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.recommendation-metrics-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.recommendation-metrics-inline {
+  margin-top: 0.2rem;
+}
+
+.recommendation-metric {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.recommendation-metric small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recommendation-metric strong {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.recommendation-metric-warm {
+  background: linear-gradient(135deg, rgba(214, 101, 53, 0.12), rgba(255, 255, 255, 0.02));
+  border-color: rgba(255, 196, 141, 0.16);
+}
+
+.recommendation-metric-cool {
+  background: linear-gradient(135deg, rgba(86, 138, 201, 0.12), rgba(255, 255, 255, 0.02));
+  border-color: rgba(118, 175, 235, 0.16);
+}
+
+.recommendation-metric-neutral {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .recommendation-card-compact-panel {
@@ -1411,6 +1483,10 @@ code {
   .pending-weekly-grid,
   .pending-grid {
     grid-template-columns: 1fr;
+  }
+
+  .recommendation-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .detail-facts-grid {

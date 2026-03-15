@@ -66,12 +66,19 @@ export type RecommendationReason = {
   detail: string;
 };
 
+export type RecommendationMetric = {
+  label: string;
+  value: number;
+  tone?: "warm" | "cool" | "neutral";
+};
+
 export type WeeklyRecommendationItem = {
   id: string;
   movieId: string;
   score: number;
   summary: string;
   reasons: RecommendationReason[];
+  metrics?: RecommendationMetric[];
 };
 
 export type WeeklyRecommendationBatch = {

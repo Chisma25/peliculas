@@ -17,8 +17,28 @@ export function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-export function formatScore(value: number) {
-  return value.toFixed(1);
+export function formatScore(
+  value: number,
+  options: Intl.NumberFormatOptions = {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }
+) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat("es-ES", options).format(value);
+}
+
+export function formatFitScore(value: number) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat("es-ES", {
+    maximumFractionDigits: 0
+  }).format(Math.round(value));
 }
 
 export function getMovieAverage(movieId: string, ratings: UserRating[]) {

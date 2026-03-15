@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { MoviePoster } from "@/components/movie-poster";
 import { Movie, WeeklyRecommendationItem } from "@/lib/types";
-import { formatScore } from "@/lib/utils";
+import { formatFitScore } from "@/lib/utils";
 
 type RecommendationCardProps = {
   item: WeeklyRecommendationItem & { movie: Movie; selected: boolean };
@@ -12,6 +12,8 @@ type RecommendationCardProps = {
 };
 
 export function RecommendationCard({ item, batchId, eyebrow, compact = false }: RecommendationCardProps) {
+  const metrics = item.metrics ?? [];
+
   if (compact) {
     return (
       <article className={`recommendation-card-compact-panel ${item.selected ? "selected-card" : ""}`}>
@@ -21,9 +23,19 @@ export function RecommendationCard({ item, batchId, eyebrow, compact = false }: 
         <div className="recommendation-card-compact-copy">
           <div className="recommendation-topline">
             <p className="eyebrow">{item.selected ? "Elegida" : eyebrow ?? "Recomendada"}</p>
-            <span>{formatScore(item.score / 10)}/10</span>
+            <span className="recommendation-fit-badge recommendation-fit-badge-compact">{formatFitScore(item.score)}/100</span>
           </div>
           <h3>{item.movie.title}</h3>
+          {metrics.length > 0 ? (
+            <div className="recommendation-metrics recommendation-metrics-compact">
+              {metrics.map((metric) => (
+                <div key={`${item.id}-${metric.label}`} className={`recommendation-metric recommendation-metric-${metric.tone ?? "neutral"}`}>
+                  <small>{metric.label}</small>
+                  <strong>{metric.value}</strong>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="recommendation-actions recommendation-actions-compact">
             <Link href={`/peliculas/${item.movie.slug}`} className="secondary-button">
               Ver ficha
@@ -46,10 +58,20 @@ export function RecommendationCard({ item, batchId, eyebrow, compact = false }: 
       <MoviePoster movie={item.movie} href={`/peliculas/${item.movie.slug}`} compact />
       <div className="recommendation-copy">
         <div className="recommendation-topline">
-          <p className="eyebrow">{item.selected ? "Elegida esta semana" : eyebrow ?? "Opción semanal"}</p>
-          <span>{formatScore(item.score / 10)}/10 encaje</span>
+          <p className="eyebrow">{item.selected ? "Elegida esta semana" : eyebrow ?? "Descubrimiento semanal"}</p>
+          <span className="recommendation-fit-badge">{formatFitScore(item.score)}/100</span>
         </div>
         <h3>{item.movie.title}</h3>
+        {metrics.length > 0 ? (
+          <div className="recommendation-metrics">
+            {metrics.map((metric) => (
+              <div key={`${item.id}-${metric.label}`} className={`recommendation-metric recommendation-metric-${metric.tone ?? "neutral"}`}>
+                <small>{metric.label}</small>
+                <strong>{metric.value}</strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="recommendation-actions">
           <Link href={`/peliculas/${item.movie.slug}`} className="secondary-button">
             Ver ficha

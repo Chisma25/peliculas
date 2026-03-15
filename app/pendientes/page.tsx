@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { getCurrentBatch, getPendingWeeklySuggestionsHydrated, listPendingHydrated } from "@/lib/store";
+import { formatFitScore } from "@/lib/utils";
 
 const PAGE_SIZE = 15;
 
@@ -114,13 +115,26 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                       <strong>{item.movie.title}</strong>
                       <div className="stat-row">
                         <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
-                        <span>{item.score / 10}/10</span>
+                        <span>{formatFitScore(item.score)}/100</span>
                       </div>
                       <div className="chips pending-card-genres">
                         {item.movie.genres.slice(0, 2).map((genre) => (
                           <span key={`${item.movie.id}-${genre}`}>{genre}</span>
                         ))}
                       </div>
+                      {item.metrics?.length ? (
+                        <div className="recommendation-metrics recommendation-metrics-compact recommendation-metrics-inline">
+                          {item.metrics.slice(0, 4).map((metric) => (
+                            <div
+                              key={`${item.id}-${metric.label}`}
+                              className={`recommendation-metric recommendation-metric-${metric.tone ?? "neutral"}`}
+                            >
+                              <small>{metric.label}</small>
+                              <strong>{metric.value}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </Link>
                   <div className="recommendation-actions recommendation-actions-compact-card">

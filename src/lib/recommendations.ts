@@ -1,4 +1,4 @@
-import { AppState, Movie, RecommendationReason, WeeklyRecommendationBatch, WeeklyRecommendationItem } from "@/lib/types";
+import { AppState, Movie, RecommendationMetric, RecommendationReason, WeeklyRecommendationBatch, WeeklyRecommendationItem } from "@/lib/types";
 import { average, safeId, startOfWeek } from "@/lib/utils";
 
 type FeatureMap = Record<string, number>;
@@ -76,6 +76,7 @@ type ScoredCandidate = {
   breakdown: ScoreBreakdown;
   reasons: RecommendationReason[];
   summary: string;
+  metrics: RecommendationMetric[];
 };
 
 const DISCOVERY_COUNT = 3;
@@ -1139,6 +1140,23 @@ function summarizeSignals(movie: Movie, signals: ReasonSignal[], mode: Candidate
     : `${movie.title} aparece como descubrimiento porque ${snippets.join(" Además, ")}`;
 }
 
+function buildMetrics(breakdown: ScoreBreakdown, mode: CandidateMode, pendingMomentum = 0): RecommendationMetric[] {
+  const groupRadar = clamp(breakdown.structured * 0.54 + breakdown.semantic * 0.46, 0, 1);
+  const consensus = clamp(breakdown.prediction * (1 - breakdown.disagreement * 0.55), 0, 1);
+  const weeklyFit = clamp(breakdown.watchability * 0.58 + breakdown.context * 0.42, 0, 1);
+  const fourthMetric =
+    mode === "pending"
+      ? clamp(pendingMomentum * 0.65 + breakdown.feedback * 0.35, 0, 1)
+      : clamp(breakdown.novelty * 0.58 + breakdown.feedback * 0.22 + breakdown.quality * 0.2, 0, 1);
+
+  return [
+    { label: "Radar grupo", value: Math.round(groupRadar * 100), tone: "warm" },
+    { label: "Consenso", value: Math.round(consensus * 100), tone: "neutral" },
+    { label: "Semana", value: Math.round(weeklyFit * 100), tone: "cool" },
+    { label: mode === "pending" ? "Momento" : "Novedad", value: Math.round(fourthMetric * 100), tone: "warm" }
+  ];
+}
+
 function scoreMovie(
   movie: Movie,
   groupProfile: TasteProfile,
@@ -1187,6 +1205,7 @@ function scoreMovie(
   };
 
   const signals = buildReasonSignals(movie, groupProfile, breakdown, mode);
+  const metrics = buildMetrics(breakdown, mode, pendingMomentum);
 
   return {
     movie,
@@ -1194,7 +1213,8 @@ function scoreMovie(
     displayScore: 0,
     breakdown,
     reasons: signalsToReasons(signals),
-    summary: summarizeSignals(movie, signals, mode)
+    summary: summarizeSignals(movie, signals, mode),
+    metrics
   };
 }
 
@@ -1284,13 +1304,13 @@ function applyDisplayScores(candidates: ScoredCandidate[], mode: CandidateMode) 
   if (Math.abs(maxScore - minScore) < 0.001) {
     return candidates.map((candidate, index) => ({
       ...candidate,
-      displayScore: clamp(94 - index * 2.2, 70, 98)
+      displayScore: Math.round(clamp(94 - index * 2.2, 70, 98))
     }));
   }
 
   return candidates.map((candidate) => ({
     ...candidate,
-    displayScore: Number((base + ((candidate.rawScore - minScore) / (maxScore - minScore)) * range).toFixed(1))
+    displayScore: Math.round(base + ((candidate.rawScore - minScore) / (maxScore - minScore)) * range)
   }));
 }
 
@@ -1313,7 +1333,8 @@ function createRecommendationItems(candidates: ScoredCandidate[]): WeeklyRecomme
     movieId: candidate.movie.id,
     score: candidate.displayScore,
     summary: candidate.summary,
-    reasons: candidate.reasons
+    reasons: candidate.reasons,
+    metrics: candidate.metrics
   }));
 }
 

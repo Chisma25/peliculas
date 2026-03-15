@@ -62,7 +62,7 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
                   <input
                     type="number"
                     name="score"
-                    step="0.1"
+                    step="0.01"
                     min="0"
                     max="10"
                     defaultValue={initialScore?.toString() ?? ""}
