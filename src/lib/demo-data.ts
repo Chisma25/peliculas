@@ -375,7 +375,7 @@ export const seedState: AppState = {
   activity: [
     {
       type: "recommended",
-      label: "Se genero una nueva tanda semanal de recomendaciones",
+      label: "Se generó una nueva tanda semanal de recomendaciones",
       date: "2026-03-10T18:30:00.000Z"
     },
     {
@@ -386,7 +386,7 @@ export const seedState: AppState = {
     },
     {
       type: "rated",
-      label: "Clara puntuo Before Sunrise con un 9.5",
+      label: "Clara puntuó Before Sunrise con un 9.5",
       movieId: "movie_before_sunrise",
       userId: "user_clara",
       date: "2026-02-24T09:00:00.000Z"

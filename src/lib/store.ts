@@ -115,6 +115,25 @@ function ensureUserCredentials(user: User) {
   };
 }
 
+function normalizeLegacyActivityLabel(label: string) {
+  return label
+    .replace(/\bactualizo\b/g, "actualizó")
+    .replace(/\banadio\b/g, "añadió")
+    .replace(/\bquito\b/g, "quitó")
+    .replace(/\bpuntuo\b/g, "puntuó")
+    .replace(/\bgenero\b/g, "generó")
+    .replace(/\brestablecio\b/g, "restableció")
+    .replace(/\bpaso\b/g, "pasó")
+    .replace(/\bcambio\b/g, "cambió")
+    .replace(/\bpelicula\b/g, "película")
+    .replace(/\bpeliculas\b/g, "películas")
+    .replace(/\bhistorico\b/g, "histórico")
+    .replace(/\bcontrasena\b/g, "contraseña")
+    .replace(/\beleccion\b/g, "elección")
+    .replace(/\bsemanal\b/g, "semanal")
+    .replace(/\bpeli\b/g, "peli");
+}
+
 function buildInitialState(): AppState {
   const manualSeed = loadManualHistorySeed();
   if (!manualSeed) {
@@ -203,6 +222,12 @@ function ensureStateIntegrity(source: AppState) {
     .map((user) => ensureUserCredentials(user));
   const memberIds = source.group.memberIds.filter((memberId) => users.some((user) => user.id === memberId));
   const missingMemberIds = users.map((user) => user.id).filter((userId) => !memberIds.includes(userId));
+  const activity = source.activity
+    .filter((entry) => !entry.userId || !removedUserIds.has(entry.userId))
+    .map((entry) => ({
+      ...entry,
+      label: normalizeLegacyActivityLabel(entry.label)
+    }));
 
   return {
     ...source,
@@ -212,7 +237,7 @@ function ensureStateIntegrity(source: AppState) {
       ...source.group,
       memberIds: [...memberIds, ...missingMemberIds]
     },
-    activity: source.activity.filter((entry) => !entry.userId || !removedUserIds.has(entry.userId))
+    activity
   };
 }
 
@@ -398,6 +423,23 @@ function listPendingFromState(state: AppState) {
 }
 
 function addActivity(state: AppState, entry: ActivityItem) {
+  const latestEntry = state.activity[0];
+  if (latestEntry) {
+    const latestTimestamp = new Date(latestEntry.date).getTime();
+    const nextTimestamp = new Date(entry.date).getTime();
+    const withinMergeWindow = Math.abs(nextTimestamp - latestTimestamp) <= 10 * 60 * 1000;
+    const sameEvent =
+      latestEntry.type === entry.type &&
+      latestEntry.label === entry.label &&
+      latestEntry.userId === entry.userId &&
+      latestEntry.movieId === entry.movieId;
+
+    if (sameEvent && withinMergeWindow) {
+      latestEntry.date = entry.date;
+      return;
+    }
+  }
+
   state.activity.unshift(entry);
   state.activity = state.activity.slice(0, 20);
 }
@@ -787,7 +829,7 @@ export async function updateUserProfile(
 
   addActivity(state, {
     type: "rated",
-    label: previousName === nextName ? `${nextName} actualizo su perfil` : `${previousName} ahora aparece como ${nextName}`,
+    label: previousName === nextName ? `${nextName} actualizó su perfil` : `${previousName} ahora aparece como ${nextName}`,
     userId: user.id,
     date: new Date().toISOString()
   });
@@ -840,8 +882,8 @@ export async function updateUserCredentialsByAdmin(
     type: "rated",
     label:
       previousUsername === nextUsername
-        ? `${adminUser.name} actualizo el acceso de ${targetUser.name}`
-        : `${adminUser.name} cambio el usuario de ${targetUser.name} a @${nextUsername}`,
+        ? `${adminUser.name} actualizó el acceso de ${targetUser.name}`
+        : `${adminUser.name} cambió el usuario de ${targetUser.name} a @${nextUsername}`,
     userId: targetUser.id,
     date: new Date().toISOString()
   });
@@ -898,7 +940,7 @@ export async function resetUserCredentials(input: {
 
   addActivity(state, {
     type: "rated",
-    label: `Se restablecio el acceso de ${user.name}`,
+    label: `Se restableció el acceso de ${user.name}`,
     userId: user.id,
     date: new Date().toISOString()
   });
@@ -945,7 +987,7 @@ export async function upsertRating(input: { movieId: string; userId: string; sco
   if (user && movie) {
     addActivity(state, {
       type: "rated",
-      label: `${user.name} puntuo ${movie.title} con un ${input.score.toFixed(1)}`,
+      label: `${user.name} puntuó ${movie.title} con un ${input.score.toFixed(1)}`,
       movieId: movie.id,
       userId: user.id,
       date: new Date().toISOString()
@@ -966,7 +1008,7 @@ export async function generateBatch() {
   state.weeklyBatches.unshift(batch);
   addActivity(state, {
     type: "recommended",
-    label: "Se genero una nueva tanda de recomendaciones para esta semana",
+    label: "Se generó una nueva tanda de recomendaciones para esta semana",
     date: batch.createdAt
   });
   await saveAppState(state);
@@ -985,7 +1027,7 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
   if (movie) {
     addActivity(state, {
       type: "recommended",
-      label: `La pelicula de la semana paso a ser ${movie.title}`,
+      label: `La película de la semana pasó a ser ${movie.title}`,
       movieId: movie.id,
       date: new Date().toISOString()
     });
@@ -999,7 +1041,7 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
   const state = await loadAppState();
   const movie = getMovieById(state, movieId);
   if (!movie) {
-    throw new Error("No se encontro la pelicula.");
+    throw new Error("No se encontró la película.");
   }
 
   const existingEntry = getWatchEntryForMovieFromState(state, movieId);
@@ -1024,7 +1066,7 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
   state.pendingMovieIds = state.pendingMovieIds.filter((pendingMovieId) => pendingMovieId !== movieId);
   addActivity(state, {
     type: "watched",
-    label: `${movie.title} paso a vistas del grupo`,
+    label: `${movie.title} pasó a vistas del grupo`,
     movieId: movie.id,
     date: watchedOn
   });
@@ -1063,7 +1105,7 @@ export async function addPendingMovie(movieInput: Movie) {
     return {
       status: "already_watched" as const,
       movie,
-      message: "Esa pelicula ya figura en vuestras vistas."
+      message: "Esa película ya figura en vuestras vistas."
     };
   }
 
@@ -1074,14 +1116,14 @@ export async function addPendingMovie(movieInput: Movie) {
     return {
       status: "already_pending" as const,
       movie,
-      message: "Esa pelicula ya esta en pendientes."
+      message: "Esa película ya está en pendientes."
     };
   }
 
   state.pendingMovieIds.unshift(movie.id);
   addActivity(state, {
     type: "queued",
-    label: `${movie.title} se anadio a pendientes`,
+    label: `${movie.title} se añadió a pendientes`,
     movieId: movie.id,
     date: new Date().toISOString()
   });
@@ -1090,7 +1132,7 @@ export async function addPendingMovie(movieInput: Movie) {
   return {
     status: "added" as const,
     movie,
-    message: "Pelicula anadida a pendientes."
+    message: "Película añadida a pendientes."
   };
 }
 
@@ -1098,21 +1140,21 @@ export async function removePendingMovie(movieId: string) {
   const state = await loadAppState();
   const movie = getMovieById(state, movieId);
   if (!movie) {
-    throw new Error("No se encontro la pelicula.");
+    throw new Error("No se encontró la película.");
   }
 
   if (!state.pendingMovieIds.includes(movieId)) {
     return {
       status: "not_pending" as const,
       movie,
-      message: "Esa pelicula ya no estaba en pendientes."
+      message: "Esa película ya no estaba en pendientes."
     };
   }
 
   state.pendingMovieIds = state.pendingMovieIds.filter((pendingMovieId) => pendingMovieId !== movieId);
   addActivity(state, {
     type: "queued",
-    label: `${movie.title} se quito de pendientes`,
+    label: `${movie.title} se quitó de pendientes`,
     movieId: movie.id,
     date: new Date().toISOString()
   });
@@ -1121,6 +1163,6 @@ export async function removePendingMovie(movieId: string) {
   return {
     status: "removed" as const,
     movie,
-    message: "Pelicula quitada de pendientes."
+    message: "Película quitada de pendientes."
   };
 }

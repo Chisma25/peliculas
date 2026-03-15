@@ -134,14 +134,20 @@ export default async function HomePage() {
             <h2>Movimiento del grupo</h2>
           </div>
           <div className="activity-list">
-            {dashboard.recentActivity.map((item) => (
-              <article key={`${item.date}-${item.label}`}>
-                <div className="stat-row">
-                  <strong>{item.label}</strong>
-                  <span>{formatShortDate(item.date)}</span>
-                </div>
+            {dashboard.recentActivity.length > 0 ? (
+              dashboard.recentActivity.map((item) => (
+                <article key={`${item.date}-${item.label}`}>
+                  <div className="stat-row">
+                    <strong>{item.label}</strong>
+                    <span>{formatShortDate(item.date)}</span>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <article>
+                <p className="body-copy">Aún no hay movimientos recientes del grupo.</p>
               </article>
-            ))}
+            )}
           </div>
         </aside>
       </section>
