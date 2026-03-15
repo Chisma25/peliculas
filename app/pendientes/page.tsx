@@ -92,7 +92,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               encajan ahora mismo para plan de grupo.
             </p>
           </div>
-          <div className="recommendation-stack">
+          <div className="pending-weekly-row">
             {weeklyOptions.map((item) =>
               batch ? (
                 <RecommendationCard
@@ -100,6 +100,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                   item={{ ...item, selected: batch.selectedMovieId === item.movie.id }}
                   batchId={batch.id}
                   eyebrow="Desde pendientes"
+                  compact
                 />
               ) : null
             )}
