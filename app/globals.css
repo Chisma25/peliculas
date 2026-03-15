@@ -811,6 +811,51 @@ select {
   color: var(--muted);
 }
 
+.member-rating-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.member-rating-user {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.member-rating-user-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.member-rating-user-copy strong,
+.member-rating-user-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-rating-user-copy span {
+  color: var(--muted);
+}
+
+.member-rating-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.4rem;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 196, 141, 0.22);
+  background: linear-gradient(135deg, rgba(214, 101, 53, 0.14), rgba(242, 177, 112, 0.14));
+  color: var(--text);
+  font-weight: 700;
+}
+
 .stack-form,
 .upload-box {
   display: grid;
@@ -1256,6 +1301,11 @@ code {
   .profile-avatar-editor,
   .pending-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .member-rating-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .pending-pagination {

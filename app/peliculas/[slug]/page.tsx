@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { MoviePoster } from "@/components/movie-poster";
 import { RatingPanel } from "@/components/rating-panel";
+import { UserAvatar } from "@/components/user-avatar";
 import { getMovieBySlugHydrated, getRatingsForMovie, getSessionUser, getWatchEntryForMovie, listMembers } from "@/lib/store";
 import { formatLongDate, formatScore, getMovieAverage } from "@/lib/utils";
 
@@ -60,16 +61,16 @@ export default async function MoviePage({ params }: MoviePageProps) {
         </section>
       </aside>
 
-      <section className="panel">
-        <p className="eyebrow">Ficha de pelicula</p>
-        <h1 className="detail-title">{movie.title}</h1>
-        <div className="detail-meta">
-          <span>
-            {movie.director} / {movie.genres.join(" / ")}
-          </span>
-          <strong>{ratings.length > 0 ? `${formatScore(average)} media del grupo` : "Sin notas aun"}</strong>
-        </div>
-        <p className="body-copy">{movie.synopsis}</p>
+        <section className="panel">
+          <p className="eyebrow">Ficha de película</p>
+          <h1 className="detail-title">{movie.title}</h1>
+          <div className="detail-meta">
+            <span>
+              {movie.director} / {movie.genres.join(" / ")}
+            </span>
+            <strong>{ratings.length > 0 ? `${formatScore(average)} media del grupo` : "Sin notas aún"}</strong>
+          </div>
+          <p className="body-copy">{movie.synopsis}</p>
 
         <section className="panel">
           <p className="eyebrow">Contexto</p>
@@ -78,7 +79,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
               ? `La visteis en grupo el ${formatLongDate(watchEntry.watchedOn)}.`
               : watchEntry
                 ? "Figura en vuestras vistas, pero sin fecha registrada."
-                : "Todavia no consta como vista por el grupo."}
+                : "Todavía no consta como vista por el grupo."}
           </p>
           <div className="chips">
             {movie.cast.length > 0 ? movie.cast.map((member) => <span key={member}>{member}</span>) : <span>Reparto pendiente</span>}
@@ -95,11 +96,17 @@ export default async function MoviePage({ params }: MoviePageProps) {
               const rating = ratings.find((entry) => entry.userId === member.id);
               return (
                 <article key={member.id} className="member-card">
-                  <div className="stat-row">
-                    <strong>{member.name}</strong>
-                    <span>{rating ? formatScore(rating.score) : "Sin nota"}</span>
+                  <div className="member-rating-head">
+                    <div className="member-rating-user">
+                      <UserAvatar user={member} size="sm" />
+                      <div className="member-rating-user-copy">
+                        <strong>{member.name}</strong>
+                        <span>@{member.username}</span>
+                      </div>
+                    </div>
+                    <span className="member-rating-score">{rating ? formatScore(rating.score) : "Sin nota"}</span>
                   </div>
-                  <p className="body-copy">{rating?.comment ?? "Aun no ha dejado comentario."}</p>
+                  <p className="body-copy">{rating?.comment ?? "Aún no ha dejado comentario."}</p>
                 </article>
               );
             })}
@@ -110,10 +117,10 @@ export default async function MoviePage({ params }: MoviePageProps) {
           <section className="panel">
             <div className="panel-header">
               <p className="eyebrow">Tu nota</p>
-              <h2>{myRating ? "Ya tienes una valoracion guardada" : "Aun no la has valorado"}</h2>
+              <h2>{myRating ? "Ya tienes una valoración guardada" : "Aún no la has valorado"}</h2>
             </div>
             <p className="body-copy">
-              Pulsa el boton para abrir una ventana emergente y guardar tu nota. La nota es obligatoria y el comentario
+              Pulsa el botón para abrir una ventana emergente y guardar tu nota. La nota es obligatoria y el comentario
               es opcional.
             </p>
             <RatingPanel
