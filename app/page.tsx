@@ -11,7 +11,7 @@ export default async function HomePage() {
   return (
     <>
       <section className="hero-grid">
-        <article className="hero-card hero-card-main">
+        <article className="hero-card hero-card-main hero-card-span-two">
           <p className="eyebrow">Nuestro grupo de cine</p>
           <h1>Este es vuestro rincón para decidir la peli de la semana.</h1>
           <div className="hero-copy-stack">

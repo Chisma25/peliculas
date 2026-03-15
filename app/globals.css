@@ -249,12 +249,13 @@ select {
 }
 
 .hero-grid {
-  grid-template-columns: minmax(0, 1.75fr) minmax(320px, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 1.1rem;
+  align-items: stretch;
 }
 
 .dashboard-grid {
-  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.85fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
 }
 
@@ -293,6 +294,11 @@ select {
   display: grid;
   gap: 1.1rem;
   align-content: space-between;
+}
+
+.hero-card-span-two,
+.dashboard-panel-main {
+  grid-column: span 2;
 }
 
 .hero-copy-stack {
@@ -584,6 +590,15 @@ select {
 
 .top-poster-card .poster-card {
   min-height: 360px;
+}
+
+.top-poster-card .poster-bottom {
+  padding-right: 7rem;
+  padding-bottom: 4.4rem;
+}
+
+.top-poster-card .poster-bottom h3 {
+  line-height: 0.98;
 }
 
 .top-poster-rank,
@@ -1514,6 +1529,11 @@ code {
 
   .selected-hero-layout {
     grid-template-columns: 1fr;
+  }
+
+  .hero-card-span-two,
+  .dashboard-panel-main {
+    grid-column: auto;
   }
 
   .top-picks-layout {
