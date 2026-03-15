@@ -593,12 +593,33 @@ select {
 }
 
 .top-poster-card .poster-bottom {
+  display: grid;
+  align-content: end;
+  gap: 0.35rem;
+  min-height: 13.5rem;
   padding-right: 7rem;
   padding-bottom: 4.4rem;
 }
 
+.top-poster-card .poster-bottom .eyebrow {
+  max-width: 72%;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
 .top-poster-card .poster-bottom h3 {
+  max-width: 100%;
+  margin: 0;
+  font-size: 1.95rem;
   line-height: 0.98;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.top-poster-card .poster-bottom p:last-child {
+  font-size: 0.95rem;
 }
 
 .top-poster-rank,
