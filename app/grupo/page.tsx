@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AdminAccountsPanel } from "@/components/admin-accounts-panel";
 import { UserAvatar } from "@/components/user-avatar";
 import { getDashboardData, getProfileDataHydrated, getSessionUser, listMembers } from "@/lib/store";
-import { formatScore } from "@/lib/utils";
+import { formatScore, slugify } from "@/lib/utils";
 
 export default async function GroupPage() {
   const [members, dashboard, sessionUser] = await Promise.all([listMembers(), getDashboardData(), getSessionUser()]);
@@ -41,7 +41,7 @@ export default async function GroupPage() {
                     ? `${profile.ratingsCount} notas · media ${formatScore(profile.averageScore)} · mejor nota ${formatScore(profile.bestScore)}`
                     : "Todavía no tiene valoraciones suficientes para sacar perfil."}
                 </p>
-                <Link href={`/grupo/${member.username}`} className="secondary-button">
+                <Link href={`/grupo/${slugify(member.username)}`} className="secondary-button">
                   Ver perfil
                 </Link>
               </article>
