@@ -1,7 +1,4 @@
-import Link from "next/link";
-
-import { AdminAccountsPanel } from "@/components/admin-accounts-panel";
-import { UserAvatar } from "@/components/user-avatar";
+import { GroupMemberCard } from "@/components/group-member-card";
 import { getDashboardData, getProfileDataHydrated, getSessionUser, listMembers } from "@/lib/store";
 import { formatScore, slugify } from "@/lib/utils";
 
@@ -21,30 +18,25 @@ export default async function GroupPage() {
           <p className="eyebrow">Nuestro grupo</p>
           <h1>{dashboard.group.name}</h1>
           <p className="body-copy">
-            Desde aquí podéis entrar en el perfil de cada uno en modo lectura para ver cómo puntúa, su top personal y
-            sus gustos dentro del grupo.
+            Aquí veis a toda la peña del grupo, cómo puntúa cada uno y el pulso cinéfilo que va cogiendo la app con
+            vuestras notas y elecciones de cada semana.
           </p>
         </div>
+
         <div className="member-list">
           {memberCards.map(({ member, profile }) => {
+            const profileSummary = profile?.ratingsCount
+              ? `${profile.ratingsCount} notas · media ${formatScore(profile.averageScore)} · mejor nota ${formatScore(profile.bestScore)}`
+              : "Todavía no tiene valoraciones suficientes para sacar perfil.";
+
             return (
-              <article key={member.id} className="member-card">
-                <div className="member-card-head">
-                  <UserAvatar user={member} size="md" />
-                  <div className="member-card-heading">
-                    <strong>{member.name}</strong>
-                    <span>@{member.username}</span>
-                  </div>
-                </div>
-                <p className="muted-copy">
-                  {profile?.ratingsCount
-                    ? `${profile.ratingsCount} notas · media ${formatScore(profile.averageScore)} · mejor nota ${formatScore(profile.bestScore)}`
-                    : "Todavía no tiene valoraciones suficientes para sacar perfil."}
-                </p>
-                <Link href={`/grupo/${slugify(member.username)}`} className="secondary-button">
-                  Ver perfil
-                </Link>
-              </article>
+              <GroupMemberCard
+                key={member.id}
+                member={member}
+                profileSummary={profileSummary}
+                profileHref={`/grupo/${slugify(member.username)}`}
+                canManage={Boolean(sessionUser?.isAdmin)}
+              />
             );
           })}
         </div>
@@ -55,26 +47,33 @@ export default async function GroupPage() {
           <p className="eyebrow">Resumen del grupo</p>
           <h2>Cómo decide la app</h2>
         </div>
+
         <div className="member-list">
           <article className="member-card">
             <strong>Historial compartido</strong>
-            <p className="body-copy">Se excluyen películas ya vistas y se priorizan directores, décadas y géneros mejor puntuados.</p>
-          </article>
-          <article className="member-card">
-            <strong>Equilibrio semanal</strong>
-            <p className="body-copy">La tanda intenta no repetirse demasiado y mantener cinco opciones con algo de contraste.</p>
-          </article>
-          <article className="member-card">
-            <strong>Encaje estimado</strong>
             <p className="body-copy">
-              Cada recomendación muestra un encaje relativo dentro del pool actual. La media del grupo ahora mismo es{" "}
-              {formatScore(dashboard.stats.averageScore)}.
+              El motor cruza vuestras notas con géneros, director, reparto, década, idioma, país y señales semánticas
+              sacadas de la sinopsis y los metadatos.
+            </p>
+          </article>
+
+          <article className="member-card">
+            <strong>Contexto semanal</strong>
+            <p className="body-copy">
+              No solo mira lo que os gusta en general: también tiene en cuenta lo último que habéis visto para no
+              repetiros demasiado y ajustar mejor qué apetece esta semana.
+            </p>
+          </article>
+
+          <article className="member-card">
+            <strong>Encaje y pulso</strong>
+            <p className="body-copy">
+              Cada recomendación mezcla radar de grupo, consenso, encaje semanal y novedad o momento dentro de
+              pendientes. La media del grupo ahora mismo es {formatScore(dashboard.stats.averageScore)}.
             </p>
           </article>
         </div>
       </section>
-
-      {sessionUser?.isAdmin ? <AdminAccountsPanel members={members} /> : null}
     </div>
   );
 }

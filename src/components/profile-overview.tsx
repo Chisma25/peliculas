@@ -34,17 +34,16 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
       <section className="panel">
         <div className="panel-header">
           <p className="eyebrow">{isSelf ? "Resumen personal" : "Perfil del grupo"}</p>
-          <h1>{isSelf ? "Tu perfil cinéfilo" : `${profile.user.name} en modo lectura`}</h1>
+          <h1>{isSelf ? "Tu perfil cinéfilo" : profile.user.name}</h1>
         </div>
-        {!isSelf ? (
-          <p className="body-copy">Este resumen es solo para consultar cómo valora y qué le gusta más dentro del grupo.</p>
-        ) : null}
+
         <div className="stat-grid profile-stat-grid">
           <article className="stat-card">
             <p className="eyebrow">Valoración media</p>
             <strong>{profile.ratingsCount > 0 ? formatScore(profile.averageScore) : "-"}</strong>
             <p className="body-copy">{isSelf ? "La nota media que tú sueles poner." : "La nota media que suele poner."}</p>
           </article>
+
           <article className="stat-card">
             <p className="eyebrow">{isSelf ? "Tu mejor nota" : "Su mejor nota"}</p>
             <strong>{profile.ratingsCount > 0 ? formatScore(profile.bestScore) : "-"}</strong>
@@ -52,6 +51,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               {isSelf ? "La puntuación más alta que has puesto." : "La puntuación más alta que ha puesto."}
             </p>
           </article>
+
           <article className="stat-card">
             <p className="eyebrow">Notas registradas</p>
             <strong>{profile.ratingsCount}</strong>
@@ -69,6 +69,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               <p className="eyebrow">{isSelf ? "Tu top 3" : "Su top 3"}</p>
               <h2>{isSelf ? "Tus mejor valoradas" : "Sus mejor valoradas"}</h2>
             </div>
+
             {profile.topThree.length > 0 ? (
               <div className="top-three-grid">
                 {profile.topThree.map((item, index) => (
@@ -83,7 +84,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               </div>
             ) : (
               <div className="empty-state">
-                <p className="body-copy">Todavía no has valorado películas.</p>
+                <p className="body-copy">{isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}</p>
               </div>
             )}
           </div>
@@ -93,6 +94,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               <p className="eyebrow">{isSelf ? "Tu bottom 3" : "Su bottom 3"}</p>
               <h2>{isSelf ? "Tus peor valoradas" : "Sus peor valoradas"}</h2>
             </div>
+
             {profile.bottomThree.length > 0 ? (
               <div className="top-three-grid">
                 {profile.bottomThree.map((item, index) => (
@@ -107,7 +109,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               </div>
             ) : (
               <div className="empty-state">
-                <p className="body-copy">Todavía no has valorado películas.</p>
+                <p className="body-copy">{isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}</p>
               </div>
             )}
           </div>
@@ -124,6 +126,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
             ? "Histograma en intervalos de 0.5 puntos, con tu media marcada sobre el eje."
             : "Histograma en intervalos de 0.5 puntos, con su media marcada sobre el eje."}
         </p>
+
         <div className="distribution-chart">
           <div className="distribution-plot">
             <div className="distribution-grid-lines" aria-hidden="true">
@@ -132,10 +135,12 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               <span />
               <span />
             </div>
+
             <div className="distribution-average-marker" style={{ left: `${averageMarker}%` }}>
               <span />
               <small>Media {formatScore(profile.averageScore)}</small>
             </div>
+
             <div className="distribution-columns">
               {profile.distribution.map((item) => (
                 <div key={item.label} className="distribution-column">
@@ -149,6 +154,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               ))}
             </div>
           </div>
+
           <div className="distribution-axis">
             {profile.distribution.map((item) => (
               <span key={item.label}>{item.axisLabel}</span>

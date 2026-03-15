@@ -899,6 +899,10 @@ select {
   align-content: start;
 }
 
+.member-card-interactive {
+  align-content: start;
+}
+
 .member-card-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -913,6 +917,59 @@ select {
 
 .member-card-heading span {
   color: var(--muted);
+}
+
+.member-card-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.member-card-summary .muted-copy {
+  margin: 0;
+}
+
+.member-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.member-card-feedback {
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  box-shadow: none;
+}
+
+.account-modal-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.account-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.account-modal-copy {
+  gap: 0.35rem;
+}
+
+.account-modal-copy h2 {
+  margin-bottom: 0.35rem;
+}
+
+.account-modal-copy .body-copy {
+  margin: 0;
+}
+
+.account-modal-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
 }
 
 .member-rating-head {
@@ -1045,6 +1102,12 @@ textarea {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   text-transform: capitalize;
+}
+
+.status-pill-accent {
+  border: 1px solid rgba(255, 196, 141, 0.3);
+  background: linear-gradient(135deg, rgba(214, 101, 53, 0.14), rgba(242, 177, 112, 0.12));
+  color: var(--accent-soft);
 }
 
 .success-card {
@@ -1500,6 +1563,12 @@ code {
   .member-rating-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .member-card-summary,
+  .account-modal-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .pending-pagination {
