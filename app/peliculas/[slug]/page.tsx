@@ -34,43 +34,58 @@ export default async function MoviePage({ params }: MoviePageProps) {
         <MoviePoster movie={movie} />
         <section className="panel">
           <p className="eyebrow">Datos clave</p>
-          <div className="chips">
-            <span>{movie.durationMinutes > 0 ? `${movie.durationMinutes} min` : "Duración pendiente"}</span>
-            <span>{movie.year > 0 ? movie.year : "Año pendiente"}</span>
-            <span>{movie.language}</span>
-            <span>{movie.country}</span>
-            <span>
-              {movie.externalRating.source}: {movie.externalRating.value}
-            </span>
+          <div className="detail-facts-grid">
+            <article className="detail-fact-card">
+              <span>Duración</span>
+              <strong>{movie.durationMinutes > 0 ? `${movie.durationMinutes} min` : "Pendiente"}</strong>
+            </article>
+            <article className="detail-fact-card">
+              <span>Año</span>
+              <strong>{movie.year > 0 ? movie.year : "Pendiente"}</strong>
+            </article>
+            <article className="detail-fact-card detail-fact-card-wide">
+              <span>Idioma original</span>
+              <strong>{movie.language}</strong>
+            </article>
+            <article className="detail-fact-card detail-fact-card-wide">
+              <span>País</span>
+              <strong>{movie.country}</strong>
+            </article>
+            <article className="detail-fact-card detail-fact-card-wide detail-fact-card-accent">
+              <span>{movie.externalRating.source}</span>
+              <strong>{movie.externalRating.value}</strong>
+            </article>
           </div>
-          {movie.trailerUrl ? (
-            <a href={movie.trailerUrl} className="secondary-button" target="_blank" rel="noreferrer">
-              Ver trailer
-            </a>
-          ) : null}
-          {movie.sourceIds?.tmdb ? (
-            <a
-              href={`https://www.themoviedb.org/movie/${movie.sourceIds.tmdb}`}
-              className="secondary-button"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Abrir TMDb
-            </a>
-          ) : null}
+          <div className="detail-fact-actions">
+            {movie.trailerUrl ? (
+              <a href={movie.trailerUrl} className="secondary-button" target="_blank" rel="noreferrer">
+                Ver tráiler
+              </a>
+            ) : null}
+            {movie.sourceIds?.tmdb ? (
+              <a
+                href={`https://www.themoviedb.org/movie/${movie.sourceIds.tmdb}`}
+                className="secondary-button"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Abrir TMDb
+              </a>
+            ) : null}
+          </div>
         </section>
       </aside>
 
-        <section className="panel">
-          <p className="eyebrow">Ficha de película</p>
-          <h1 className="detail-title">{movie.title}</h1>
-          <div className="detail-meta">
-            <span>
-              {movie.director} / {movie.genres.join(" / ")}
-            </span>
-            <strong>{ratings.length > 0 ? `${formatScore(average)} media del grupo` : "Sin notas aún"}</strong>
-          </div>
-          <p className="body-copy">{movie.synopsis}</p>
+      <section className="panel">
+        <p className="eyebrow">Ficha de película</p>
+        <h1 className="detail-title">{movie.title}</h1>
+        <div className="detail-meta">
+          <span>
+            {movie.director} / {movie.genres.join(" / ")}
+          </span>
+          <strong>{ratings.length > 0 ? `${formatScore(average)} media del grupo` : "Sin notas aún"}</strong>
+        </div>
+        <p className="body-copy">{movie.synopsis}</p>
 
         <section className="panel">
           <p className="eyebrow">Contexto</p>
@@ -123,11 +138,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
               Pulsa el botón para abrir una ventana emergente y guardar tu nota. La nota es obligatoria y el comentario
               es opcional.
             </p>
-            <RatingPanel
-              movieId={movie.id}
-              initialScore={myRating?.score}
-              initialComment={myRating?.comment}
-            />
+            <RatingPanel movieId={movie.id} initialScore={myRating?.score} initialComment={myRating?.comment} />
           </section>
         ) : null}
       </section>

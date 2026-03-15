@@ -974,6 +974,54 @@ textarea {
   gap: 1rem;
 }
 
+.detail-facts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.detail-fact-card {
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+  min-height: 5.2rem;
+  padding: 0.95rem 1rem;
+  border-radius: 1.15rem;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(circle at top left, rgba(255, 196, 141, 0.07), transparent 42%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.detail-fact-card span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.detail-fact-card strong {
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.detail-fact-card-wide {
+  grid-column: 1 / -1;
+}
+
+.detail-fact-card-accent {
+  border-color: rgba(255, 196, 141, 0.28);
+  background:
+    linear-gradient(135deg, rgba(214, 101, 53, 0.12), rgba(242, 177, 112, 0.1)),
+    rgba(255, 255, 255, 0.03);
+}
+
+.detail-fact-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .chips {
   grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
 }
@@ -1301,6 +1349,14 @@ code {
   .profile-avatar-editor,
   .pending-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .detail-facts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-fact-card-wide {
+    grid-column: auto;
   }
 
   .member-rating-head {
