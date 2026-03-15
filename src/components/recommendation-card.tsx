@@ -69,7 +69,7 @@ export function RecommendationCard({ item, batchId, eyebrow, compact = false }: 
         </div>
         <div className="recommendation-title-stack">
           <h3>{item.movie.title}</h3>
-          <p className="recommendation-director">Dirige {item.movie.director}</p>
+          <p className="recommendation-director">{item.movie.director}</p>
         </div>
         {metrics.length > 0 ? (
           <div className="recommendation-metrics">
