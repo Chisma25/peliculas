@@ -1442,7 +1442,8 @@ textarea {
 
 .pagination-bar {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto auto;
+  justify-content: space-between;
   align-items: center;
   gap: 1rem;
   margin-top: 1.5rem;
@@ -1456,6 +1457,8 @@ textarea {
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
+  justify-self: center;
+  width: fit-content;
   padding: 0.45rem 0.55rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.08);
