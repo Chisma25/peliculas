@@ -1328,7 +1328,10 @@ textarea {
 }
 
 .filter-chips {
-  grid-template-columns: repeat(auto-fit, minmax(90px, max-content));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.7rem;
   margin-bottom: 1rem;
 }
 
@@ -1336,13 +1339,16 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: fit-content;
-  min-height: 2.5rem;
-  padding: 0.55rem 0.95rem;
+  width: auto;
+  min-height: 2.85rem;
+  padding: 0.65rem 1rem;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
   transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
 }
 
