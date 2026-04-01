@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { getCurrentBatch, getPendingWeeklySuggestionsHydrated, listPendingHydrated } from "@/lib/store";
-import { formatFitScore } from "@/lib/utils";
+import { buildPaginationItems, formatFitScore } from "@/lib/utils";
 
 const PAGE_SIZE = 15;
 
@@ -71,6 +71,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   const safePage = Math.min(currentPage, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const pagedPending = filteredPending.slice(pageStart, pageStart + PAGE_SIZE);
+  const paginationItems = buildPaginationItems(safePage, totalPages);
 
   return (
     <section className="panel">
@@ -112,7 +113,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                     />
                     <div className="history-card-copy">
                       <p className="eyebrow">{batch.selectedMovieId === item.movie.id ? "Elegida" : "Desde pendientes"}</p>
-                      <strong>{item.movie.title}</strong>
+                      <strong className="history-card-title">{item.movie.title}</strong>
                       <div className="stat-row">
                         <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
                         <span>{formatFitScore(item.score)}/100</span>
@@ -236,7 +237,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                     }
                   />
                   <div className="history-card-copy">
-                    <strong>{movie.title}</strong>
+                    <strong className="history-card-title">{movie.title}</strong>
                     <div className="stat-row">
                       <span>{movie.year > 0 ? movie.year : "Año pendiente"}</span>
                       <span>
@@ -277,33 +278,40 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           </div>
 
           {totalPages > 1 ? (
-            <div className="pending-pagination">
+            <nav className="pagination-bar" aria-label="Paginación de pendientes">
               <Link
                 href={buildPendingQuery({ search, genre: activeGenre, page: Math.max(1, safePage - 1) })}
-                className={`secondary-button ${safePage === 1 ? "is-disabled" : ""}`}
+                className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}
                 aria-disabled={safePage === 1}
               >
-                Página anterior
+                Anterior
               </Link>
-              <div className="pending-pagination-pages">
-                {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-                  <Link
-                    key={page}
-                    href={buildPendingQuery({ search, genre: activeGenre, page })}
-                    className={`filter-chip ${page === safePage ? "filter-chip-active" : ""}`}
-                  >
-                    {page}
-                  </Link>
-                ))}
+              <div className="pagination-pages">
+                {paginationItems.map((item, index) =>
+                  item === "ellipsis" ? (
+                    <span key={`ellipsis-${index}`} className="pagination-ellipsis" aria-hidden="true">
+                      …
+                    </span>
+                  ) : (
+                    <Link
+                      key={item}
+                      href={buildPendingQuery({ search, genre: activeGenre, page: item })}
+                      className={`pagination-page ${item === safePage ? "pagination-page-active" : ""}`}
+                      aria-current={item === safePage ? "page" : undefined}
+                    >
+                      {item}
+                    </Link>
+                  )
+                )}
               </div>
               <Link
                 href={buildPendingQuery({ search, genre: activeGenre, page: Math.min(totalPages, safePage + 1) })}
-                className={`secondary-button ${safePage === totalPages ? "is-disabled" : ""}`}
+                className={`pagination-side ${safePage === totalPages ? "is-disabled" : ""}`}
                 aria-disabled={safePage === totalPages}
               >
-                Página siguiente
+                Siguiente
               </Link>
-            </div>
+            </nav>
           ) : null}
         </>
       )}

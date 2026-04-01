@@ -81,3 +81,44 @@ export function formatShortDate(value: string) {
 export function safeId(prefix: string, seed: string) {
   return `${prefix}_${slugify(seed)}_${Math.random().toString(36).slice(2, 8)}`;
 }
+
+export function buildPaginationItems(currentPage: number, totalPages: number) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>();
+  pages.add(1);
+  pages.add(totalPages);
+
+  for (let page = currentPage - 1; page <= currentPage + 1; page += 1) {
+    if (page > 1 && page < totalPages) {
+      pages.add(page);
+    }
+  }
+
+  if (currentPage <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  }
+
+  if (currentPage >= totalPages - 2) {
+    pages.add(totalPages - 1);
+    pages.add(totalPages - 2);
+    pages.add(totalPages - 3);
+  }
+
+  const sortedPages = [...pages].filter((page) => page >= 1 && page <= totalPages).sort((left, right) => left - right);
+  const items: Array<number | "ellipsis"> = [];
+
+  sortedPages.forEach((page, index) => {
+    const previous = sortedPages[index - 1];
+    if (previous && page - previous > 1) {
+      items.push("ellipsis");
+    }
+    items.push(page);
+  });
+
+  return items;
+}

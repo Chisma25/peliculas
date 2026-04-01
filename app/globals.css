@@ -691,6 +691,11 @@ select {
   margin-bottom: 1.6rem;
 }
 
+.sort-pills-panel {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 .sort-pill {
   display: inline-flex;
   align-items: center;
@@ -1299,8 +1304,37 @@ textarea {
   align-items: stretch;
 }
 
+.history-grid-standardized {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.history-grid-tight {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 320px));
+  justify-content: start;
+}
+
 .history-filter-row {
   margin-bottom: 0.35rem;
+}
+
+.history-toolbar {
+  margin-bottom: 1rem;
+}
+
+.history-toolbar-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 170px);
+  gap: 0.9rem;
+}
+
+.history-toolbar-layers {
+  display: grid;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.pending-search-field-sm input {
+  text-align: left;
 }
 
 .pending-toolbar {
@@ -1406,7 +1440,7 @@ textarea {
   font-size: 0.78rem;
 }
 
-.pending-pagination {
+.pagination-bar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
@@ -1416,15 +1450,73 @@ textarea {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.pending-pagination-pages {
+.pagination-pages {
   display: flex;
   gap: 0.55rem;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
+  padding: 0.45rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
 }
 
-.pending-pagination > .secondary-button:last-child {
+.pagination-side {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.9rem;
+  min-width: 8.5rem;
+  padding: 0.72rem 1.05rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.pagination-side:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.pagination-bar > .pagination-side:last-child {
   justify-self: end;
+}
+
+.pagination-page,
+.pagination-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 999px;
+}
+
+.pagination-page {
+  border: 1px solid transparent;
+  color: var(--muted);
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.pagination-page:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.pagination-page-active {
+  background: linear-gradient(135deg, rgba(214, 101, 53, 0.18), rgba(242, 177, 112, 0.18));
+  border-color: rgba(255, 196, 141, 0.4);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.pagination-ellipsis {
+  color: var(--muted);
 }
 
 .is-disabled {
@@ -1491,6 +1583,12 @@ textarea {
   min-height: 6.9rem;
 }
 
+.history-card-copy-spacious {
+  grid-template-rows: auto minmax(2.45rem, auto) auto auto auto;
+  gap: 0.6rem;
+  min-height: 9rem;
+}
+
 .history-card-meta {
   display: flex;
   align-items: baseline;
@@ -1511,6 +1609,33 @@ textarea {
 
 .history-card-my-score-empty {
   opacity: 0.72;
+}
+
+.history-card-meta-row {
+  color: var(--text);
+}
+
+.history-card-rating-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding: 0.75rem 0.85rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.history-card-rating-strip small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.history-card-rating-strip strong {
+  font-size: 1.15rem;
 }
 
 .pending-card-linkblock:hover strong {
@@ -1719,16 +1844,20 @@ code {
     align-items: flex-start;
   }
 
-  .pending-pagination {
+  .history-toolbar-fields,
+  .pagination-bar {
     grid-template-columns: 1fr;
+  }
+
+  .pagination-bar {
     justify-items: stretch;
   }
 
-  .pending-pagination-pages {
+  .pagination-pages {
     justify-content: flex-start;
   }
 
-  .pending-pagination > .secondary-button:last-child {
+  .pagination-bar > .pagination-side:last-child {
     justify-self: stretch;
   }
 }
