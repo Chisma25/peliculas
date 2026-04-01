@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { getSessionUser, listHistoryHydrated } from "@/lib/store";
+import { getSessionUser, getViewedPageDataHydrated } from "@/lib/store";
 import { buildPaginationItems, formatScore, formatShortDate } from "@/lib/utils";
 
 const PAGE_SIZE = 15;
@@ -71,27 +71,15 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
   const currentPage = Number.isFinite(pageFromQuery) && pageFromQuery > 0 ? pageFromQuery : 1;
 
   const sessionUser = await getSessionUser();
-  const [history, allHistory] = await Promise.all([
-    listHistoryHydrated(
-      {
-        search,
-        year,
-        genre,
-        sort: activeSort
-      },
-      sessionUser?.id
-    ),
-    listHistoryHydrated(undefined, sessionUser?.id)
-  ]);
-
-  const genres = Array.from(
-    new Set(
-      allHistory
-        .flatMap((item) => item.movie.genres)
-        .map((item) => item.trim())
-        .filter((item) => item && item.toLowerCase() !== "pendiente")
-    )
-  ).sort((left, right) => left.localeCompare(right, "es"));
+  const { history, allHistory, genres } = await getViewedPageDataHydrated({
+    search,
+    year,
+    genre,
+    sort: activeSort,
+    currentUserId: sessionUser?.id,
+    page: currentPage,
+    pageSize: PAGE_SIZE
+  });
 
   const totalPages = Math.max(1, Math.ceil(history.length / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);

@@ -1,22 +1,16 @@
 import { GroupMemberCard } from "@/components/group-member-card";
-import { getDashboardData, getProfileDataHydrated, getSessionUser, listMembers } from "@/lib/store";
+import { getGroupPageData, getSessionUser } from "@/lib/store";
 import { formatScore, slugify } from "@/lib/utils";
 
 export default async function GroupPage() {
-  const [members, dashboard, sessionUser] = await Promise.all([listMembers(), getDashboardData(), getSessionUser()]);
-  const memberCards = await Promise.all(
-    members.map(async (member) => ({
-      member,
-      profile: await getProfileDataHydrated(member.id)
-    }))
-  );
+  const [groupData, sessionUser] = await Promise.all([getGroupPageData(), getSessionUser()]);
 
   return (
     <div className="group-grid">
       <section className="panel">
         <div className="panel-header">
           <p className="eyebrow">Nuestro grupo</p>
-          <h1>{dashboard.group.name}</h1>
+          <h1>{groupData.group.name}</h1>
           <p className="body-copy">
             Aquí veis a toda la peña del grupo, cómo puntúa cada uno y el pulso cinéfilo que va cogiendo la app con
             vuestras notas y elecciones de cada semana.
@@ -24,7 +18,7 @@ export default async function GroupPage() {
         </div>
 
         <div className="member-list">
-          {memberCards.map(({ member, profile }) => {
+          {groupData.members.map(({ member, profile }) => {
             const profileSummary = profile?.ratingsCount
               ? `${profile.ratingsCount} notas · media ${formatScore(profile.averageScore)} · mejor nota ${formatScore(profile.bestScore)}`
               : "Todavía no tiene valoraciones suficientes para sacar perfil.";
@@ -69,7 +63,7 @@ export default async function GroupPage() {
             <strong>Encaje y pulso</strong>
             <p className="body-copy">
               Cada recomendación mezcla radar de grupo, consenso, encaje semanal y novedad o momento dentro de
-              pendientes. La media del grupo ahora mismo es {formatScore(dashboard.stats.averageScore)}.
+              pendientes. La media del grupo ahora mismo es {formatScore(groupData.stats.averageScore)}.
             </p>
           </article>
         </div>

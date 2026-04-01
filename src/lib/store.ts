@@ -3,6 +3,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
 
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 import { seedState } from "@/lib/demo-data";
 import { loadManualHistorySeed } from "@/lib/manual-history";
@@ -350,7 +351,7 @@ async function saveDatabaseState(state: AppState) {
   });
 }
 
-async function loadAppState() {
+async function loadAppStateUncached() {
   if (shouldUseDatabase()) {
     const databaseState = await loadDatabaseState();
     if (databaseState) {
@@ -371,6 +372,8 @@ async function loadAppState() {
   saveLocalStateToDisk(initial);
   return initial;
 }
+
+const loadAppState = cache(loadAppStateUncached);
 
 async function saveAppState(state: AppState) {
   if (shouldUseDatabase()) {
@@ -741,8 +744,7 @@ export async function getDashboardDataHydrated() {
   const state = await loadAppState();
   const batch = getCurrentBatchFromState(state);
   const selectedMovie = batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null;
-  const pendingMovies = listPendingFromState(state);
-  const hydrated = await Promise.all([hydrateMovie(state, selectedMovie), ...pendingMovies.map((movie) => hydrateMovie(state, movie))]);
+  const hydrated = await Promise.all([hydrateMovie(state, selectedMovie)]);
 
   if (hydrated.some(Boolean)) {
     await saveAppState(state);
@@ -757,6 +759,23 @@ export async function getDashboardDataHydrated() {
     selectedMovie: batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null,
     selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
     recentActivity: state.activity.slice(0, 5),
+    stats: {
+      watchedCount: state.watchEntries.length,
+      averageScore: average(state.watchEntries.map((entry) => getMovieAverage(entry.movieId, state.ratings)).filter((value) => value > 0)),
+      pendingCount: state.pendingMovieIds.length
+    }
+  };
+}
+
+export async function getGroupPageData() {
+  const state = await loadAppState();
+
+  return {
+    group: state.group,
+    members: listMembersFromState(state).map((member) => ({
+      member,
+      profile: buildProfileFromState(state, member.id)
+    })),
     stats: {
       watchedCount: state.watchEntries.length,
       averageScore: average(state.watchEntries.map((entry) => getMovieAverage(entry.movieId, state.ratings)).filter((value) => value > 0)),
@@ -792,8 +811,153 @@ export async function getPendingWeeklySuggestionsHydrated() {
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
 }
 
-export async function authenticateUser(username: string, password: string) {
+export async function getPendingPageDataHydrated(input: { search?: string; genre?: string; page?: number; pageSize?: number }) {
   const state = await loadAppState();
+  const search = input.search?.trim() ?? "";
+  const activeGenre = input.genre?.trim() ?? "";
+  const currentPage = input.page && input.page > 0 ? input.page : 1;
+  const itemsPerPage = input.pageSize && input.pageSize > 0 ? input.pageSize : 15;
+  const pending = listPendingFromState(state);
+  const batch = getCurrentBatchFromState(state);
+  const weeklyOptions = generatePendingWeeklyOptions(state);
+
+  const genres = Array.from(
+    new Set(
+      pending
+        .flatMap((movie) => movie.genres)
+        .map((genre) => genre.trim())
+        .filter((genre) => genre && genre.toLowerCase() !== "pendiente")
+    )
+  ).sort((left, right) => left.localeCompare(right, "es"));
+
+  const filteredPending = pending.filter((movie) => {
+    const matchesSearch =
+      !search ||
+      `${movie.title} ${movie.year} ${movie.director} ${movie.cast.join(" ")}`
+        .toLocaleLowerCase("es")
+        .includes(search.toLocaleLowerCase("es"));
+
+    const matchesGenre =
+      !activeGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === activeGenre.toLocaleLowerCase("es"));
+
+    return matchesSearch && matchesGenre;
+  });
+
+  const moviesToHydrate = new Map<string, Movie>();
+  const totalPages = Math.max(1, Math.ceil(filteredPending.length / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * itemsPerPage;
+  const pagedPending = filteredPending.slice(pageStart, pageStart + itemsPerPage);
+
+  for (const movie of pagedPending) {
+    moviesToHydrate.set(movie.id, movie);
+  }
+  for (const item of weeklyOptions) {
+    const movie = getMovieById(state, item.movieId);
+    if (movie) {
+      moviesToHydrate.set(movie.id, movie);
+    }
+  }
+
+  const hydrated = await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
+  if (hydrated.some(Boolean)) {
+    await saveAppState(state);
+  }
+
+  const refreshedPending = listPendingFromState(state);
+  const refreshedFilteredPending = refreshedPending.filter((movie) => {
+    const matchesSearch =
+      !search ||
+      `${movie.title} ${movie.year} ${movie.director} ${movie.cast.join(" ")}`
+        .toLocaleLowerCase("es")
+        .includes(search.toLocaleLowerCase("es"));
+
+    const matchesGenre =
+      !activeGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === activeGenre.toLocaleLowerCase("es"));
+
+    return matchesSearch && matchesGenre;
+  });
+
+  return {
+    batch,
+    pending: refreshedPending,
+    genres,
+    filteredPending: refreshedFilteredPending,
+    weeklyOptions: weeklyOptions
+      .map((item) => {
+        const movie = getMovieById(state, item.movieId);
+        return movie ? { ...item, movie } : null;
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+  };
+}
+
+export async function getViewedPageDataHydrated(input: {
+  search?: string;
+  year?: string;
+  genre?: string;
+  sort?: HistoryFilters["sort"];
+  currentUserId?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const state = await loadAppState();
+  const currentPage = input.page && input.page > 0 ? input.page : 1;
+  const itemsPerPage = input.pageSize && input.pageSize > 0 ? input.pageSize : 15;
+  const history = buildHistoryFromState(
+    state,
+    {
+      search: input.search,
+      year: input.year,
+      genre: input.genre,
+      sort: input.sort
+    },
+    input.currentUserId
+  );
+  const allHistory = buildHistoryFromState(state, undefined, input.currentUserId);
+
+  const genres = Array.from(
+    new Set(
+      allHistory
+        .flatMap((item) => item.movie.genres)
+        .map((item) => item.trim())
+        .filter((item) => item && item.toLowerCase() !== "pendiente")
+    )
+  ).sort((left, right) => left.localeCompare(right, "es"));
+
+  const moviesToHydrate = new Map<string, Movie>();
+  const totalPages = Math.max(1, Math.ceil(history.length / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * itemsPerPage;
+  const pagedHistory = history.slice(pageStart, pageStart + itemsPerPage);
+
+  for (const item of pagedHistory) {
+    moviesToHydrate.set(item.movie.id, item.movie);
+  }
+
+  const hydrated = await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
+  if (hydrated.some(Boolean)) {
+    await saveAppState(state);
+  }
+
+  return {
+    history: buildHistoryFromState(
+      state,
+      {
+        search: input.search,
+        year: input.year,
+        genre: input.genre,
+        sort: input.sort
+      },
+      input.currentUserId
+    ),
+    allHistory: buildHistoryFromState(state, undefined, input.currentUserId),
+    genres
+  };
+}
+
+export async function authenticateUser(username: string, password: string) {
+  const state = await loadAppStateUncached();
   const user = state.users.find((entry) => normalizeUsername(entry.username) === normalizeUsername(username)) ?? null;
   if (!user) {
     return null;
@@ -812,7 +976,7 @@ export async function updateUserProfile(
     avatarDataUrl?: string;
   }
 ) {
-  const state = await loadAppState();
+  const state = await loadAppStateUncached();
   const user = findUserById(state, userId);
   if (!user) {
     throw new Error("No se encontro el usuario.");
@@ -869,7 +1033,7 @@ export async function updateUserCredentialsByAdmin(
     password?: string;
   }
 ) {
-  const state = await loadAppState();
+  const state = await loadAppStateUncached();
   const adminUser = findUserById(state, adminUserId);
   if (!adminUser?.isAdmin) {
     throw new Error("No tienes permisos para gestionar cuentas del grupo.");
@@ -936,7 +1100,7 @@ export async function resetUserCredentials(input: {
     throw new Error("El codigo de administracion no es valido.");
   }
 
-  const state = await loadAppState();
+  const state = await loadAppStateUncached();
   const user = findUserByIdentity(state, input.identifier);
   if (!user) {
     throw new Error("No se encontro ninguna cuenta con ese usuario o nombre visible.");
@@ -993,7 +1157,7 @@ export async function getSeededCredentials() {
 }
 
 export async function upsertRating(input: { movieId: string; userId: string; score: number; comment?: string }) {
-  const state = await loadAppState();
+  const state = await loadAppStateUncached();
   const comment = sanitizeComment(input.comment);
   const existing = state.ratings.find((rating) => rating.movieId === input.movieId && rating.userId === input.userId);
 
@@ -1027,7 +1191,7 @@ export async function upsertRating(input: { movieId: string; userId: string; sco
 }
 
 export async function generateBatch() {
-  const state = await loadAppState();
+  const state = await loadAppStateUncached();
   const currentBatch = getCurrentBatchFromState(state);
   const batch = generateWeeklyRecommendations(state);
   if (currentBatch?.selectedMovieId) {
@@ -1044,7 +1208,7 @@ export async function generateBatch() {
 }
 
 export async function selectWeeklyMovie(batchId: string, movieId: string) {
-  const state = await loadAppState();
+  const state = await loadAppStateUncached();
   const batch = state.weeklyBatches.find((entry) => entry.id === batchId);
   if (!batch) {
     throw new Error("No se encontro la tanda semanal.");
@@ -1066,7 +1230,7 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
 }
 
 export async function markMovieAsWatched(movieId: string, watchedOn = new Date().toISOString()) {
-  const state = await loadAppState();
+  const state = await loadAppStateUncached();
   const movie = getMovieById(state, movieId);
   if (!movie) {
     throw new Error("No se encontró la película.");
@@ -1109,7 +1273,7 @@ export async function movieSearch(query: string) {
 }
 
 export async function addPendingMovie(movieInput: Movie) {
-  const state = await loadAppState();
+  const state = await loadAppStateUncached();
   let movie =
     (movieInput.sourceIds?.tmdb ? getMovieByTmdbId(state, movieInput.sourceIds.tmdb) : null) ??
     state.movies.find((entry) => entry.slug === movieInput.slug && entry.year === movieInput.year) ??
@@ -1165,7 +1329,7 @@ export async function addPendingMovie(movieInput: Movie) {
 }
 
 export async function removePendingMovie(movieId: string) {
-  const state = await loadAppState();
+  const state = await loadAppStateUncached();
   const movie = getMovieById(state, movieId);
   if (!movie) {
     throw new Error("No se encontró la película.");

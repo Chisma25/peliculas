@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { getCurrentBatch, getPendingWeeklySuggestionsHydrated, listPendingHydrated } from "@/lib/store";
+import { getPendingPageDataHydrated } from "@/lib/store";
 import { buildPaginationItems, formatFitScore } from "@/lib/utils";
 
 const PAGE_SIZE = 15;
@@ -39,32 +39,11 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   const pageFromQuery = Number.parseInt(getSingleParam(params.page), 10);
   const currentPage = Number.isFinite(pageFromQuery) && pageFromQuery > 0 ? pageFromQuery : 1;
 
-  const [pending, batch, weeklyOptions] = await Promise.all([
-    listPendingHydrated(),
-    getCurrentBatch(),
-    getPendingWeeklySuggestionsHydrated()
-  ]);
-
-  const genres = Array.from(
-    new Set(
-      pending
-        .flatMap((movie) => movie.genres)
-        .map((genre) => genre.trim())
-        .filter((genre) => genre && genre.toLowerCase() !== "pendiente")
-    )
-  ).sort((left, right) => left.localeCompare(right, "es"));
-
-  const filteredPending = pending.filter((movie) => {
-    const matchesSearch =
-      !search ||
-      `${movie.title} ${movie.year} ${movie.director} ${movie.cast.join(" ")}`
-        .toLocaleLowerCase("es")
-        .includes(search.toLocaleLowerCase("es"));
-
-    const matchesGenre =
-      !activeGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === activeGenre.toLocaleLowerCase("es"));
-
-    return matchesSearch && matchesGenre;
+  const { pending, batch, weeklyOptions, filteredPending, genres } = await getPendingPageDataHydrated({
+    search,
+    genre: activeGenre,
+    page: currentPage,
+    pageSize: PAGE_SIZE
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredPending.length / PAGE_SIZE));
