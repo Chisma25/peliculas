@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const SESSION_COOKIE = "cine.session";
+import { getSessionCookieName, verifySessionToken } from "@/lib/session";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublicPage = pathname === "/login";
@@ -20,8 +20,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const session = request.cookies.get(SESSION_COOKIE)?.value;
-  if (session) {
+  const session = request.cookies.get(getSessionCookieName())?.value;
+  const userId = await verifySessionToken(session);
+  if (userId) {
     return NextResponse.next();
   }
 

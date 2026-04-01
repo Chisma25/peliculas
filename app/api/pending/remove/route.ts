@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 
-import { removePendingMovie } from "@/lib/store";
+import { ensureSameOrigin, sanitizeInternalRedirect } from "@/lib/request-security";
+import { getSessionUser, removePendingMovie } from "@/lib/store";
 
 export async function POST(request: Request) {
+  const originError = ensureSameOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) {
+    return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
+  }
+
   const formData = await request.formData();
   const movieId = String(formData.get("movieId") ?? "");
-  const redirectTo = String(formData.get("redirectTo") ?? "/pendientes");
+  const redirectTo = sanitizeInternalRedirect(String(formData.get("redirectTo") ?? "/pendientes"), "/pendientes");
 
   if (!movieId) {
     return NextResponse.json({ error: "Película inválida." }, { status: 400 });

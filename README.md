@@ -14,6 +14,7 @@ App web privada para reemplazar un Excel compartido de peliculas vistas, notas i
 - Reset de emergencia por codigo de administracion en `/reset-credenciales`.
 - Capa de recomendacion hibrida basada en historial, afinidad y variedad.
 - Persistencia local para desarrollo y snapshot persistente en PostgreSQL con Prisma para despliegue.
+- Sesiones firmadas en cookie para no depender de IDs de usuario en claro.
 
 ## Stack
 
@@ -65,6 +66,7 @@ DIRECT_URL=...
 APP_SNAPSHOT_ID=main
 TMDB_API_KEY=...
 ADMIN_RESET_CODE=...
+SESSION_SECRET=...
 ```
 
 7. Despliega.
@@ -79,6 +81,7 @@ Para Supabase + Prisma, la recomendacion oficial es usar runtime con pooler y CL
 - La persistencia remota actual usa un snapshot JSON completo del estado de la app en PostgreSQL.
 - Esto simplifica el despliegue inmediato y deja margen para normalizar tablas mas adelante.
 - Si no existe `TMDB_API_KEY`, la app sigue funcionando, pero no podra enriquecer peliculas ni mostrar caratulas reales.
+- En produccion deberias configurar siempre `SESSION_SECRET` con una cadena larga, aleatoria y privada.
 - La nota externa muestra la fuente real disponible; Rotten Tomatoes se trata como preferencia, no como dependencia obligatoria.
 
 ## Endpoints principales

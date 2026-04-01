@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { ensureSameOrigin } from "@/lib/request-security";
 import { resetUserCredentials } from "@/lib/store";
 
 export async function POST(request: Request) {
+  const originError = ensureSameOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   const formData = await request.formData();
   const adminCode = String(formData.get("adminCode") ?? "");
   const identifier = String(formData.get("identifier") ?? "");

@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { ensureSameOrigin } from "@/lib/request-security";
 import { getSessionUser, upsertRating } from "@/lib/store";
 
 export async function POST(request: Request) {
+  const originError = ensureSameOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   const sessionUser = await getSessionUser();
   if (!sessionUser) {
     return NextResponse.json({ error: "Sesion no valida." }, { status: 401 });

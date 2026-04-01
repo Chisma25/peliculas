@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 
-import { selectWeeklyMovie } from "@/lib/store";
+import { ensureSameOrigin } from "@/lib/request-security";
+import { getSessionUser, selectWeeklyMovie } from "@/lib/store";
 
 export async function POST(request: Request) {
+  const originError = ensureSameOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) {
+    return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
+  }
+
   const formData = await request.formData();
   const batchId = String(formData.get("batchId") ?? "");
   const movieId = String(formData.get("movieId") ?? "");

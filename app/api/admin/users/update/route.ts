@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { ensureSameOrigin } from "@/lib/request-security";
 import { getSessionUser, updateUserCredentialsByAdmin } from "@/lib/store";
 
 export async function POST(request: Request) {
+  const originError = ensureSameOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
   const sessionUser = await getSessionUser();
   if (!sessionUser?.isAdmin) {
     return NextResponse.json({ error: "No tienes permisos para gestionar cuentas." }, { status: 403 });

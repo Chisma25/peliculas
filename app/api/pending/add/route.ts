@@ -1,13 +1,24 @@
 import { NextResponse } from "next/server";
 
-import { addPendingMovie } from "@/lib/store";
+import { ensureSameOrigin } from "@/lib/request-security";
+import { getSessionUser, addPendingMovie } from "@/lib/store";
 import { Movie } from "@/lib/types";
 
 export async function POST(request: Request) {
+  const originError = ensureSameOrigin(request);
+  if (originError) {
+    return originError;
+  }
+
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) {
+    return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
+  }
+
   const movie = (await request.json()) as Movie;
 
-  if (!movie?.title) {
-    return NextResponse.json({ error: "Pel\u00edcula inv\u00e1lida." }, { status: 400 });
+  if (!movie?.title || movie.title.length > 200) {
+    return NextResponse.json({ error: "Película inválida." }, { status: 400 });
   }
 
   const result = await addPendingMovie(movie);

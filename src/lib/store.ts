@@ -8,10 +8,9 @@ import { seedState } from "@/lib/demo-data";
 import { loadManualHistorySeed } from "@/lib/manual-history";
 import { resolveMovieMetadata, searchMovies } from "@/lib/movie-provider";
 import { generatePendingWeeklyOptions, generateWeeklyRecommendations } from "@/lib/recommendations";
+import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
 import { ActivityItem, AppState, Movie, User, UserRating } from "@/lib/types";
 import { average, getMovieAverage, safeId, slugify } from "@/lib/utils";
-
-const SESSION_COOKIE = "cine.session";
 const DATA_DIR = join(process.cwd(), "data");
 const STATE_FILE = join(DATA_DIR, "runtime-state.json");
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
@@ -98,6 +97,55 @@ function verifyPassword(password: string, passwordHash: string) {
 
 function getInitialPasswordForUser(name: string) {
   return INITIAL_PASSWORDS[name as keyof typeof INITIAL_PASSWORDS] ?? "Clave9!Cine";
+}
+
+function validateUsername(value: string) {
+  if (value.length < 3 || value.length > 32) {
+    throw new Error("El usuario debe tener entre 3 y 32 caracteres.");
+  }
+}
+
+function validateDisplayName(value: string) {
+  if (value.length < 2 || value.length > 60) {
+    throw new Error("El nombre visible debe tener entre 2 y 60 caracteres.");
+  }
+}
+
+function validatePassword(value: string) {
+  if (value.length < 8 || value.length > 128) {
+    throw new Error("La contraseña debe tener entre 8 y 128 caracteres.");
+  }
+}
+
+function sanitizeComment(value?: string) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (trimmed.length > 1000) {
+    throw new Error("El comentario no puede superar los 1000 caracteres.");
+  }
+
+  return trimmed;
+}
+
+function sanitizeAvatarDataUrl(value?: string) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const isAllowedImage = /^data:image\/(?:png|jpeg|jpg|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed);
+  if (!isAllowedImage) {
+    throw new Error("El avatar debe ser una imagen PNG, JPG, WEBP o GIF.");
+  }
+
+  if (trimmed.length > 2_000_000) {
+    throw new Error("El avatar es demasiado grande.");
+  }
+
+  return trimmed;
 }
 
 function ensureUserCredentials(user: User) {
@@ -575,12 +623,16 @@ function buildProfileFromState(state: AppState, userId: string): ProfileData | n
 }
 
 export function getSessionCookieName() {
-  return SESSION_COOKIE;
+  return getSessionCookieNameFromSession();
 }
 
 export async function getSessionUser() {
   const cookieStore = await cookies();
-  const userId = cookieStore.get(SESSION_COOKIE)?.value;
+  const token = cookieStore.get(getSessionCookieNameFromSession())?.value;
+  const userId = await verifySessionToken(token);
+  if (!userId) {
+    return null;
+  }
   const state = await loadAppState();
   return findUserById(state, userId);
 }
@@ -774,6 +826,8 @@ export async function updateUserProfile(
   if (!nextUsername) {
     throw new Error("El usuario es obligatorio.");
   }
+  validateDisplayName(nextName);
+  validateUsername(nextUsername);
 
   const usernameTaken = state.users.some(
     (entry) => entry.id !== userId && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
@@ -789,9 +843,10 @@ export async function updateUserProfile(
   if (input.avatarAction === "remove") {
     user.avatarUrl = undefined;
   } else if (input.avatarAction === "replace" && input.avatarDataUrl?.trim()) {
-    user.avatarUrl = input.avatarDataUrl.trim();
+    user.avatarUrl = sanitizeAvatarDataUrl(input.avatarDataUrl);
   }
   if (input.password?.trim()) {
+    validatePassword(input.password.trim());
     user.passwordHash = hashPassword(input.password.trim());
   }
 
@@ -831,6 +886,7 @@ export async function updateUserCredentialsByAdmin(
   if (!nextUsername) {
     throw new Error("El usuario no puede quedar vacio.");
   }
+  validateUsername(nextUsername);
 
   const usernameTaken = state.users.some(
     (entry) => entry.id !== targetUser.id && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
@@ -843,6 +899,7 @@ export async function updateUserCredentialsByAdmin(
   targetUser.username = nextUsername;
 
   if (nextPassword) {
+    validatePassword(nextPassword);
     targetUser.passwordHash = hashPassword(nextPassword);
   }
 
@@ -895,6 +952,8 @@ export async function resetUserCredentials(input: {
   if (!nextPassword) {
     throw new Error("La nueva contrasena es obligatoria.");
   }
+  validateUsername(nextUsername);
+  validatePassword(nextPassword);
 
   const usernameTaken = state.users.some(
     (entry) => entry.id !== user.id && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
@@ -935,18 +994,19 @@ export async function getSeededCredentials() {
 
 export async function upsertRating(input: { movieId: string; userId: string; score: number; comment?: string }) {
   const state = await loadAppState();
+  const comment = sanitizeComment(input.comment);
   const existing = state.ratings.find((rating) => rating.movieId === input.movieId && rating.userId === input.userId);
 
   if (existing) {
     existing.score = input.score;
-    existing.comment = input.comment;
+    existing.comment = comment;
   } else {
     state.ratings.push({
       id: safeId("rating", `${input.movieId}-${input.userId}`),
       movieId: input.movieId,
       userId: input.userId,
       score: input.score,
-      comment: input.comment
+      comment
     });
   }
 
