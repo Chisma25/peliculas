@@ -177,41 +177,48 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
       ) : (
         <>
           <div className={`history-grid-compact history-grid-standardized ${pagedHistory.length <= 2 ? "history-grid-tight" : ""}`}>
-            {pagedHistory.map((item) => (
-              <Link key={item.movie.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
-                <article className="history-card-compact history-card-viewed">
-                  <div
-                    className="history-poster-compact"
-                    style={
-                      item.movie.posterUrl
-                        ? {
-                            backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.08), rgba(10, 15, 24, 0.55)), url(${item.movie.posterUrl})`,
-                            backgroundSize: "cover",
-                            backgroundPosition: "center"
-                          }
-                        : undefined
-                    }
-                  />
-                  <div className="history-card-copy history-card-copy-spacious">
-                    <p className="eyebrow">{item.watchedOn ? `Vista ${formatShortDate(item.watchedOn)}` : "Sin fecha"}</p>
-                    <strong className="history-card-title">{item.movie.title}</strong>
-                    <div className="stat-row history-card-meta-row">
-                      <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
-                      <span>Grupo: {formatScore(item.groupAverage)}</span>
+            {pagedHistory.map((item) => {
+              const visibleGenres = item.movie.genres.length > 0 ? item.movie.genres.slice(0, 3) : ["Sin género"];
+
+              return (
+                <Link key={item.movie.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
+                  <article className="history-card-compact history-card-viewed">
+                    <div
+                      className="history-poster-compact"
+                      style={
+                        item.movie.posterUrl
+                          ? {
+                              backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.08), rgba(10, 15, 24, 0.55)), url(${item.movie.posterUrl})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center"
+                            }
+                          : undefined
+                      }
+                    />
+                    <div className="history-card-copy history-card-copy-spacious history-card-viewed-copy">
+                      <p className="eyebrow">{item.watchedOn ? `Vista ${formatShortDate(item.watchedOn)}` : "Sin fecha"}</p>
+                      <strong className="history-card-title">{item.movie.title}</strong>
+                      <p className="history-card-subline">{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</p>
+                      <div className="chips pending-card-genres history-card-genres">
+                        {visibleGenres.map((itemGenre) => (
+                          <span key={`${item.movie.id}-${itemGenre}`}>{itemGenre}</span>
+                        ))}
+                      </div>
+                      <div className="history-card-score-grid">
+                        <div className="history-card-score-pill">
+                          <small>Grupo</small>
+                          <strong>{formatScore(item.groupAverage)}</strong>
+                        </div>
+                        <div className="history-card-score-pill history-card-score-pill-user">
+                          <small>Tu nota</small>
+                          <strong>{typeof item.userRating === "number" ? formatScore(item.userRating) : "-"}</strong>
+                        </div>
+                      </div>
                     </div>
-                    <div className="chips pending-card-genres">
-                      {item.movie.genres.slice(0, 3).map((itemGenre) => (
-                        <span key={`${item.movie.id}-${itemGenre}`}>{itemGenre}</span>
-                      ))}
-                    </div>
-                    <div className="history-card-rating-strip">
-                      <small>Tu nota</small>
-                      <strong>{typeof item.userRating === "number" ? formatScore(item.userRating) : "-"}</strong>
-                    </div>
-                  </div>
-                </article>
-              </Link>
-            ))}
+                  </article>
+                </Link>
+              );
+            })}
           </div>
 
           {totalPages > 1 ? (

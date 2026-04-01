@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import type { Route } from "next";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 type LoginPanelProps = {
@@ -10,7 +8,6 @@ type LoginPanelProps = {
 };
 
 export function LoginPanel({ nextPath }: LoginPanelProps) {
-  const router = useRouter();
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -20,15 +17,14 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
       body: formData
     });
 
-    const payload = (await response.json()) as { error?: string };
+    const payload = (await response.json()) as { error?: string; redirectTo?: string };
     if (!response.ok) {
       setMessage(payload.error ?? "No se pudo iniciar sesión.");
       return;
     }
 
-    const destination = nextPath && nextPath.startsWith("/") ? nextPath : "/";
-    router.push(destination as Route);
-    router.refresh();
+    const destination = payload.redirectTo && payload.redirectTo.startsWith("/") ? payload.redirectTo : "/";
+    window.location.assign(destination);
   }
 
   return (
@@ -70,7 +66,7 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
         </div>
       ) : null}
 
-      <div className="inline-actions">
+      <div className="inline-actions login-panel-reset">
         <Link href="/reset-credenciales" className="secondary-button">
           Reset de emergencia
         </Link>

@@ -13,7 +13,6 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
-
   const user = await authenticateUser(username, password);
   if (!user) {
     return NextResponse.json({ error: "Usuario o contraseña incorrectos." }, { status: 401 });
@@ -22,7 +21,8 @@ export async function POST(request: Request) {
   const sessionToken = await createSessionToken(user.id);
   const response = NextResponse.json({
     message: "Sesión iniciada.",
-    userId: user.id
+    userId: user.id,
+    redirectTo: "/"
   });
 
   response.cookies.set(getSessionCookieName(), sessionToken, getSessionCookieOptions());

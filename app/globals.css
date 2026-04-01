@@ -1211,6 +1211,11 @@ textarea {
   gap: 0.75rem;
 }
 
+.login-panel-reset {
+  margin-top: 0.65rem;
+  padding-top: 0.25rem;
+}
+
 .user-chip-role {
   margin: 0.1rem 0 0;
   color: var(--accent);
@@ -1596,6 +1601,18 @@ textarea {
   min-height: 9rem;
 }
 
+.history-card-viewed-copy {
+  gap: 0.72rem;
+  min-height: 10rem;
+}
+
+.history-card-subline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.1;
+}
+
 .history-card-meta {
   display: flex;
   align-items: baseline;
@@ -1620,6 +1637,44 @@ textarea {
 
 .history-card-meta-row {
   color: var(--text);
+}
+
+.history-card-genres {
+  min-height: 4.5rem;
+  align-content: start;
+}
+
+.history-card-score-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: auto;
+}
+
+.history-card-score-pill {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.78rem 0.85rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.history-card-score-pill small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.history-card-score-pill strong {
+  font-size: 1.12rem;
+  line-height: 1;
+}
+
+.history-card-score-pill-user {
+  background: linear-gradient(135deg, rgba(214, 101, 53, 0.08), rgba(255, 255, 255, 0.03));
+  border-color: rgba(255, 196, 141, 0.12);
 }
 
 .history-card-rating-strip {
