@@ -219,7 +219,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         </div>
       ) : (
         <>
-          <div className="pending-grid">
+          <div className={`pending-grid ${pagedPending.length <= 2 ? "pending-grid-tight" : ""}`}>
             {pagedPending.map((movie) => (
               <article key={movie.id} className="history-card-compact history-card-pending">
                 <Link href={`/peliculas/${movie.slug}`} className="pending-card-linkblock">
