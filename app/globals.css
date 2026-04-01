@@ -1373,8 +1373,9 @@ textarea {
 
 .pending-weekly-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 320px));
   gap: 1.1rem;
+  justify-content: start;
 }
 
 .pending-weekly-card {
@@ -1513,8 +1514,9 @@ textarea {
 
 .pending-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 320px));
   gap: 1.1rem;
+  justify-content: start;
 }
 
 .history-poster-compact {
