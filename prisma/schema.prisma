@@ -14,3 +14,13 @@ model AppSnapshot {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model TmdbCacheEntry {
+  key       String   @id
+  kind      String
+  payload   Json
+  fetchedAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([kind, expiresAt])
+}

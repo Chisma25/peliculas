@@ -3,6 +3,9 @@ import { slugify } from "@/lib/utils";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
+const TMDB_SEARCH_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
+const TMDB_DETAILS_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 14;
+const tmdbMemoryCache = new Map<string, { payload: unknown; expiresAt: number }>();
 
 const TITLE_SEARCH_OVERRIDES: Record<string, { tmdbId?: string; search?: string; year?: number }> = {
   "el-gato-con-botas-el-utilmo-deseo": {
@@ -184,6 +187,122 @@ type TmdbMovieDetails = {
   };
 };
 
+type CachedPayload<T> = {
+  hit: boolean;
+  data: T | null;
+};
+
+function shouldUsePersistentCache() {
+  return Boolean(process.env.DATABASE_URL);
+}
+
+function buildCacheKey(kind: string, rawKey: string) {
+  return `${kind}:${encodeURIComponent(rawKey)}`;
+}
+
+function getCacheTtl(kind: string) {
+  return kind === "movie-details" ? TMDB_DETAILS_CACHE_TTL_MS : TMDB_SEARCH_CACHE_TTL_MS;
+}
+
+function getMemoryCache<T>(kind: string, rawKey: string) {
+  const key = buildCacheKey(kind, rawKey);
+  const entry = tmdbMemoryCache.get(key);
+  if (!entry) {
+    return null;
+  }
+
+  if (Date.now() >= entry.expiresAt) {
+    tmdbMemoryCache.delete(key);
+    return null;
+  }
+
+  return entry.payload as CachedPayload<T>;
+}
+
+function setMemoryCache<T>(kind: string, rawKey: string, payload: CachedPayload<T>, ttlMs: number) {
+  tmdbMemoryCache.set(buildCacheKey(kind, rawKey), {
+    payload,
+    expiresAt: Date.now() + ttlMs
+  });
+}
+
+async function readPersistentCache<T>(kind: string, rawKey: string) {
+  if (!shouldUsePersistentCache()) {
+    return null;
+  }
+
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const entry = await prisma.tmdbCacheEntry.findUnique({
+      where: {
+        key: buildCacheKey(kind, rawKey)
+      }
+    });
+
+    if (!entry) {
+      return null;
+    }
+
+    if (entry.expiresAt.getTime() <= Date.now()) {
+      return null;
+    }
+
+    return entry.payload as CachedPayload<T>;
+  } catch {
+    return null;
+  }
+}
+
+async function writePersistentCache<T>(kind: string, rawKey: string, payload: CachedPayload<T>, ttlMs: number) {
+  if (!shouldUsePersistentCache()) {
+    return;
+  }
+
+  const jsonPayload = JSON.parse(JSON.stringify(payload));
+
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.tmdbCacheEntry.upsert({
+      where: {
+        key: buildCacheKey(kind, rawKey)
+      },
+      create: {
+        key: buildCacheKey(kind, rawKey),
+        kind,
+        payload: jsonPayload,
+        expiresAt: new Date(Date.now() + ttlMs)
+      },
+      update: {
+        kind,
+        payload: jsonPayload,
+        fetchedAt: new Date(),
+        expiresAt: new Date(Date.now() + ttlMs)
+      }
+    });
+  } catch {
+    // Fallback silencioso: si la cache persistente falla, la app sigue funcionando.
+  }
+}
+
+async function readCachedPayload<T>(kind: string, rawKey: string) {
+  const memoryPayload = getMemoryCache<T>(kind, rawKey);
+  if (memoryPayload) {
+    return memoryPayload;
+  }
+
+  const persistentPayload = await readPersistentCache<T>(kind, rawKey);
+  if (persistentPayload) {
+    setMemoryCache(kind, rawKey, persistentPayload, getCacheTtl(kind));
+  }
+
+  return persistentPayload;
+}
+
+async function writeCachedPayload<T>(kind: string, rawKey: string, payload: CachedPayload<T>, ttlMs: number) {
+  setMemoryCache(kind, rawKey, payload, ttlMs);
+  await writePersistentCache(kind, rawKey, payload, ttlMs);
+}
+
 function buildImageUrl(path?: string | null, size = "w780") {
   return path ? `${TMDB_IMAGE_BASE}/${size}${path}` : undefined;
 }
@@ -319,17 +438,28 @@ function titleSimilarity(query: string, candidate: Movie, year?: number) {
 }
 
 async function fetchMovieByTmdbId(tmdbId: string) {
+  const cached = await readCachedPayload<TmdbMovieDetails>("movie-details", tmdbId);
+  if (cached) {
+    return cached.hit && cached.data ? mapDetailsToMovie(cached.data) : null;
+  }
+
   const details = await tmdbFetch<TmdbMovieDetails>(`/movie/${tmdbId}?append_to_response=credits,videos`);
+  await writeCachedPayload("movie-details", tmdbId, { hit: Boolean(details), data: details ?? null }, TMDB_DETAILS_CACHE_TTL_MS);
   return details ? mapDetailsToMovie(details) : null;
 }
 
 async function fetchSearchResults(query: string) {
+  const cacheKey = query.trim().toLocaleLowerCase("es");
+  const cached = await readCachedPayload<TmdbSearchResult[]>("movie-search", cacheKey);
+  if (cached) {
+    return cached.hit && cached.data ? cached.data.filter((item) => !isBehindTheScenesTitle(item.title, query)).map(mapSearchResultToMovie) : [];
+  }
+
   const payload = await tmdbFetch<{ results?: TmdbSearchResult[] }>(`/search/movie?query=${encodeURIComponent(query)}`);
-  return (
-    payload?.results
-      ?.filter((item) => !isBehindTheScenesTitle(item.title, query))
-      .map(mapSearchResultToMovie) ?? []
-  );
+  const results = payload?.results ?? [];
+  await writeCachedPayload("movie-search", cacheKey, { hit: results.length > 0, data: results }, TMDB_SEARCH_CACHE_TTL_MS);
+
+  return results.filter((item) => !isBehindTheScenesTitle(item.title, query)).map(mapSearchResultToMovie);
 }
 
 export async function searchMovies(query: string, fallbackMovies: Movie[]) {
