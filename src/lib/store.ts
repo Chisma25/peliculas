@@ -666,31 +666,13 @@ export async function getMovieBySlugHydrated(slug: string) {
 
 export async function getDashboardData() {
   const state = await loadAppState();
-  const { batch, changed } = await ensureDashboardBatch(state);
-  if (changed) {
-    await saveAppState(state);
-  }
-  const recommendations =
-    batch?.items
-      .map((item) => {
-        const movie = getMovieById(state, item.movieId);
-        if (!movie) {
-          return null;
-        }
-
-        return {
-          ...item,
-          movie,
-          selected: batch.selectedMovieId === movie.id
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item)) ?? [];
+  const batch = getCurrentBatchFromState(state);
 
   return {
     group: state.group,
     members: listMembersFromState(state),
     pendingMovies: listPendingFromState(state),
-    recommendations,
+    recommendations: [],
     batch,
     selectedMovie: batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null,
     selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
@@ -705,32 +687,12 @@ export async function getDashboardData() {
 
 export async function getDashboardDataHydrated() {
   const state = await loadAppState();
-  const { batch, changed: batchChanged } = await ensureDashboardBatch(state);
-  const recommendations =
-    batch?.items
-      .map((item) => {
-        const movie = getMovieById(state, item.movieId);
-        if (!movie) {
-          return null;
-        }
-
-        return {
-          ...item,
-          movie,
-          selected: batch.selectedMovieId === movie.id
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item)) ?? [];
-
-  const pendingMovies = listPendingFromState(state);
+  const batch = getCurrentBatchFromState(state);
   const selectedMovie = batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null;
-  const hydrated = await Promise.all([
-    ...recommendations.map((item) => hydrateMovie(state, item.movie)),
-    ...pendingMovies.map((movie) => hydrateMovie(state, movie)),
-    hydrateMovie(state, selectedMovie)
-  ]);
+  const pendingMovies = listPendingFromState(state);
+  const hydrated = await Promise.all([hydrateMovie(state, selectedMovie), ...pendingMovies.map((movie) => hydrateMovie(state, movie))]);
 
-  if (batchChanged || hydrated.some(Boolean)) {
+  if (hydrated.some(Boolean)) {
     await saveAppState(state);
   }
 
@@ -738,7 +700,7 @@ export async function getDashboardDataHydrated() {
     group: state.group,
     members: listMembersFromState(state),
     pendingMovies: listPendingFromState(state),
-    recommendations,
+    recommendations: [],
     batch,
     selectedMovie: batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null,
     selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,

@@ -259,6 +259,10 @@ select {
   align-items: start;
 }
 
+.dashboard-grid-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .detail-grid {
   grid-template-columns: 340px minmax(0, 1fr);
 }
@@ -813,6 +817,10 @@ select {
 .dashboard-panel-main,
 .activity-panel {
   min-height: 100%;
+}
+
+.activity-panel-wide {
+  grid-column: 1 / -1;
 }
 
 .activity-panel .activity-list article {

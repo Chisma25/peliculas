@@ -26,7 +26,7 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
     });
 
     const payload = (await response.json()) as { message?: string; error?: string };
-    setMessage(payload.message ?? payload.error ?? "Puntuacion actualizada.");
+    setMessage(payload.message ?? payload.error ?? "Puntuación actualizada.");
   }
 
   const editingExistingRating = typeof initialScore === "number";
@@ -36,16 +36,13 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
           <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="rating-modal-title">
             <section className="modal-card">
               <div className="panel-header">
-                <p className="eyebrow">Tu valoracion</p>
-                <button type="button" className="ghost-button" onClick={() => setIsOpen(false)}>
-                  Cerrar
-                </button>
+                <p className="eyebrow">Tu valoración</p>
               </div>
-              <h2 id="rating-modal-title">{editingExistingRating ? "Edita tu valoracion" : "Puntua esta pelicula"}</h2>
+              <h2 id="rating-modal-title">{editingExistingRating ? "Edita tu valoración" : "Puntúa esta película"}</h2>
               <p className="body-copy">
                 {editingExistingRating
-                  ? "Tu nota actual ya aparece cargada. Cambiala y guarda para actualizarla."
-                  : "La nota es obligatoria. El comentario es opcional y puedes anadirlo ahora o mas adelante."}
+                  ? "Tu nota actual ya aparece cargada. Cámbiala y guarda para actualizarla."
+                  : "La nota es obligatoria. El comentario es opcional y puedes añadirlo ahora o más adelante."}
               </p>
 
               <form
@@ -75,7 +72,7 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
                     name="comment"
                     rows={4}
                     defaultValue={initialComment ?? ""}
-                    placeholder="Que te ha gustado, que te ha sorprendido o cualquier apunte que quieras dejar."
+                    placeholder="Qué te ha gustado, qué te ha sorprendido o cualquier apunte que quieras dejar."
                   />
                 </label>
                 <div className="modal-actions">
@@ -83,7 +80,7 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
                     Cancelar
                   </button>
                   <button type="submit" className="primary-button" disabled={isPending}>
-                    {isPending ? "Guardando..." : editingExistingRating ? "Actualizar valoracion" : "Guardar valoracion"}
+                    {isPending ? "Guardando..." : editingExistingRating ? "Actualizar valoración" : "Guardar valoración"}
                   </button>
                 </div>
                 {message ? <p className="status-text">{message}</p> : null}
@@ -97,7 +94,7 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
   return (
     <>
       <button type="button" className="primary-button" onClick={() => setIsOpen(true)}>
-        {editingExistingRating ? "Editar mi valoracion" : "Valorar pelicula"}
+        {editingExistingRating ? "Editar mi valoración" : "Valorar película"}
       </button>
       {modal}
     </>

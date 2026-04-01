@@ -1,9 +1,8 @@
 import Link from "next/link";
 
 import { MoviePoster } from "@/components/movie-poster";
-import { RecommendationCard } from "@/components/recommendation-card";
 import { getDashboardDataHydrated } from "@/lib/store";
-import { formatLongDate, formatScore, formatShortDate } from "@/lib/utils";
+import { formatScore, formatShortDate } from "@/lib/utils";
 
 export default async function HomePage() {
   const dashboard = await getDashboardDataHydrated();
@@ -16,25 +15,23 @@ export default async function HomePage() {
           <h1>Este es vuestro rincón para decidir la peli de la semana.</h1>
           <div className="hero-copy-stack">
             <p className="body-copy">
-              Aquí está todo lo vuestro: las películas que ya habéis visto, las que tenéis en pendientes y las
-              recomendaciones semanales pensadas para vuestro grupo, no para cualquiera.
+              Aquí está todo lo vuestro: las películas que ya habéis visto, las que tenéis en pendientes y la película
+              que toca esta semana, sin ruido extra ni capas que no os aporten.
             </p>
             <p className="body-copy">
-              El dashboard ahora os enseña tres descubrimientos reales: películas que todavía no habéis visto y que ni
-              siquiera están en pendientes, para que siempre entren ideas nuevas al radar.
+              La idea es simple: tener en un solo sitio vuestras vistas, notas y decisiones semanales para que elegir
+              entre vosotros sea rápido y quede todo bien guardado.
             </p>
           </div>
           <div className="chips">
             <span>Vuestras vistas</span>
             <span>Vuestras notas</span>
-            <span>Descubrimientos nuevos</span>
+            <span>Película semanal</span>
           </div>
           <div className="hero-actions">
-            <form action="/api/weekly-recommendations/generate" method="post">
-              <button type="submit" className="primary-button">
-                Generar nuevas recomendaciones
-              </button>
-            </form>
+            <Link href="/pendientes" className="primary-button">
+              Ver pendientes
+            </Link>
             <Link href="/explorar" className="secondary-button">
               Buscar en TMDb
             </Link>
@@ -107,28 +104,8 @@ export default async function HomePage() {
         </article>
       </section>
 
-      <section className="dashboard-grid">
-        <article className="panel dashboard-panel-main">
-          <div className="panel-header">
-            <p className="eyebrow">3 descubrimientos fuera de pendientes</p>
-            <h2>{dashboard.batch ? `Tanda del ${formatLongDate(dashboard.batch.weekOf)}` : "Sin tanda generada"}</h2>
-          </div>
-          <div className="recommendation-stack">
-            {dashboard.recommendations.length > 0 ? (
-              dashboard.recommendations.map((item) =>
-                dashboard.batch ? (
-                  <RecommendationCard key={item.id} item={item} batchId={dashboard.batch.id} eyebrow="Descubrimiento semanal" />
-                ) : null
-              )
-            ) : (
-              <div className="empty-state">
-                <p className="body-copy">Ahora mismo no hay suficientes descubrimientos nuevos fuera de vistas y pendientes.</p>
-              </div>
-            )}
-          </div>
-        </article>
-
-        <aside className="panel activity-panel">
+      <section className="dashboard-grid dashboard-grid-single">
+        <aside className="panel activity-panel activity-panel-wide">
           <div className="panel-header">
             <p className="eyebrow">Actividad reciente</p>
             <h2>Movimiento del grupo</h2>
