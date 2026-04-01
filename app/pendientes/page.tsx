@@ -39,34 +39,39 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   const pageFromQuery = Number.parseInt(getSingleParam(params.page), 10);
   const currentPage = Number.isFinite(pageFromQuery) && pageFromQuery > 0 ? pageFromQuery : 1;
 
-  const { pending, batch, weeklyOptions, filteredPending, genres } = await getPendingPageDataHydrated({
+  const {
+    batch,
+    weeklyOptions,
+    genres,
+    totalPendingCount,
+    filteredPendingCount,
+    totalPages,
+    currentPage: safePage,
+    pagedPending
+  } = await getPendingPageDataHydrated({
     search,
     genre: activeGenre,
     page: currentPage,
     pageSize: PAGE_SIZE
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredPending.length / PAGE_SIZE));
-  const safePage = Math.min(currentPage, totalPages);
-  const pageStart = (safePage - 1) * PAGE_SIZE;
-  const pagedPending = filteredPending.slice(pageStart, pageStart + PAGE_SIZE);
   const paginationItems = buildPaginationItems(safePage, totalPages);
 
   return (
     <section className="panel">
       <div className="panel-header">
         <p className="eyebrow">Pendientes</p>
-        <h1>Películas pendientes de ver</h1>
-        <p className="body-copy">Aquí guardáis las pelis que queréis tener a mano antes de decidir qué cae esa semana.</p>
+        <h1>PelÃ­culas pendientes de ver</h1>
+        <p className="body-copy">AquÃ­ guardÃ¡is las pelis que querÃ©is tener a mano antes de decidir quÃ© cae esa semana.</p>
       </div>
 
       {weeklyOptions.length > 0 ? (
         <div className="pending-weekly-block">
           <div className="panel-header">
             <p className="eyebrow">5 posibles para esta semana</p>
-            <h2>Las más fuertes dentro de pendientes</h2>
+            <h2>Las mÃ¡s fuertes dentro de pendientes</h2>
             <p className="body-copy">
-              Aquí el motor solo mira pelis que ya tenéis guardadas en pendientes y os ordena las cinco que mejor
+              AquÃ­ el motor solo mira pelis que ya tenÃ©is guardadas en pendientes y os ordena las cinco que mejor
               encajan ahora mismo para plan de grupo.
             </p>
           </div>
@@ -94,7 +99,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                       <p className="eyebrow">{batch.selectedMovieId === item.movie.id ? "Elegida" : "Desde pendientes"}</p>
                       <strong className="history-card-title">{item.movie.title}</strong>
                       <div className="stat-row">
-                        <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
+                        <span>{item.movie.year > 0 ? item.movie.year : "AÃ±o pendiente"}</span>
                         <span>{formatFitScore(item.score)}/100</span>
                       </div>
                       <div className="chips pending-card-genres">
@@ -168,29 +173,29 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
 
       <div className="pending-summary-row">
         <p className="status-text">
-          {filteredPending.length === pending.length
-            ? `${pending.length} pendientes en lista.`
-            : `${filteredPending.length} resultados de ${pending.length} pendientes.`}
+          {filteredPendingCount === totalPendingCount
+            ? `${totalPendingCount} pendientes en lista.`
+            : `${filteredPendingCount} resultados de ${totalPendingCount} pendientes.`}
         </p>
-        {filteredPending.length > PAGE_SIZE ? (
+        {filteredPendingCount > PAGE_SIZE ? (
           <p className="muted-copy">
-            Página {safePage} de {totalPages}
+            PÃ¡gina {safePage} de {totalPages}
           </p>
         ) : null}
       </div>
 
-      {filteredPending.length === 0 ? (
+      {filteredPendingCount === 0 ? (
         <div className="empty-state">
           <p className="body-copy">
-            {pending.length === 0
-              ? "Todavía no habéis añadido ninguna película a pendientes."
+            {totalPendingCount === 0
+              ? "TodavÃ­a no habÃ©is aÃ±adido ninguna pelÃ­cula a pendientes."
               : "No hay ninguna pendiente que encaje con esos filtros."}
           </p>
           <div className="inline-actions">
             <Link href="/explorar" className="secondary-button">
               Ir a explorar
             </Link>
-            {pending.length > 0 ? (
+            {totalPendingCount > 0 ? (
               <Link href="/pendientes" className="ghost-button">
                 Ver todas
               </Link>
@@ -218,7 +223,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                   <div className="history-card-copy">
                     <strong className="history-card-title">{movie.title}</strong>
                     <div className="stat-row">
-                      <span>{movie.year > 0 ? movie.year : "Año pendiente"}</span>
+                      <span>{movie.year > 0 ? movie.year : "AÃ±o pendiente"}</span>
                       <span>
                         {movie.externalRating.source}: {movie.externalRating.value}
                       </span>
@@ -257,7 +262,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           </div>
 
           {totalPages > 1 ? (
-            <nav className="pagination-bar" aria-label="Paginación de pendientes">
+            <nav className="pagination-bar" aria-label="PaginaciÃ³n de pendientes">
               <Link
                 href={buildPendingQuery({ search, genre: activeGenre, page: Math.max(1, safePage - 1) })}
                 className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}
@@ -269,7 +274,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                 {paginationItems.map((item, index) =>
                   item === "ellipsis" ? (
                     <span key={`ellipsis-${index}`} className="pagination-ellipsis" aria-hidden="true">
-                      …
+                      â€¦
                     </span>
                   ) : (
                     <Link

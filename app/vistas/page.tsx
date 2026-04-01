@@ -10,7 +10,7 @@ type SeenPageProps = {
 };
 
 const SORT_OPTIONS = [
-  { value: "watched-desc", label: "Última vista primero" },
+  { value: "watched-desc", label: "Ãšltima vista primero" },
   { value: "group-desc", label: "Grupo: mayor a menor" },
   { value: "group-asc", label: "Grupo: menor a mayor" },
   { value: "mine-desc", label: "Mi nota: mayor a menor" },
@@ -21,9 +21,7 @@ function getSingleParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
-function isValidSort(
-  value: string
-): value is (typeof SORT_OPTIONS)[number]["value"] {
+function isValidSort(value: string): value is (typeof SORT_OPTIONS)[number]["value"] {
   return SORT_OPTIONS.some((option) => option.value === value);
 }
 
@@ -71,7 +69,14 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
   const currentPage = Number.isFinite(pageFromQuery) && pageFromQuery > 0 ? pageFromQuery : 1;
 
   const sessionUser = await getSessionUser();
-  const { history, allHistory, genres } = await getViewedPageDataHydrated({
+  const {
+    genres,
+    totalHistoryCount,
+    filteredHistoryCount,
+    totalPages,
+    currentPage: safePage,
+    pagedHistory
+  } = await getViewedPageDataHydrated({
     search,
     year,
     genre,
@@ -81,28 +86,24 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
     pageSize: PAGE_SIZE
   });
 
-  const totalPages = Math.max(1, Math.ceil(history.length / PAGE_SIZE));
-  const safePage = Math.min(currentPage, totalPages);
-  const pageStart = (safePage - 1) * PAGE_SIZE;
-  const pagedHistory = history.slice(pageStart, pageStart + PAGE_SIZE);
   const paginationItems = buildPaginationItems(safePage, totalPages);
 
   return (
     <section className="panel">
       <div className="panel-header">
         <p className="eyebrow">Vistas del grupo</p>
-        <h1>Películas vistas y notas</h1>
-        <p className="body-copy">Todo lo que ya habéis visto, ordenado para consultar rápido notas, fechas y ficha.</p>
+        <h1>PelÃ­culas vistas y notas</h1>
+        <p className="body-copy">Todo lo que ya habÃ©is visto, ordenado para consultar rÃ¡pido notas, fechas y ficha.</p>
       </div>
 
       <form action="/vistas" method="get" className="pending-toolbar history-toolbar">
         <div className="history-toolbar-fields">
           <label className="pending-search-field">
-            Buscar por título
+            Buscar por tÃ­tulo
             <input type="search" name="search" defaultValue={search} placeholder="Pulp Fiction, Soul, Interstellar..." />
           </label>
           <label className="pending-search-field pending-search-field-sm">
-            Año
+            AÃ±o
             <input type="text" name="year" defaultValue={year} placeholder="2022" />
           </label>
         </div>
@@ -154,20 +155,20 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
 
       <div className="pending-summary-row">
         <p className="status-text">
-          {history.length === allHistory.length
-            ? `${allHistory.length} películas vistas en total.`
-            : `${history.length} resultados de ${allHistory.length} películas vistas.`}
+          {filteredHistoryCount === totalHistoryCount
+            ? `${totalHistoryCount} pelÃ­culas vistas en total.`
+            : `${filteredHistoryCount} resultados de ${totalHistoryCount} pelÃ­culas vistas.`}
         </p>
-        {history.length > PAGE_SIZE ? (
+        {filteredHistoryCount > PAGE_SIZE ? (
           <p className="muted-copy">
-            Página {safePage} de {totalPages}
+            PÃ¡gina {safePage} de {totalPages}
           </p>
         ) : null}
       </div>
 
-      {history.length === 0 ? (
+      {filteredHistoryCount === 0 ? (
         <div className="empty-state">
-          <p className="body-copy">No hay películas vistas que encajen con esos filtros.</p>
+          <p className="body-copy">No hay pelÃ­culas vistas que encajen con esos filtros.</p>
           <div className="inline-actions">
             <Link href="/vistas" className="ghost-button">
               Ver todas
@@ -178,7 +179,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
         <>
           <div className={`history-grid-compact history-grid-standardized ${pagedHistory.length <= 2 ? "history-grid-tight" : ""}`}>
             {pagedHistory.map((item) => {
-              const visibleGenres = item.movie.genres.length > 0 ? item.movie.genres.slice(0, 3) : ["Sin género"];
+              const visibleGenres = item.movie.genres.length > 0 ? item.movie.genres.slice(0, 3) : ["Sin gÃ©nero"];
 
               return (
                 <Link key={item.movie.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
@@ -198,7 +199,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                     <div className="history-card-copy history-card-copy-spacious history-card-viewed-copy">
                       <p className="eyebrow">{item.watchedOn ? `Vista ${formatShortDate(item.watchedOn)}` : "Sin fecha"}</p>
                       <strong className="history-card-title">{item.movie.title}</strong>
-                      <p className="history-card-subline">{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</p>
+                      <p className="history-card-subline">{item.movie.year > 0 ? item.movie.year : "AÃ±o pendiente"}</p>
                       <div className="chips pending-card-genres history-card-genres">
                         {visibleGenres.map((itemGenre) => (
                           <span key={`${item.movie.id}-${itemGenre}`}>{itemGenre}</span>
@@ -222,7 +223,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
           </div>
 
           {totalPages > 1 ? (
-            <nav className="pagination-bar" aria-label="Paginación de vistas">
+            <nav className="pagination-bar" aria-label="PaginaciÃ³n de vistas">
               <Link
                 href={buildSeenQuery({ search, year, genre, sort: activeSort, page: Math.max(1, safePage - 1) })}
                 className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}
@@ -234,7 +235,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                 {paginationItems.map((item, index) =>
                   item === "ellipsis" ? (
                     <span key={`ellipsis-${index}`} className="pagination-ellipsis" aria-hidden="true">
-                      …
+                      â€¦
                     </span>
                   ) : (
                     <Link

@@ -653,10 +653,7 @@ export async function getUserByUsername(username: string) {
 export async function listPendingHydrated() {
   const state = await loadAppState();
   const pending = listPendingFromState(state);
-  const hydrated = await Promise.all(pending.map((movie) => hydrateMovie(state, movie)));
-  if (hydrated.some(Boolean)) {
-    await saveAppState(state);
-  }
+  await Promise.all(pending.map((movie) => hydrateMovie(state, movie)));
   return listPendingFromState(state);
 }
 
@@ -668,10 +665,7 @@ export async function listHistory(filters?: HistoryFilters, currentUserId?: stri
 export async function listHistoryHydrated(filters?: HistoryFilters, currentUserId?: string) {
   const state = await loadAppState();
   const history = buildHistoryFromState(state, filters, currentUserId);
-  const hydrated = await Promise.all(history.map((item) => hydrateMovie(state, item.movie)));
-  if (hydrated.some(Boolean)) {
-    await saveAppState(state);
-  }
+  await Promise.all(history.map((item) => hydrateMovie(state, item.movie)));
   return buildHistoryFromState(state, filters, currentUserId);
 }
 
@@ -682,10 +676,7 @@ export async function getProfileDataHydrated(userId: string) {
     .map((rating) => getMovieById(state, rating.movieId))
     .filter((movie): movie is Movie => Boolean(movie));
 
-  const hydrated = await Promise.all(ratedMovies.map((movie) => hydrateMovie(state, movie)));
-  if (hydrated.some(Boolean)) {
-    await saveAppState(state);
-  }
+  await Promise.all(ratedMovies.map((movie) => hydrateMovie(state, movie)));
 
   return buildProfileFromState(state, userId);
 }
@@ -712,10 +703,7 @@ export async function getRatingsForMovie(movieId: string) {
 export async function getMovieBySlugHydrated(slug: string) {
   const state = await loadAppState();
   const movie = getMovieBySlug(state, slug);
-  const changed = await hydrateMovie(state, movie);
-  if (changed) {
-    await saveAppState(state);
-  }
+  await hydrateMovie(state, movie);
   return movie;
 }
 
@@ -744,11 +732,7 @@ export async function getDashboardDataHydrated() {
   const state = await loadAppState();
   const batch = getCurrentBatchFromState(state);
   const selectedMovie = batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null;
-  const hydrated = await Promise.all([hydrateMovie(state, selectedMovie)]);
-
-  if (hydrated.some(Boolean)) {
-    await saveAppState(state);
-  }
+  await Promise.all([hydrateMovie(state, selectedMovie)]);
 
   return {
     group: state.group,
@@ -791,10 +775,7 @@ export async function getPendingWeeklySuggestionsHydrated() {
     .map((item) => getMovieById(state, item.movieId))
     .filter((movie): movie is Movie => Boolean(movie));
 
-  const hydrated = await Promise.all(movies.map((movie) => hydrateMovie(state, movie)));
-  if (hydrated.some(Boolean)) {
-    await saveAppState(state);
-  }
+  await Promise.all(movies.map((movie) => hydrateMovie(state, movie)));
 
   return suggestions
     .map((item) => {
@@ -859,30 +840,16 @@ export async function getPendingPageDataHydrated(input: { search?: string; genre
     }
   }
 
-  const hydrated = await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
-  if (hydrated.some(Boolean)) {
-    await saveAppState(state);
-  }
-
-  const refreshedPending = listPendingFromState(state);
-  const refreshedFilteredPending = refreshedPending.filter((movie) => {
-    const matchesSearch =
-      !search ||
-      `${movie.title} ${movie.year} ${movie.director} ${movie.cast.join(" ")}`
-        .toLocaleLowerCase("es")
-        .includes(search.toLocaleLowerCase("es"));
-
-    const matchesGenre =
-      !activeGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === activeGenre.toLocaleLowerCase("es"));
-
-    return matchesSearch && matchesGenre;
-  });
+  await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
 
   return {
     batch,
-    pending: refreshedPending,
     genres,
-    filteredPending: refreshedFilteredPending,
+    totalPendingCount: pending.length,
+    filteredPendingCount: filteredPending.length,
+    totalPages,
+    currentPage: safePage,
+    pagedPending,
     weeklyOptions: weeklyOptions
       .map((item) => {
         const movie = getMovieById(state, item.movieId);
@@ -935,24 +902,15 @@ export async function getViewedPageDataHydrated(input: {
     moviesToHydrate.set(item.movie.id, item.movie);
   }
 
-  const hydrated = await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
-  if (hydrated.some(Boolean)) {
-    await saveAppState(state);
-  }
+  await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
 
   return {
-    history: buildHistoryFromState(
-      state,
-      {
-        search: input.search,
-        year: input.year,
-        genre: input.genre,
-        sort: input.sort
-      },
-      input.currentUserId
-    ),
-    allHistory: buildHistoryFromState(state, undefined, input.currentUserId),
-    genres
+    genres,
+    totalHistoryCount: allHistory.length,
+    filteredHistoryCount: history.length,
+    totalPages,
+    currentPage: safePage,
+    pagedHistory
   };
 }
 
@@ -1288,12 +1246,9 @@ export async function addPendingMovie(movieInput: Movie) {
     state.movies.push(movie);
   }
 
-  const changed = await hydrateMovie(state, movie);
+  await hydrateMovie(state, movie);
 
   if (state.watchEntries.some((entry) => entry.movieId === movie.id)) {
-    if (changed) {
-      await saveAppState(state);
-    }
     return {
       status: "already_watched" as const,
       movie,
@@ -1302,9 +1257,6 @@ export async function addPendingMovie(movieInput: Movie) {
   }
 
   if (state.pendingMovieIds.includes(movie.id)) {
-    if (changed) {
-      await saveAppState(state);
-    }
     return {
       status: "already_pending" as const,
       movie,
