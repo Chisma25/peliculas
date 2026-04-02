@@ -487,6 +487,8 @@ async function loadSnapshotUsersCached() {
   return users;
 }
 
+const loadSnapshotUsersForRequest = cache(async () => loadSnapshotUsersCached());
+
 function isAppState(value: unknown): value is AppState {
   if (!value || typeof value !== "object") {
     return false;
@@ -927,6 +929,8 @@ async function loadSnapshotStateCached() {
   snapshotMemoryCache = writeTimedCache(snapshot);
   return snapshot ? cloneState(snapshot) : null;
 }
+
+const loadSnapshotStateForRequest = cache(async () => loadSnapshotStateCached());
 
 async function loadNormalizedCollectionsCached(groupId: string) {
   const cached = readTimedCache(normalizedCollectionsCache.get(groupId));
@@ -1497,7 +1501,7 @@ export function getSessionCookieName() {
   return getSessionCookieNameFromSession();
 }
 
-export async function getSessionUser() {
+const getSessionUserForRequest = cache(async () => {
   const cookieStore = await cookies();
   const token = cookieStore.get(getSessionCookieNameFromSession())?.value;
   const userId = await verifySessionToken(token);
@@ -1505,8 +1509,12 @@ export async function getSessionUser() {
     return null;
   }
 
-  const users = await loadSnapshotUsersCached();
+  const users = await loadSnapshotUsersForRequest();
   return users.find((user) => user.id === userId) ?? null;
+});
+
+export async function getSessionUser() {
+  return getSessionUserForRequest();
 }
 
 export async function listMembers() {
@@ -1546,7 +1554,7 @@ export async function getProfileDataHydrated(userId: string) {
   }
 
   if (shouldUseDatabase()) {
-    const snapshotState = await loadSnapshotStateCached();
+    const snapshotState = await loadSnapshotStateForRequest();
     if (snapshotState) {
       const user = findUserById(snapshotState, userId);
       if (!user) {
@@ -1770,7 +1778,7 @@ export async function getGroupPageData() {
   }
 
     if (shouldUseDatabase()) {
-      const snapshotState = await loadSnapshotStateCached();
+      const snapshotState = await loadSnapshotStateForRequest();
       if (snapshotState) {
         const members = listMembersFromState(snapshotState);
         const { prisma } = await import("@/lib/prisma");
