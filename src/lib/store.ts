@@ -7,14 +7,15 @@ import { cache } from "react";
 
 import { seedState } from "@/lib/demo-data";
 import { loadManualHistorySeed } from "@/lib/manual-history";
-import { resolveMovieMetadata, searchMovies } from "@/lib/movie-provider";
-import { generatePendingWeeklyOptions, generateWeeklyRecommendations } from "@/lib/recommendations";
+import { fetchUpcomingMovies, resolveMovieMetadata, searchMovies } from "@/lib/movie-provider";
+import { generatePendingWeeklyOptions, generateWeeklyRecommendations, rankUpcomingReleasesForGroup } from "@/lib/recommendations";
 import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
 import {
   ActivityItem,
   AppState,
   Movie,
   RecommendationMetric,
+  UpcomingReleaseSuggestion,
   User,
   UserRating,
   WatchEntry,
@@ -27,6 +28,7 @@ const STATE_FILE = join(DATA_DIR, "runtime-state.json");
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
 const STATE_CACHE_TTL_MS = 20_000;
+const UPCOMING_RELEASES_CACHE_TTL_MS = 1000 * 60 * 15;
 const APP_REGISTRATION_FALLBACK_DATE = "2026-03-14T17:09:52.000Z";
 
 const INITIAL_PASSWORDS = {
@@ -89,6 +91,7 @@ type DashboardData = {
   selectedMovie: Movie | null;
   selectedWatchEntry: WatchEntry | null;
   recentActivity: ActivityItem[];
+  upcomingReleases: UpcomingReleaseSuggestion[];
   stats: {
     watchedCount: number;
     averageScore: number;
@@ -135,6 +138,7 @@ let snapshotMemoryCache: TimedCache<AppState | null> | null = null;
 let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedCollections>>();
 let dashboardDataMemoryCache: TimedCache<DashboardData> | null = null;
+let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null = null;
 
 function invalidateDerivedCaches(state: AppState) {
   stateIndexesCache.delete(state);
@@ -171,6 +175,7 @@ function invalidatePersistentStateCache() {
   snapshotUsersMemoryCache = null;
   normalizedCollectionsCache.clear();
   dashboardDataMemoryCache = null;
+  upcomingReleasesMemoryCache = null;
 }
 
 function normalizeUsername(value: string) {
@@ -1224,8 +1229,38 @@ function buildDashboardDataFromState(state: AppState): DashboardData {
     selectedMovie,
     selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
     recentActivity: state.activity.slice(0, 5),
+    upcomingReleases: [],
     stats: getGroupStatsFromState(state)
   };
+}
+
+async function buildUpcomingDashboardReleases(state: AppState) {
+  const cached = readTimedCache(upcomingReleasesMemoryCache);
+  if (cached) {
+    return cached;
+  }
+
+  const rawUpcoming = await fetchUpcomingMovies(31, "ES", 12);
+  if (rawUpcoming.length === 0) {
+    return [];
+  }
+
+  const indexes = getStateIndexes(state);
+  const knownTmdbIds = new Set(
+    [...state.pendingMovieIds, ...state.watchEntries.map((entry) => entry.movieId)]
+      .map((movieId) => indexes.moviesById.get(movieId)?.sourceIds?.tmdb)
+      .filter((value): value is string => Boolean(value))
+  );
+
+  const candidates = rawUpcoming.filter((movie) => !(movie.sourceIds?.tmdb && knownTmdbIds.has(movie.sourceIds.tmdb))).slice(0, 8);
+
+  const enrichedUpcoming = await Promise.all(candidates.map((movie) => resolveMovieMetadata(movie)));
+  const ranked = rankUpcomingReleasesForGroup(state, enrichedUpcoming, 3);
+  upcomingReleasesMemoryCache = {
+    value: cloneState(ranked),
+    expiresAt: Date.now() + UPCOMING_RELEASES_CACHE_TTL_MS
+  };
+  return ranked;
 }
 
 async function loadDashboardDataFromDatabase(): Promise<DashboardData | null> {
@@ -1280,11 +1315,13 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardData | null> {
   const selectedMovie = latestBatch?.selectedMovieId
     ? snapshotState.movies.find((movie) => movie.id === latestBatch.selectedMovieId) ?? null
     : null;
+  const upcomingReleases = await buildUpcomingDashboardReleases(snapshotState);
 
   const dashboardData = {
     selectedMovie,
     selectedWatchEntry: selectedWatchRecord ? mapWatchRecordsToStateEntries([selectedWatchRecord])[0] ?? null : null,
     recentActivity: snapshotState.activity.slice(0, 5),
+    upcomingReleases,
     stats: {
       watchedCount: watchedRows.length,
       averageScore,
@@ -1542,7 +1579,10 @@ export async function getMovieDetailDataHydrated(slug: string, currentUserId?: s
 
 export async function getDashboardData() {
   const state = await loadAppState();
-  return buildDashboardDataFromState(state);
+  return {
+    ...buildDashboardDataFromState(state),
+    upcomingReleases: await buildUpcomingDashboardReleases(state)
+  };
 }
 
 export async function getDashboardDataHydrated() {
@@ -1554,7 +1594,10 @@ export async function getDashboardDataHydrated() {
   }
 
   const state = await loadAppState();
-  return buildDashboardDataFromState(state);
+  return {
+    ...buildDashboardDataFromState(state),
+    upcomingReleases: await buildUpcomingDashboardReleases(state)
+  };
 }
 
 export async function getGroupPageData() {

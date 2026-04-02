@@ -5,10 +5,11 @@ const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 const TMDB_SEARCH_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const TMDB_DETAILS_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 14;
+const TMDB_UPCOMING_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const tmdbMemoryCache = new Map<string, { payload: unknown; expiresAt: number }>();
 
 const TITLE_SEARCH_OVERRIDES: Record<string, { tmdbId?: string; search?: string; year?: number }> = {
-  "el-gato-con-botas-el-utilmo-deseo": {
+  "el-gato-con-botas-el-ultimo-deseo": {
     tmdbId: "315162",
     search: "Puss in Boots: The Last Wish",
     year: 2022
@@ -159,6 +160,10 @@ type TmdbSearchResult = {
   poster_path?: string | null;
   backdrop_path?: string | null;
   original_language?: string;
+};
+
+type TmdbListPayload = {
+  results?: TmdbSearchResult[];
 };
 
 type TmdbMovieDetails = {
@@ -359,6 +364,7 @@ function mapSearchResultToMovie(item: TmdbSearchResult): Movie {
     slug: slugify(item.title),
     title: item.title,
     year: Number.parseInt(item.release_date?.slice(0, 4) ?? "0", 10) || 0,
+    releaseDate: item.release_date,
     synopsis: item.overview || "Sinopsis pendiente de enriquecimiento.",
     durationMinutes: 120,
     genres: ["Pendiente"],
@@ -392,6 +398,7 @@ function mapDetailsToMovie(item: TmdbMovieDetails): Movie {
     slug: slugify(item.title),
     title: item.title,
     year: Number.parseInt(item.release_date?.slice(0, 4) ?? "0", 10) || 0,
+    releaseDate: item.release_date,
     synopsis: item.overview || "Sinopsis pendiente de enriquecimiento.",
     durationMinutes: item.runtime || 120,
     genres: item.genres?.map((genre) => genre.name) ?? ["Pendiente"],
@@ -455,11 +462,46 @@ async function fetchSearchResults(query: string) {
     return cached.hit && cached.data ? cached.data.filter((item) => !isBehindTheScenesTitle(item.title, query)).map(mapSearchResultToMovie) : [];
   }
 
-  const payload = await tmdbFetch<{ results?: TmdbSearchResult[] }>(`/search/movie?query=${encodeURIComponent(query)}`);
+  const payload = await tmdbFetch<TmdbListPayload>(`/search/movie?query=${encodeURIComponent(query)}`);
   const results = payload?.results ?? [];
   await writeCachedPayload("movie-search", cacheKey, { hit: results.length > 0, data: results }, TMDB_SEARCH_CACHE_TTL_MS);
 
   return results.filter((item) => !isBehindTheScenesTitle(item.title, query)).map(mapSearchResultToMovie);
+}
+
+function isWithinDaysWindow(value: string | undefined, fromDate: Date, daysAhead: number) {
+  if (!value) {
+    return false;
+  }
+
+  const releaseDate = new Date(value);
+  if (Number.isNaN(releaseDate.getTime())) {
+    return false;
+  }
+
+  const diffMs = releaseDate.getTime() - fromDate.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  return diffDays >= 0 && diffDays <= daysAhead;
+}
+
+export async function fetchUpcomingMovies(daysAhead = 31, region = "ES", limit = 10) {
+  const today = new Date();
+  const cacheKey = `${region}:${today.toISOString().slice(0, 10)}:${daysAhead}:${limit}`;
+  const cached = await readCachedPayload<TmdbSearchResult[]>("movie-upcoming", cacheKey);
+  if (cached) {
+    return cached.hit && cached.data
+      ? cached.data
+          .filter((item) => isWithinDaysWindow(item.release_date, today, daysAhead))
+          .slice(0, limit)
+          .map(mapSearchResultToMovie)
+      : [];
+  }
+
+  const payload = await tmdbFetch<TmdbListPayload>(`/movie/upcoming?region=${encodeURIComponent(region)}&page=1`);
+  const results = (payload?.results ?? []).filter((item) => isWithinDaysWindow(item.release_date, today, daysAhead));
+  await writeCachedPayload("movie-upcoming", cacheKey, { hit: results.length > 0, data: results }, TMDB_UPCOMING_CACHE_TTL_MS);
+
+  return results.slice(0, limit).map(mapSearchResultToMovie);
 }
 
 export async function searchMovies(query: string, fallbackMovies: Movie[]) {

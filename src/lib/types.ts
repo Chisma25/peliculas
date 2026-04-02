@@ -9,6 +9,7 @@ export type Movie = {
   slug: string;
   title: string;
   year: number;
+  releaseDate?: string;
   synopsis: string;
   durationMinutes: number;
   genres: string[];
@@ -88,6 +89,13 @@ export type WeeklyRecommendationBatch = {
   createdAt: string;
   items: WeeklyRecommendationItem[];
   selectedMovieId?: string;
+};
+
+export type UpcomingReleaseSuggestion = {
+  movie: Movie;
+  releaseDate: string;
+  score: number;
+  metrics: RecommendationMetric[];
 };
 
 export type ActivityItem = {

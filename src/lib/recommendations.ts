@@ -1,9 +1,17 @@
-import { AppState, Movie, RecommendationMetric, RecommendationReason, WeeklyRecommendationBatch, WeeklyRecommendationItem } from "@/lib/types";
+import {
+  AppState,
+  Movie,
+  RecommendationMetric,
+  RecommendationReason,
+  UpcomingReleaseSuggestion,
+  WeeklyRecommendationBatch,
+  WeeklyRecommendationItem
+} from "@/lib/types";
 import { average, safeId, startOfWeek } from "@/lib/utils";
 
 type FeatureMap = Record<string, number>;
 type CountMap = Record<string, number>;
-type CandidateMode = "discovery" | "pending";
+type CandidateMode = "discovery" | "pending" | "upcoming";
 
 type TasteProfile = {
   genre: FeatureMap;
@@ -1153,7 +1161,11 @@ function buildMetrics(breakdown: ScoreBreakdown, mode: CandidateMode, pendingMom
     { label: "Radar grupo", value: Math.round(groupRadar * 100), tone: "warm" },
     { label: "Consenso", value: Math.round(consensus * 100), tone: "neutral" },
     { label: "Semana", value: Math.round(weeklyFit * 100), tone: "cool" },
-    { label: mode === "pending" ? "Momento" : "Novedad", value: Math.round(fourthMetric * 100), tone: "warm" }
+    {
+      label: mode === "pending" ? "Momento" : mode === "upcoming" ? "Estreno" : "Novedad",
+      value: Math.round(fourthMetric * 100),
+      tone: "warm"
+    }
   ];
 }
 
@@ -1373,3 +1385,59 @@ export function generatePendingWeeklyOptions(state: AppState): WeeklyRecommendat
 
   return createRecommendationItems(applyDisplayScores(pickDiverseCandidates(candidates, PENDING_COUNT), "pending"));
 }
+
+export function rankUpcomingReleasesForGroup(state: AppState, upcomingMovies: Movie[], desiredCount = 3): UpcomingReleaseSuggestion[] {
+  const { groupProfile, userProfiles } = buildProfiles(state);
+  const context = buildWeeklyContext(state);
+  const feedback = buildFeedbackProfile(state);
+  const previousBatch = [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  const previousMovieIds = new Set(previousBatch?.items.map((item) => item.movieId) ?? []);
+  const moviesById = new Map(state.movies.map((movie) => [movie.id, movie]));
+  const watchedIds = new Set(state.watchEntries.map((entry) => entry.movieId));
+  const pendingIds = new Set(state.pendingMovieIds);
+  const watchedTmdbIds = new Set(
+    state.watchEntries
+      .map((entry) => moviesById.get(entry.movieId)?.sourceIds?.tmdb)
+      .filter((value): value is string => Boolean(value))
+  );
+  const pendingTmdbIds = new Set(
+    state.pendingMovieIds
+      .map((movieId) => moviesById.get(movieId)?.sourceIds?.tmdb)
+      .filter((value): value is string => Boolean(value))
+  );
+  const now = new Date();
+
+  const candidates = upcomingMovies
+    .filter(
+      (movie) =>
+        movie.releaseDate &&
+        !watchedIds.has(movie.id) &&
+        !pendingIds.has(movie.id) &&
+        !(movie.sourceIds?.tmdb && watchedTmdbIds.has(movie.sourceIds.tmdb)) &&
+        !(movie.sourceIds?.tmdb && pendingTmdbIds.has(movie.sourceIds.tmdb))
+    )
+    .map((movie) => {
+      const scored = scoreMovie(movie, groupProfile, userProfiles, context, feedback, "upcoming", previousMovieIds);
+      const releaseDate = new Date(movie.releaseDate!);
+      const daysUntilRelease = Math.max(0, (releaseDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const releaseMomentum = clamp(1 - daysUntilRelease / 31, 0.2, 1);
+      const urgencyBoost = releaseMomentum * 0.44;
+
+      return {
+        ...scored,
+        rawScore: scored.rawScore + urgencyBoost,
+        metrics: [
+          ...scored.metrics.slice(0, 3),
+          { label: "Estreno", value: Math.round(releaseMomentum * 100), tone: "warm" as const }
+        ]
+      };
+    });
+
+  return applyDisplayScores(pickDiverseCandidates(candidates, desiredCount), "upcoming").map((candidate) => ({
+    movie: candidate.movie,
+    releaseDate: candidate.movie.releaseDate!,
+    score: candidate.displayScore,
+    metrics: candidate.metrics
+  }));
+}
+

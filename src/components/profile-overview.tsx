@@ -125,8 +125,8 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
         </div>
         <p className="body-copy">
           {isSelf
-            ? "Tu distribución real en intervalos de 0,5 puntos, con la media marcada sobre el eje."
-            : "Su distribución real en intervalos de 0,5 puntos, con la media marcada sobre el eje."}
+            ? "Tu distribución real en intervalos de 0,5 puntos, con una lectura clara de dónde se concentra tu forma de valorar."
+            : "Su distribución real en intervalos de 0,5 puntos, con una lectura clara de dónde se concentra su forma de valorar."}
         </p>
 
         <div className="rating-distribution-shell">
@@ -150,6 +150,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               <span />
               <span />
               <span />
+              <span />
             </div>
 
             <div className="rating-distribution-columns">
@@ -159,7 +160,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
                   <div className="rating-distribution-track">
                     <div
                       className={`rating-distribution-bar ${item.count > 0 ? "rating-distribution-bar-active" : ""}`}
-                      style={{ height: `${Math.max(item.ratio * 100, item.count > 0 ? 10 : 4)}%` }}
+                      style={{ height: `${Math.max(item.ratio * 100, item.count > 0 ? 7 : 2)}%` }}
                     />
                   </div>
                 </div>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 
-import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard" },
@@ -23,15 +24,7 @@ function isActivePath(pathname: string, href: string) {
 
 export function PrimaryNav() {
   const pathname = usePathname();
-  const router = useRouter();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
-
-  useEffect(() => {
-    for (const item of NAV_ITEMS) {
-      router.prefetch(item.href);
-    }
-  }, [router]);
 
   useEffect(() => {
     setPendingHref(null);
@@ -44,26 +37,19 @@ export function PrimaryNav() {
         const isPending = pendingHref === item.href && !isActive;
 
         return (
-          <button
+          <Link
             key={item.href}
-            type="button"
+            href={item.href}
             className={`nav-link-pill ${isActive ? "nav-link-pill-active" : ""} ${isPending ? "nav-link-pill-pending" : ""}`}
             aria-current={isActive ? "page" : undefined}
-            onMouseEnter={() => router.prefetch(item.href)}
-            onFocus={() => router.prefetch(item.href)}
             onClick={() => {
-              if (isActive) {
-                return;
+              if (!isActive) {
+                setPendingHref(item.href);
               }
-
-              setPendingHref(item.href);
-              startTransition(() => {
-                router.push(item.href);
-              });
             }}
           >
             {item.label}
-          </button>
+          </Link>
         );
       })}
     </nav>

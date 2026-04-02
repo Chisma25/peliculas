@@ -367,12 +367,25 @@ select {
   align-content: start;
 }
 
+.selected-hero-title-stack {
+  display: grid;
+  gap: 0.3rem;
+}
+
 .selected-hero-title {
   margin: 0;
   font-family: var(--display);
   font-size: clamp(2rem, 3vw, 2.6rem);
   line-height: 0.95;
   letter-spacing: -0.03em;
+}
+
+.selected-hero-director {
+  margin: 0;
+  color: var(--accent-soft);
+  font-size: 0.84rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
 }
 
 .selected-hero-facts,
@@ -935,6 +948,73 @@ select {
   padding: 1.2rem;
   display: grid;
   gap: 0.95rem;
+}
+
+.upcoming-panel {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.upcoming-release-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.upcoming-release-card {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 1rem;
+  min-height: 100%;
+  padding: 1rem;
+  border-radius: 1.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at top left, rgba(255, 196, 141, 0.08), transparent 42%),
+    rgba(255, 255, 255, 0.026);
+}
+
+.upcoming-release-poster .poster-card-compact {
+  min-height: 100%;
+  aspect-ratio: 0.69 / 1;
+}
+
+.upcoming-release-copy {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+}
+
+.upcoming-release-title-stack {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.upcoming-release-title-stack h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 0.98;
+}
+
+.upcoming-release-director {
+  margin: 0;
+  color: var(--accent-soft);
+  font-size: 0.77rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.upcoming-release-meta {
+  display: grid;
+  gap: 0.42rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.upcoming-release-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 0.1rem;
 }
 
 .recommendation-copy h3 {
@@ -2011,6 +2091,14 @@ code {
     grid-column: auto;
   }
 
+  .upcoming-release-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .upcoming-release-card {
+    grid-template-columns: minmax(116px, 140px) minmax(0, 1fr);
+  }
+
   .top-picks-layout {
     grid-template-columns: 1fr;
   }
@@ -2083,5 +2171,11 @@ code {
 
   .pagination-bar > .pagination-side:last-child {
     justify-self: stretch;
+  }
+}
+
+@media (max-width: 640px) {
+  .upcoming-release-card {
+    grid-template-columns: 1fr;
   }
 }
