@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PrimaryNav } from "@/components/primary-nav";
 import { UserAvatar } from "@/components/user-avatar";
 import { User } from "@/lib/types";
 
@@ -60,14 +61,7 @@ export function SiteHeader({ user }: SiteHeaderProps) {
         </div>
       </Link>
 
-      <nav className="nav-links" aria-label="Principal">
-        <Link href="/">Dashboard</Link>
-        <Link href="/vistas">Vistas</Link>
-        <Link href="/pendientes">Pendientes</Link>
-        <Link href="/explorar">Explorar</Link>
-        <Link href="/grupo">Grupo</Link>
-        <Link href="/perfil">Perfil</Link>
-      </nav>
+      <PrimaryNav />
 
       <div className="user-chip">
         <UserAvatar

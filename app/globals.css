@@ -170,6 +170,40 @@ select {
   flex-wrap: wrap;
 }
 
+.nav-link-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.9rem;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.nav-link-pill:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.nav-link-pill-active {
+  border-color: rgba(255, 196, 141, 0.34);
+  background: linear-gradient(135deg, rgba(214, 101, 53, 0.14), rgba(242, 177, 112, 0.12));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.nav-link-pill-pending {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .nav-links a {
   padding: 0.7rem 1rem;
   border-radius: 999px;
@@ -755,8 +789,8 @@ select {
 
 .rating-distribution-frame {
   position: relative;
-  min-height: 250px;
-  padding: 1rem 1rem 0.85rem;
+  min-height: 230px;
+  padding: 1rem 1rem 0.9rem;
   border-radius: 1.35rem;
   border: 1px solid var(--line);
   background:
@@ -767,7 +801,7 @@ select {
 
 .rating-distribution-grid {
   position: absolute;
-  inset: 1rem 1rem 2.5rem;
+  inset: 1rem 1rem 1.1rem;
   display: grid;
   align-content: space-between;
   pointer-events: none;
@@ -779,10 +813,10 @@ select {
 
 .rating-distribution-columns {
   position: absolute;
-  inset: 1rem 1rem 2.5rem;
+  inset: 1rem 1rem 1.1rem;
   display: grid;
   grid-template-columns: repeat(21, minmax(0, 1fr));
-  gap: 0.45rem;
+  gap: 0.5rem;
   align-items: flex-end;
 }
 
@@ -806,46 +840,29 @@ select {
   height: 100%;
   display: flex;
   align-items: flex-end;
+  padding-top: 0.25rem;
 }
 
 .rating-distribution-bar {
   width: 100%;
-  min-height: 4px;
-  border-radius: 999px 999px 0.35rem 0.35rem;
-  background: rgba(255, 255, 255, 0.06);
+  min-height: 3px;
+  border-radius: 0.45rem 0.45rem 0.2rem 0.2rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
 }
 
 .rating-distribution-bar-active {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 22%),
-    linear-gradient(180deg, #f2c27f, #d66535);
-  box-shadow: 0 14px 28px rgba(214, 101, 53, 0.2);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 18%),
+    linear-gradient(180deg, #f0c98f, #e29a52 50%, #cf7340);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 10px 20px rgba(214, 101, 53, 0.14);
 }
 
-.rating-distribution-average {
-  position: absolute;
-  inset-block: 1rem 2.5rem;
-  width: 0;
-  pointer-events: none;
-}
-
-.rating-distribution-average span {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-left: 2px solid rgba(255, 196, 141, 0.82);
-}
-
-.rating-distribution-average small {
-  position: absolute;
-  top: -0.1rem;
-  left: 0.55rem;
-  padding: 0.28rem 0.55rem;
-  border-radius: 999px;
-  background: rgba(9, 16, 28, 0.82);
-  border: 1px solid rgba(255, 196, 141, 0.2);
-  white-space: nowrap;
-  color: var(--accent-soft);
-  font-size: 0.76rem;
+.rating-distribution-axis-shell {
+  position: relative;
+  padding-top: 0.35rem;
+  padding-bottom: 2.3rem;
 }
 
 .rating-distribution-axis {
@@ -858,6 +875,35 @@ select {
 
 .rating-distribution-axis span {
   text-align: center;
+}
+
+.rating-distribution-average-chip {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transform: translateX(-50%);
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 196, 141, 0.28);
+  background: rgba(9, 16, 28, 0.92);
+  color: var(--accent-soft);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
+}
+
+.rating-distribution-average-dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f2b170, #d66535);
+  box-shadow: 0 0 0 4px rgba(214, 101, 53, 0.14);
+}
+
+.rating-distribution-average-chip strong {
+  font-size: 0.82rem;
+  line-height: 1;
 }
 
 .recommendation-card {

@@ -152,11 +152,6 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               <span />
             </div>
 
-            <div className="rating-distribution-average" style={{ left: `${averageMarker}%` }}>
-              <span />
-              <small>Media {formatScore(profile.averageScore)}</small>
-            </div>
-
             <div className="rating-distribution-columns">
               {profile.distribution.map((item) => (
                 <div key={item.label} className="rating-distribution-column" title={`${item.label}: ${item.count} notas`}>
@@ -172,10 +167,17 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
             </div>
           </div>
 
-          <div className="rating-distribution-axis">
-            {profile.distribution.map((item) => (
-              <span key={item.label}>{item.axisLabel}</span>
-            ))}
+          <div className="rating-distribution-axis-shell">
+            <div className="rating-distribution-axis">
+              {profile.distribution.map((item) => (
+                <span key={item.label}>{item.axisLabel}</span>
+              ))}
+            </div>
+
+            <div className="rating-distribution-average-chip" style={{ left: `${averageMarker}%` }}>
+              <span className="rating-distribution-average-dot" aria-hidden="true" />
+              <strong>Media {formatScore(profile.averageScore)}</strong>
+            </div>
           </div>
         </div>
       </section>
