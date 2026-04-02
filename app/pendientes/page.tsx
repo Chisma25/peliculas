@@ -61,17 +61,17 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
     <section className="panel">
       <div className="panel-header">
         <p className="eyebrow">Pendientes</p>
-        <h1>PelÃ­culas pendientes de ver</h1>
-        <p className="body-copy">AquÃ­ guardÃ¡is las pelis que querÃ©is tener a mano antes de decidir quÃ© cae esa semana.</p>
+        <h1>Películas pendientes de ver</h1>
+        <p className="body-copy">Aquí guardáis las pelis que queréis tener a mano antes de decidir qué cae esa semana.</p>
       </div>
 
       {weeklyOptions.length > 0 ? (
         <div className="pending-weekly-block">
           <div className="panel-header">
             <p className="eyebrow">5 posibles para esta semana</p>
-            <h2>Las mÃ¡s fuertes dentro de pendientes</h2>
+            <h2>Las más fuertes dentro de pendientes</h2>
             <p className="body-copy">
-              AquÃ­ el motor solo mira pelis que ya tenÃ©is guardadas en pendientes y os ordena las cinco que mejor
+              Aquí el motor solo mira pelis que ya tenéis guardadas en pendientes y os ordena las cinco que mejor
               encajan ahora mismo para plan de grupo.
             </p>
           </div>
@@ -99,7 +99,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                       <p className="eyebrow">{batch.selectedMovieId === item.movie.id ? "Elegida" : "Desde pendientes"}</p>
                       <strong className="history-card-title">{item.movie.title}</strong>
                       <div className="stat-row">
-                        <span>{item.movie.year > 0 ? item.movie.year : "AÃ±o pendiente"}</span>
+                        <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
                         <span>{formatFitScore(item.score)}/100</span>
                       </div>
                       <div className="chips pending-card-genres">
@@ -179,7 +179,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         </p>
         {filteredPendingCount > PAGE_SIZE ? (
           <p className="muted-copy">
-            PÃ¡gina {safePage} de {totalPages}
+            Página {safePage} de {totalPages}
           </p>
         ) : null}
       </div>
@@ -188,7 +188,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         <div className="empty-state">
           <p className="body-copy">
             {totalPendingCount === 0
-              ? "TodavÃ­a no habÃ©is aÃ±adido ninguna pelÃ­cula a pendientes."
+              ? "Todavía no habéis añadido ninguna película a pendientes."
               : "No hay ninguna pendiente que encaje con esos filtros."}
           </p>
           <div className="inline-actions">
@@ -223,7 +223,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                   <div className="history-card-copy">
                     <strong className="history-card-title">{movie.title}</strong>
                     <div className="stat-row">
-                      <span>{movie.year > 0 ? movie.year : "AÃ±o pendiente"}</span>
+                      <span>{movie.year > 0 ? movie.year : "Año pendiente"}</span>
                       <span>
                         {movie.externalRating.source}: {movie.externalRating.value}
                       </span>
@@ -262,7 +262,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           </div>
 
           {totalPages > 1 ? (
-            <nav className="pagination-bar" aria-label="PaginaciÃ³n de pendientes">
+            <nav className="pagination-bar" aria-label="Paginación de pendientes">
               <Link
                 href={buildPendingQuery({ search, genre: activeGenre, page: Math.max(1, safePage - 1) })}
                 className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}
@@ -274,7 +274,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                 {paginationItems.map((item, index) =>
                   item === "ellipsis" ? (
                     <span key={`ellipsis-${index}`} className="pagination-ellipsis" aria-hidden="true">
-                      â€¦
+                      …
                     </span>
                   ) : (
                     <Link

@@ -61,6 +61,21 @@ type ProfileData = {
   }>;
 };
 
+type StateIndexes = {
+  usersById: Map<string, User>;
+  usersByUsername: Map<string, User>;
+  usersByIdentity: Map<string, User>;
+  moviesById: Map<string, Movie>;
+  moviesByTmdbId: Map<string, Movie>;
+  moviesBySlug: Map<string, Movie>;
+  ratingsByMovieId: Map<string, UserRating[]>;
+  ratingsByUserId: Map<string, UserRating[]>;
+  ratingByUserMovie: Map<string, UserRating>;
+  watchEntriesByMovieId: Map<string, AppState["watchEntries"][number]>;
+};
+
+const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
+
 function normalizeUsername(value: string) {
   return slugify(value).replace(/-/g, "");
 }
@@ -221,10 +236,10 @@ function buildInitialState(): AppState {
                 score: 89 - index * 3,
                 summary:
                   index === 0
-                    ? "Puede ser una gran eleccion porque es la que mejor equilibra calidad, afinidad y plan de grupo."
+                    ? "Puede ser una gran elección porque es la que mejor equilibra calidad, afinidad y plan de grupo."
                     : index === 1
                       ? "Os puede encajar porque cambia el tono sin alejarse demasiado de vuestros gustos."
-                      : "Puede merecer la pena porque aporta variedad real frente a lo que soleis ver juntos.",
+                      : "Puede merecer la pena porque aporta variedad real frente a lo que soléis ver juntos.",
                 reasons: []
               }))
             }
@@ -233,11 +248,75 @@ function buildInitialState(): AppState {
     activity: [
       {
         type: "watched",
-        label: `Se cargo el historico del grupo con ${manualSeed.movies.length} peliculas vistas`,
+        label: `Se cargó el histórico del grupo con ${manualSeed.movies.length} películas vistas`,
         date: new Date().toISOString()
       }
     ]
   });
+}
+
+function getStateIndexes(state: AppState): StateIndexes {
+  const cachedIndexes = stateIndexesCache.get(state);
+  if (cachedIndexes) {
+    return cachedIndexes;
+  }
+
+  const usersById = new Map<string, User>();
+  const usersByUsername = new Map<string, User>();
+  const usersByIdentity = new Map<string, User>();
+  const moviesById = new Map<string, Movie>();
+  const moviesByTmdbId = new Map<string, Movie>();
+  const moviesBySlug = new Map<string, Movie>();
+  const ratingsByMovieId = new Map<string, UserRating[]>();
+  const ratingsByUserId = new Map<string, UserRating[]>();
+  const ratingByUserMovie = new Map<string, UserRating>();
+  const watchEntriesByMovieId = new Map<string, AppState["watchEntries"][number]>();
+
+  for (const user of state.users) {
+    usersById.set(user.id, user);
+    usersByUsername.set(normalizeUsername(user.username), user);
+    usersByIdentity.set(normalizeIdentity(user.name), user);
+  }
+
+  for (const movie of state.movies) {
+    moviesById.set(movie.id, movie);
+    moviesBySlug.set(movie.slug, movie);
+    if (movie.sourceIds?.tmdb) {
+      moviesByTmdbId.set(movie.sourceIds.tmdb, movie);
+    }
+  }
+
+  for (const rating of state.ratings) {
+    const movieRatings = ratingsByMovieId.get(rating.movieId) ?? [];
+    movieRatings.push(rating);
+    ratingsByMovieId.set(rating.movieId, movieRatings);
+
+    const userRatings = ratingsByUserId.get(rating.userId) ?? [];
+    userRatings.push(rating);
+    ratingsByUserId.set(rating.userId, userRatings);
+
+    ratingByUserMovie.set(`${rating.userId}:${rating.movieId}`, rating);
+  }
+
+  for (const watchEntry of state.watchEntries) {
+    watchEntriesByMovieId.set(watchEntry.movieId, watchEntry);
+  }
+
+  const indexes = {
+    usersById,
+    usersByUsername,
+    usersByIdentity,
+    moviesById,
+    moviesByTmdbId,
+    moviesBySlug,
+    ratingsByMovieId,
+    ratingsByUserId,
+    ratingByUserMovie,
+    watchEntriesByMovieId
+  };
+
+  stateIndexesCache.set(state, indexes);
+  return indexes;
 }
 
 function isAppState(value: unknown): value is AppState {
@@ -385,12 +464,16 @@ async function saveAppState(state: AppState) {
 }
 
 function findUserById(state: AppState, userId?: string | null) {
-  return state.users.find((user) => user.id === userId) ?? null;
+  if (!userId) {
+    return null;
+  }
+
+  return getStateIndexes(state).usersById.get(userId) ?? null;
 }
 
 function findUserByUsername(state: AppState, username?: string | null) {
   const normalizedUsername = normalizeUsername(username ?? "");
-  return state.users.find((user) => normalizeUsername(user.username) === normalizedUsername) ?? null;
+  return getStateIndexes(state).usersByUsername.get(normalizedUsername) ?? null;
 }
 
 function findUserByIdentity(state: AppState, identifier?: string | null) {
@@ -400,22 +483,22 @@ function findUserByIdentity(state: AppState, identifier?: string | null) {
   }
 
   return (
-    state.users.find((user) => normalizeUsername(user.username) === normalizedIdentifier) ??
-    state.users.find((user) => normalizeIdentity(user.name) === normalizedIdentifier) ??
+    getStateIndexes(state).usersByUsername.get(normalizedIdentifier) ??
+    getStateIndexes(state).usersByIdentity.get(normalizedIdentifier) ??
     null
   );
 }
 
 function getMovieById(state: AppState, movieId: string) {
-  return state.movies.find((movie) => movie.id === movieId) ?? null;
+  return getStateIndexes(state).moviesById.get(movieId) ?? null;
 }
 
 function getMovieByTmdbId(state: AppState, tmdbId: string) {
-  return state.movies.find((movie) => movie.sourceIds?.tmdb === tmdbId) ?? null;
+  return getStateIndexes(state).moviesByTmdbId.get(tmdbId) ?? null;
 }
 
 function getMovieBySlug(state: AppState, slug: string) {
-  return state.movies.find((movie) => movie.slug === slug) ?? null;
+  return getStateIndexes(state).moviesBySlug.get(slug) ?? null;
 }
 
 function getCurrentBatchFromState(state: AppState) {
@@ -464,19 +547,21 @@ async function ensureDashboardBatch(state: AppState) {
 }
 
 function getWatchEntryForMovieFromState(state: AppState, movieId: string) {
-  return state.watchEntries.find((entry) => entry.movieId === movieId) ?? null;
+  return getStateIndexes(state).watchEntriesByMovieId.get(movieId) ?? null;
 }
 
 function getRatingsForMovieFromState(state: AppState, movieId: string) {
-  return state.ratings.filter((rating) => rating.movieId === movieId);
+  return getStateIndexes(state).ratingsByMovieId.get(movieId) ?? [];
 }
 
 function listMembersFromState(state: AppState) {
-  return state.group.memberIds.map((memberId) => findUserById(state, memberId)).filter((user): user is User => Boolean(user));
+  const { usersById } = getStateIndexes(state);
+  return state.group.memberIds.map((memberId) => usersById.get(memberId)).filter((user): user is User => Boolean(user));
 }
 
 function listPendingFromState(state: AppState) {
-  return state.pendingMovieIds.map((movieId) => getMovieById(state, movieId)).filter((movie): movie is Movie => Boolean(movie));
+  const { moviesById } = getStateIndexes(state);
+  return state.pendingMovieIds.map((movieId) => moviesById.get(movieId)).filter((movie): movie is Movie => Boolean(movie));
 }
 
 function addActivity(state: AppState, entry: ActivityItem) {
@@ -529,14 +614,15 @@ async function hydrateMovie(state: AppState, movie: Movie | null) {
 }
 
 function buildHistoryFromState(state: AppState, filters?: HistoryFilters, currentUserId?: string) {
+  const { moviesById, ratingsByMovieId, ratingByUserMovie } = getStateIndexes(state);
   const watchedMovies: HistoryItem[] = state.watchEntries.flatMap((entry) => {
-    const movie = getMovieById(state, entry.movieId);
+    const movie = moviesById.get(entry.movieId);
     if (!movie) {
       return [];
     }
 
-    const ratings = state.ratings.filter((rating) => rating.movieId === movie.id);
-    const userRating = currentUserId ? ratings.find((rating) => rating.userId === currentUserId)?.score : undefined;
+    const ratings = ratingsByMovieId.get(movie.id) ?? [];
+    const userRating = currentUserId ? ratingByUserMovie.get(`${currentUserId}:${movie.id}`)?.score : undefined;
 
     return [
       {
@@ -584,8 +670,8 @@ function buildProfileFromState(state: AppState, userId: string): ProfileData | n
     return null;
   }
 
-  const userRatings = state.ratings
-    .filter((rating) => rating.userId === userId)
+  const { ratingsByUserId } = getStateIndexes(state);
+  const userRatings = (ratingsByUserId.get(userId) ?? [])
     .map((rating) => ({
       ...rating,
       movie: getMovieById(state, rating.movieId)

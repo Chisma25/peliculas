@@ -10,7 +10,7 @@ type SeenPageProps = {
 };
 
 const SORT_OPTIONS = [
-  { value: "watched-desc", label: "Ãšltima vista primero" },
+  { value: "watched-desc", label: "Última vista primero" },
   { value: "group-desc", label: "Grupo: mayor a menor" },
   { value: "group-asc", label: "Grupo: menor a mayor" },
   { value: "mine-desc", label: "Mi nota: mayor a menor" },
@@ -92,18 +92,18 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
     <section className="panel">
       <div className="panel-header">
         <p className="eyebrow">Vistas del grupo</p>
-        <h1>PelÃ­culas vistas y notas</h1>
-        <p className="body-copy">Todo lo que ya habÃ©is visto, ordenado para consultar rÃ¡pido notas, fechas y ficha.</p>
+        <h1>Películas vistas y notas</h1>
+        <p className="body-copy">Todo lo que ya habéis visto, ordenado para consultar rápido notas, fechas y ficha.</p>
       </div>
 
       <form action="/vistas" method="get" className="pending-toolbar history-toolbar">
         <div className="history-toolbar-fields">
           <label className="pending-search-field">
-            Buscar por tÃ­tulo
+            Buscar por título
             <input type="search" name="search" defaultValue={search} placeholder="Pulp Fiction, Soul, Interstellar..." />
           </label>
           <label className="pending-search-field pending-search-field-sm">
-            AÃ±o
+            Año
             <input type="text" name="year" defaultValue={year} placeholder="2022" />
           </label>
         </div>
@@ -156,19 +156,19 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
       <div className="pending-summary-row">
         <p className="status-text">
           {filteredHistoryCount === totalHistoryCount
-            ? `${totalHistoryCount} pelÃ­culas vistas en total.`
-            : `${filteredHistoryCount} resultados de ${totalHistoryCount} pelÃ­culas vistas.`}
+            ? `${totalHistoryCount} películas vistas en total.`
+            : `${filteredHistoryCount} resultados de ${totalHistoryCount} películas vistas.`}
         </p>
         {filteredHistoryCount > PAGE_SIZE ? (
           <p className="muted-copy">
-            PÃ¡gina {safePage} de {totalPages}
+            Página {safePage} de {totalPages}
           </p>
         ) : null}
       </div>
 
       {filteredHistoryCount === 0 ? (
         <div className="empty-state">
-          <p className="body-copy">No hay pelÃ­culas vistas que encajen con esos filtros.</p>
+          <p className="body-copy">No hay películas vistas que encajen con esos filtros.</p>
           <div className="inline-actions">
             <Link href="/vistas" className="ghost-button">
               Ver todas
@@ -179,7 +179,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
         <>
           <div className={`history-grid-compact history-grid-standardized ${pagedHistory.length <= 2 ? "history-grid-tight" : ""}`}>
             {pagedHistory.map((item) => {
-              const visibleGenres = item.movie.genres.length > 0 ? item.movie.genres.slice(0, 3) : ["Sin gÃ©nero"];
+              const visibleGenres = item.movie.genres.length > 0 ? item.movie.genres.slice(0, 3) : ["Sin género"];
 
               return (
                 <Link key={item.movie.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
@@ -199,7 +199,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                     <div className="history-card-copy history-card-copy-spacious history-card-viewed-copy">
                       <p className="eyebrow">{item.watchedOn ? `Vista ${formatShortDate(item.watchedOn)}` : "Sin fecha"}</p>
                       <strong className="history-card-title">{item.movie.title}</strong>
-                      <p className="history-card-subline">{item.movie.year > 0 ? item.movie.year : "AÃ±o pendiente"}</p>
+                      <p className="history-card-subline">{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</p>
                       <div className="chips pending-card-genres history-card-genres">
                         {visibleGenres.map((itemGenre) => (
                           <span key={`${item.movie.id}-${itemGenre}`}>{itemGenre}</span>
@@ -223,7 +223,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
           </div>
 
           {totalPages > 1 ? (
-            <nav className="pagination-bar" aria-label="PaginaciÃ³n de vistas">
+            <nav className="pagination-bar" aria-label="Paginación de vistas">
               <Link
                 href={buildSeenQuery({ search, year, genre, sort: activeSort, page: Math.max(1, safePage - 1) })}
                 className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}
@@ -235,7 +235,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                 {paginationItems.map((item, index) =>
                   item === "ellipsis" ? (
                     <span key={`ellipsis-${index}`} className="pagination-ellipsis" aria-hidden="true">
-                      â€¦
+                      …
                     </span>
                   ) : (
                     <Link
