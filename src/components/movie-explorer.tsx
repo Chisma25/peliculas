@@ -151,8 +151,8 @@ export function MovieExplorer() {
         <p className="eyebrow">Búsqueda libre</p>
         <h1>Explorar películas en TMDb</h1>
         <p className="body-copy">
-          Busca cualquier película fuera de la lista del grupo para consultar su sinopsis, la nota externa y la carátula,
-          y añadirla a pendientes si os encaja.
+          Busca cualquier película fuera de la lista del grupo para consultar su sinopsis, la nota externa y la carátula, y añadirla a
+          pendientes si os encaja.
         </p>
       </div>
 
@@ -205,13 +205,13 @@ export function MovieExplorer() {
 
                 <strong className="explorer-card-title">{movie.title}</strong>
 
-                {visibleGenres.length > 0 ? (
-                  <div className="chips explorer-genres explorer-genres-compact">
-                    {visibleGenres.map((genre) => (
-                      <span key={`${movie.id}-${genre}`}>{genre}</span>
-                    ))}
-                  </div>
-                ) : null}
+                <div className="chips explorer-genres explorer-genres-compact">
+                  {visibleGenres.length > 0 ? (
+                    visibleGenres.map((genre) => <span key={`${movie.id}-${genre}`}>{genre}</span>)
+                  ) : (
+                    <span className="chip-placeholder">Sin género</span>
+                  )}
+                </div>
 
                 <p className="body-copy explorer-card-synopsis">
                   {movie.synopsis || "La sinopsis todavía no está disponible para esta película."}
@@ -238,7 +238,9 @@ export function MovieExplorer() {
                   >
                     Abrir en TMDb
                   </a>
-                ) : null}
+                ) : (
+                  <span className="secondary-button secondary-button-placeholder">Sin enlace</span>
+                )}
               </div>
             </article>
           );

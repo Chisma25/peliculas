@@ -26,6 +26,7 @@ const DATA_DIR = join(process.cwd(), "data");
 const STATE_FILE = join(DATA_DIR, "runtime-state.json");
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
+const STATE_CACHE_TTL_MS = 20_000;
 
 const INITIAL_PASSWORDS = {
   Isma: "Roca7!Marea",
@@ -104,12 +105,54 @@ type StateIndexes = {
   groupAverageScore: number;
 };
 
+type NormalizedCollections = {
+  pendingMovieIds: string[];
+  watchEntries: WatchEntry[];
+  ratings: UserRating[];
+  weeklyBatches: WeeklyRecommendationBatch[];
+};
+
+type TimedCache<T> = {
+  value: T;
+  expiresAt: number;
+};
+
 const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
 const profileDataCache = new WeakMap<AppState, Map<string, ProfileData | null>>();
+let snapshotMemoryCache: TimedCache<AppState | null> | null = null;
+const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedCollections>>();
 
 function invalidateDerivedCaches(state: AppState) {
   stateIndexesCache.delete(state);
   profileDataCache.delete(state);
+}
+
+function cloneState<T>(value: T): T {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function readTimedCache<T>(entry: TimedCache<T> | null | undefined) {
+  if (!entry || entry.expiresAt <= Date.now()) {
+    return null;
+  }
+
+  return cloneState(entry.value);
+}
+
+function writeTimedCache<T>(value: T): TimedCache<T> {
+  return {
+    value: cloneState(value),
+    expiresAt: Date.now() + STATE_CACHE_TTL_MS
+  };
+}
+
+function invalidatePersistentStateCache() {
+  snapshotMemoryCache = null;
+  normalizedCollectionsCache.clear();
 }
 
 function normalizeUsername(value: string) {
@@ -836,7 +879,7 @@ async function syncWeeklyBatchesToDatabase(groupId: string, weeklyBatches: Weekl
   ]);
 }
 
-async function loadDatabaseState() {
+async function loadSnapshotStateUncached() {
   const { prisma } = await import("@/lib/prisma");
   const snapshot = await prisma.appSnapshot.findUnique({
     where: {
@@ -849,6 +892,37 @@ async function loadDatabaseState() {
   }
 
   const parsed = isAppState(snapshot.data) ? ensureStateIntegrity(snapshot.data) : null;
+  if (!parsed) {
+    return null;
+  }
+
+  return parsed;
+}
+
+async function loadSnapshotStateCached() {
+  const cached = readTimedCache(snapshotMemoryCache);
+  if (cached) {
+    return cached;
+  }
+
+  const snapshot = await loadSnapshotStateUncached();
+  snapshotMemoryCache = writeTimedCache(snapshot);
+  return snapshot ? cloneState(snapshot) : null;
+}
+
+async function loadNormalizedCollectionsCached(groupId: string) {
+  const cached = readTimedCache(normalizedCollectionsCache.get(groupId));
+  if (cached) {
+    return cached;
+  }
+
+  const collections = await loadNormalizedCollections(groupId);
+  normalizedCollectionsCache.set(groupId, writeTimedCache(collections));
+  return cloneState(collections);
+}
+
+async function loadDatabaseStateUncached() {
+  const parsed = await loadSnapshotStateUncached();
   if (!parsed) {
     return null;
   }
@@ -877,6 +951,35 @@ async function loadDatabaseState() {
   });
 }
 
+async function loadDatabaseState() {
+  const snapshotState = await loadSnapshotStateCached();
+  if (!snapshotState) {
+    return null;
+  }
+
+  const normalizedCollections = await loadNormalizedCollectionsCached(snapshotState.group.id);
+
+  return ensureStateIntegrity({
+    ...cloneState(snapshotState),
+    ratings:
+      normalizedCollections.ratings.length > 0 || snapshotState.ratings.length === 0
+        ? normalizedCollections.ratings
+        : snapshotState.ratings,
+    pendingMovieIds:
+      normalizedCollections.pendingMovieIds.length > 0 || snapshotState.pendingMovieIds.length === 0
+        ? normalizedCollections.pendingMovieIds
+        : snapshotState.pendingMovieIds,
+    watchEntries:
+      normalizedCollections.watchEntries.length > 0 || snapshotState.watchEntries.length === 0
+        ? normalizedCollections.watchEntries
+        : snapshotState.watchEntries,
+    weeklyBatches:
+      normalizedCollections.weeklyBatches.length > 0 || snapshotState.weeklyBatches.length === 0
+        ? normalizedCollections.weeklyBatches
+        : snapshotState.weeklyBatches
+  });
+}
+
 async function saveDatabaseState(state: AppState) {
   const { prisma } = await import("@/lib/prisma");
   const compactState = toCompactSnapshotState(state);
@@ -896,7 +999,7 @@ async function saveDatabaseState(state: AppState) {
 
 async function loadAppStateUncached() {
   if (shouldUseDatabase()) {
-    const databaseState = await loadDatabaseState();
+    const databaseState = await loadDatabaseStateUncached();
     if (databaseState) {
       return databaseState;
     }
@@ -909,6 +1012,7 @@ async function loadAppStateUncached() {
       syncWeeklyBatchesToDatabase(initial.group.id, initial.weeklyBatches)
     ]);
     await saveDatabaseState(initial);
+    invalidatePersistentStateCache();
     return initial;
   }
 
@@ -922,7 +1026,18 @@ async function loadAppStateUncached() {
   return initial;
 }
 
-const loadAppState = cache(loadAppStateUncached);
+async function loadAppStateForRead() {
+  if (shouldUseDatabase()) {
+    const databaseState = await loadDatabaseState();
+    if (databaseState) {
+      return databaseState;
+    }
+  }
+
+  return loadAppStateUncached();
+}
+
+const loadAppState = cache(loadAppStateForRead);
 
 async function saveAppState(state: AppState) {
   if (shouldUseDatabase()) {
@@ -931,6 +1046,11 @@ async function saveAppState(state: AppState) {
   }
 
   saveLocalStateToDisk(state);
+}
+
+async function persistStateChange(state: AppState, operations: Promise<unknown>[] = []) {
+  await Promise.all([...operations, saveAppState(state)]);
+  invalidatePersistentStateCache();
 }
 
 function findUserById(state: AppState, userId?: string | null) {
@@ -1252,7 +1372,7 @@ export async function getCurrentBatch() {
   const state = await loadAppState();
   const { batch, changed } = await ensureDashboardBatch(state);
   if (changed) {
-    await Promise.all([syncWeeklyBatchesToDatabase(state.group.id, state.weeklyBatches), saveAppState(state)]);
+    await persistStateChange(state, [syncWeeklyBatchesToDatabase(state.group.id, state.weeklyBatches)]);
   }
   return batch;
 }
@@ -1558,7 +1678,7 @@ export async function updateUserProfile(
   });
 
   invalidateDerivedCaches(state);
-  await saveAppState(state);
+  await persistStateChange(state);
   return user;
 }
 
@@ -1615,7 +1735,7 @@ export async function updateUserCredentialsByAdmin(
   });
 
   invalidateDerivedCaches(state);
-  await saveAppState(state);
+  await persistStateChange(state);
 
   return {
     id: targetUser.id,
@@ -1675,7 +1795,7 @@ export async function resetUserCredentials(input: {
   });
 
   invalidateDerivedCaches(state);
-  await saveAppState(state);
+  await persistStateChange(state);
 
   return {
     id: user.id,
@@ -1726,7 +1846,7 @@ export async function upsertRating(input: { movieId: string; userId: string; sco
   }
 
   invalidateDerivedCaches(state);
-  await Promise.all([syncRatingsToDatabase(state.ratings), saveAppState(state)]);
+  await persistStateChange(state, [syncRatingsToDatabase(state.ratings)]);
   return getStateIndexes(state).ratingByUserMovie.get(`${input.userId}:${input.movieId}`) as UserRating;
 }
 
@@ -1744,7 +1864,7 @@ export async function generateBatch() {
     date: batch.createdAt
   });
   invalidateDerivedCaches(state);
-  await Promise.all([syncWeeklyBatchesToDatabase(state.group.id, state.weeklyBatches), saveAppState(state)]);
+  await persistStateChange(state, [syncWeeklyBatchesToDatabase(state.group.id, state.weeklyBatches)]);
   return batch;
 }
 
@@ -1767,7 +1887,7 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
   }
 
   invalidateDerivedCaches(state);
-  await Promise.all([syncWeeklyBatchesToDatabase(state.group.id, state.weeklyBatches), saveAppState(state)]);
+  await persistStateChange(state, [syncWeeklyBatchesToDatabase(state.group.id, state.weeklyBatches)]);
   return batch;
 }
 
@@ -1783,7 +1903,7 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
     if (!existingEntry.watchedOn) {
       existingEntry.watchedOn = watchedOn;
       invalidateDerivedCaches(state);
-      await Promise.all([syncWatchEntriesToDatabase(state.group.id, state.watchEntries), saveAppState(state)]);
+      await persistStateChange(state, [syncWatchEntriesToDatabase(state.group.id, state.watchEntries)]);
     }
     return existingEntry;
   }
@@ -1807,10 +1927,9 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
   });
 
   invalidateDerivedCaches(state);
-  await Promise.all([
+  await persistStateChange(state, [
     syncWatchEntriesToDatabase(state.group.id, state.watchEntries),
-    syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds),
-    saveAppState(state)
+    syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds)
   ]);
   return watchEntry;
 }
@@ -1863,7 +1982,7 @@ export async function addPendingMovie(movieInput: Movie) {
   });
 
   invalidateDerivedCaches(state);
-  await Promise.all([syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds), saveAppState(state)]);
+  await persistStateChange(state, [syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds)]);
   return {
     status: "added" as const,
     movie,
@@ -1894,7 +2013,7 @@ export async function removePendingMovie(movieId: string) {
     date: new Date().toISOString()
   });
   invalidateDerivedCaches(state);
-  await Promise.all([syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds), saveAppState(state)]);
+  await persistStateChange(state, [syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds)]);
 
   return {
     status: "removed" as const,
