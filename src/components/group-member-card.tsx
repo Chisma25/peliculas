@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useState, useTransition } from "react";
 
 import { UserAvatar } from "@/components/user-avatar";
+import { formatScore } from "@/lib/utils";
 
 type GroupMemberCardProps = {
   member: {
@@ -15,7 +16,11 @@ type GroupMemberCardProps = {
     avatarUrl?: string;
     isAdmin?: boolean;
   };
-  profileSummary: string;
+  profileSummary: {
+    ratingsCount: number;
+    averageScore: number;
+    bestScore: number;
+  };
   profileHref: string;
   canManage: boolean;
 };
@@ -117,17 +122,30 @@ export function GroupMemberCard({ member, profileSummary, profileHref, canManage
   return (
     <>
       <article className="member-card member-card-interactive">
-        <div className="member-card-head">
-          <UserAvatar user={member} size="md" />
-          <div className="member-card-heading">
-            <strong>{member.name}</strong>
-            <span>@{member.username}</span>
+        <div className="member-card-topline">
+          <div className="member-card-head">
+            <UserAvatar user={member} size="md" />
+            <div className="member-card-heading">
+              <strong>{member.name}</strong>
+              <span>@{member.username}</span>
+            </div>
           </div>
+          {member.isAdmin ? <span className="status-pill status-pill-accent">Administrador</span> : null}
         </div>
 
-        <div className="member-card-summary">
-          <p className="muted-copy">{profileSummary}</p>
-          {member.isAdmin ? <span className="status-pill status-pill-accent">Administrador</span> : null}
+        <div className="member-card-metrics">
+          <div className="member-metric-chip">
+            <small>Notas</small>
+            <strong>{profileSummary.ratingsCount}</strong>
+          </div>
+          <div className="member-metric-chip">
+            <small>Media</small>
+            <strong>{profileSummary.ratingsCount ? formatScore(profileSummary.averageScore) : "-"}</strong>
+          </div>
+          <div className="member-metric-chip">
+            <small>Techo</small>
+            <strong>{profileSummary.ratingsCount ? formatScore(profileSummary.bestScore) : "-"}</strong>
+          </div>
         </div>
 
         <div className="member-card-actions">

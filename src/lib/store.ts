@@ -143,6 +143,13 @@ let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedCollections>>();
 let dashboardDataMemoryCache: TimedCache<DashboardOverviewData> | null = null;
 let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null = null;
+let groupPageDataMemoryCache: TimedCache<{
+  group: AppState["group"];
+  members: Array<{
+    member: User;
+    profileSummary: ProfileSummary;
+  }>;
+}> | null = null;
 const profilePageDataMemoryCache = new Map<ProfileDataCacheKey, TimedCache<ProfileData | null>>();
 const movieDetailDataMemoryCache = new Map<MovieDetailCacheKey, TimedCache<{
   movie: Movie;
@@ -189,6 +196,7 @@ function invalidatePersistentStateCache() {
   normalizedCollectionsCache.clear();
   dashboardDataMemoryCache = null;
   upcomingReleasesMemoryCache = null;
+  groupPageDataMemoryCache = null;
   profilePageDataMemoryCache.clear();
   movieDetailDataMemoryCache.clear();
 }
@@ -1756,17 +1764,66 @@ export async function getDashboardDataHydrated() {
 }
 
 export async function getGroupPageData() {
-  const state = await loadAppState();
-  const stats = getGroupStatsFromState(state);
+  const cached = readTimedCache(groupPageDataMemoryCache);
+  if (cached) {
+    return cached;
+  }
 
-  return {
+  if (shouldUseDatabase()) {
+    const snapshotState = await loadSnapshotStateCached();
+    if (snapshotState) {
+      const members = listMembersFromState(snapshotState);
+      const { prisma } = await import("@/lib/prisma");
+      const ratingRows = await prisma.ratingRecord.findMany({
+        select: {
+          userId: true,
+          score: true
+        },
+        where: {
+          userId: {
+            in: members.map((member) => member.id)
+          }
+        }
+      });
+
+      const summaryByUserId = new Map<string, ProfileSummary>();
+      for (const member of members) {
+        const scores = ratingRows.filter((rating) => rating.userId === member.id).map((rating) => rating.score);
+        summaryByUserId.set(member.id, {
+          ratingsCount: scores.length,
+          averageScore: average(scores),
+          bestScore: scores.reduce((best, score) => Math.max(best, score), 0)
+        });
+      }
+
+      const groupData = {
+        group: snapshotState.group,
+        members: members.map((member) => ({
+          member,
+          profileSummary:
+            summaryByUserId.get(member.id) ?? {
+              ratingsCount: 0,
+              averageScore: 0,
+              bestScore: 0
+            }
+        }))
+      };
+
+      groupPageDataMemoryCache = writeTimedCache(groupData);
+      return cloneState(groupData);
+    }
+  }
+
+  const state = await loadAppState();
+  const groupData = {
     group: state.group,
     members: listMembersFromState(state).map((member) => ({
       member,
       profileSummary: getProfileSummaryFromState(state, member.id)
-    })),
-    stats
+    }))
   };
+  groupPageDataMemoryCache = writeTimedCache(groupData);
+  return groupData;
 }
 
 export async function getPendingWeeklySuggestionsHydrated() {

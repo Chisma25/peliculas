@@ -282,6 +282,11 @@ select {
   gap: 1.25rem;
 }
 
+.group-page-stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
 .hero-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 1.1rem;
@@ -1241,6 +1246,79 @@ select {
 
 .member-card-summary .muted-copy {
   margin: 0;
+}
+
+.group-intro-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.15rem;
+  flex-wrap: wrap;
+}
+
+.group-intro-copy {
+  max-width: 62ch;
+  margin: 0;
+}
+
+.group-overview-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.group-overview-pills span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.45rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+}
+
+.group-member-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.member-card-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.member-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.member-metric-chip {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.82rem 0.9rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.member-metric-chip small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.member-metric-chip strong {
+  font-size: 1.08rem;
+  line-height: 1;
 }
 
 .member-card-actions {
@@ -2208,6 +2286,10 @@ code {
   .account-modal-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .member-card-metrics {
+    grid-template-columns: 1fr;
   }
 
   .history-toolbar-fields,
