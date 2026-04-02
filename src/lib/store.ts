@@ -1769,32 +1769,37 @@ export async function getGroupPageData() {
     return cached;
   }
 
-  if (shouldUseDatabase()) {
-    const snapshotState = await loadSnapshotStateCached();
-    if (snapshotState) {
-      const members = listMembersFromState(snapshotState);
-      const { prisma } = await import("@/lib/prisma");
-      const ratingRows = await prisma.ratingRecord.findMany({
-        select: {
-          userId: true,
-          score: true
-        },
-        where: {
-          userId: {
-            in: members.map((member) => member.id)
+    if (shouldUseDatabase()) {
+      const snapshotState = await loadSnapshotStateCached();
+      if (snapshotState) {
+        const members = listMembersFromState(snapshotState);
+        const { prisma } = await import("@/lib/prisma");
+        const ratingSummaries = await prisma.ratingRecord.groupBy({
+          by: ["userId"],
+          where: {
+            userId: {
+              in: members.map((member) => member.id)
+            }
+          },
+          _count: {
+            _all: true
+          },
+          _avg: {
+            score: true
+          },
+          _max: {
+            score: true
           }
-        }
-      });
-
-      const summaryByUserId = new Map<string, ProfileSummary>();
-      for (const member of members) {
-        const scores = ratingRows.filter((rating) => rating.userId === member.id).map((rating) => rating.score);
-        summaryByUserId.set(member.id, {
-          ratingsCount: scores.length,
-          averageScore: average(scores),
-          bestScore: scores.reduce((best, score) => Math.max(best, score), 0)
         });
-      }
+
+        const summaryByUserId = new Map<string, ProfileSummary>();
+        for (const summary of ratingSummaries) {
+          summaryByUserId.set(summary.userId, {
+            ratingsCount: summary._count._all,
+            averageScore: Number((summary._avg.score ?? 0).toFixed(2)),
+            bestScore: summary._max.score ?? 0
+          });
+        }
 
       const groupData = {
         group: snapshotState.group,
