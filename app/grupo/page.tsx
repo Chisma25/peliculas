@@ -18,16 +18,16 @@ export default async function GroupPage() {
         </div>
 
         <div className="member-list">
-          {groupData.members.map(({ member, profile }) => {
-            const profileSummary = profile?.ratingsCount
-              ? `${profile.ratingsCount} notas · media ${formatScore(profile.averageScore)} · mejor nota ${formatScore(profile.bestScore)}`
+          {groupData.members.map(({ member, profileSummary }) => {
+            const summaryText = profileSummary.ratingsCount
+              ? `${profileSummary.ratingsCount} notas · media ${formatScore(profileSummary.averageScore)} · mejor nota ${formatScore(profileSummary.bestScore)}`
               : "Todavía no tiene valoraciones suficientes para sacar perfil.";
 
             return (
               <GroupMemberCard
                 key={member.id}
                 member={member}
-                profileSummary={profileSummary}
+                profileSummary={summaryText}
                 profileHref={`/grupo/${slugify(member.username)}`}
                 canManage={Boolean(sessionUser?.isAdmin)}
               />

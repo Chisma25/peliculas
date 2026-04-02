@@ -61,6 +61,12 @@ type ProfileData = {
   }>;
 };
 
+type ProfileSummary = {
+  ratingsCount: number;
+  averageScore: number;
+  bestScore: number;
+};
+
 type StateIndexes = {
   usersById: Map<string, User>;
   usersByUsername: Map<string, User>;
@@ -72,10 +78,13 @@ type StateIndexes = {
   ratingsByUserId: Map<string, UserRating[]>;
   ratingByUserMovie: Map<string, UserRating>;
   movieAverageById: Map<string, number>;
+  profileSummaryByUserId: Map<string, ProfileSummary>;
   watchEntriesByMovieId: Map<string, AppState["watchEntries"][number]>;
+  groupAverageScore: number;
 };
 
 const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
+const profileDataCache = new WeakMap<AppState, Map<string, ProfileData | null>>();
 
 function normalizeUsername(value: string) {
   return slugify(value).replace(/-/g, "");
@@ -272,6 +281,7 @@ function getStateIndexes(state: AppState): StateIndexes {
   const ratingsByUserId = new Map<string, UserRating[]>();
   const ratingByUserMovie = new Map<string, UserRating>();
   const movieAverageById = new Map<string, number>();
+  const profileSummaryByUserId = new Map<string, ProfileSummary>();
   const watchEntriesByMovieId = new Map<string, AppState["watchEntries"][number]>();
 
   for (const user of state.users) {
@@ -304,9 +314,22 @@ function getStateIndexes(state: AppState): StateIndexes {
     movieAverageById.set(movieId, average(movieRatings.map((rating) => rating.score)));
   }
 
+  for (const user of state.users) {
+    const userRatings = ratingsByUserId.get(user.id) ?? [];
+    profileSummaryByUserId.set(user.id, {
+      ratingsCount: userRatings.length,
+      averageScore: average(userRatings.map((rating) => rating.score)),
+      bestScore: userRatings.reduce((best, rating) => Math.max(best, rating.score), 0)
+    });
+  }
+
   for (const watchEntry of state.watchEntries) {
     watchEntriesByMovieId.set(watchEntry.movieId, watchEntry);
   }
+
+  const groupAverageScore = average(
+    state.watchEntries.map((entry) => movieAverageById.get(entry.movieId) ?? 0).filter((value) => value > 0)
+  );
 
   const indexes = {
     usersById,
@@ -319,7 +342,9 @@ function getStateIndexes(state: AppState): StateIndexes {
     ratingsByUserId,
     ratingByUserMovie,
     movieAverageById,
-    watchEntriesByMovieId
+    profileSummaryByUserId,
+    watchEntriesByMovieId,
+    groupAverageScore
   };
 
   stateIndexesCache.set(state, indexes);
@@ -796,6 +821,25 @@ function getMovieAverageFromState(state: AppState, movieId: string) {
   return getStateIndexes(state).movieAverageById.get(movieId) ?? 0;
 }
 
+function getProfileSummaryFromState(state: AppState, userId: string): ProfileSummary {
+  return (
+    getStateIndexes(state).profileSummaryByUserId.get(userId) ?? {
+      ratingsCount: 0,
+      averageScore: 0,
+      bestScore: 0
+    }
+  );
+}
+
+function getGroupStatsFromState(state: AppState) {
+  const { groupAverageScore } = getStateIndexes(state);
+  return {
+    watchedCount: state.watchEntries.length,
+    averageScore: groupAverageScore,
+    pendingCount: state.pendingMovieIds.length
+  };
+}
+
 function listMembersFromState(state: AppState) {
   const { usersById } = getStateIndexes(state);
   return state.group.memberIds.map((memberId) => usersById.get(memberId)).filter((user): user is User => Boolean(user));
@@ -907,12 +951,18 @@ function buildHistoryFromState(state: AppState, filters?: HistoryFilters, curren
 }
 
 function buildProfileFromState(state: AppState, userId: string): ProfileData | null {
+  const cachedProfiles = profileDataCache.get(state);
+  if (cachedProfiles?.has(userId)) {
+    return cachedProfiles.get(userId) ?? null;
+  }
+
   const user = findUserById(state, userId);
   if (!user) {
     return null;
   }
 
   const { ratingsByUserId } = getStateIndexes(state);
+  const summary = getProfileSummaryFromState(state, userId);
   const userRatings = (ratingsByUserId.get(userId) ?? [])
     .map((rating) => ({
       ...rating,
@@ -938,19 +988,25 @@ function buildProfileFromState(state: AppState, userId: string): ProfileData | n
 
   const maxDistributionCount = Math.max(...distributionBins.map((item) => item.count), 1);
 
-  return {
+  const profile = {
     user,
-    ratingsCount: userRatings.length,
-    averageScore,
+    ratingsCount: summary.ratingsCount,
+    averageScore: summary.ratingsCount > 0 ? summary.averageScore : averageScore,
     topThree,
     bottomThree,
-    bestScore: topThree[0]?.score ?? 0,
+    bestScore: summary.bestScore || topThree[0]?.score || 0,
     distribution: distributionBins.map((item, index) => ({
       ...item,
       ratio: item.count / maxDistributionCount,
       axisLabel: index % 2 === 0 ? item.label : ""
     }))
   };
+
+  const nextProfiles = cachedProfiles ?? new Map<string, ProfileData | null>();
+  nextProfiles.set(userId, profile);
+  profileDataCache.set(state, nextProfiles);
+
+  return profile;
 }
 
 export function getSessionCookieName() {
@@ -1037,6 +1093,7 @@ export async function getMovieBySlugHydrated(slug: string) {
 export async function getDashboardData() {
   const state = await loadAppState();
   const batch = getCurrentBatchFromState(state);
+  const stats = getGroupStatsFromState(state);
 
   return {
     group: state.group,
@@ -1047,11 +1104,7 @@ export async function getDashboardData() {
     selectedMovie: batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null,
     selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
     recentActivity: state.activity.slice(0, 5),
-    stats: {
-      watchedCount: state.watchEntries.length,
-      averageScore: average(state.watchEntries.map((entry) => getMovieAverageFromState(state, entry.movieId)).filter((value) => value > 0)),
-      pendingCount: state.pendingMovieIds.length
-    }
+    stats
   };
 }
 
@@ -1059,6 +1112,7 @@ export async function getDashboardDataHydrated() {
   const state = await loadAppState();
   const batch = getCurrentBatchFromState(state);
   const selectedMovie = batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null;
+  const stats = getGroupStatsFromState(state);
   await Promise.all([hydrateMovie(state, selectedMovie)]);
 
   return {
@@ -1070,28 +1124,21 @@ export async function getDashboardDataHydrated() {
     selectedMovie: batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null,
     selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
     recentActivity: state.activity.slice(0, 5),
-    stats: {
-      watchedCount: state.watchEntries.length,
-      averageScore: average(state.watchEntries.map((entry) => getMovieAverageFromState(state, entry.movieId)).filter((value) => value > 0)),
-      pendingCount: state.pendingMovieIds.length
-    }
+    stats
   };
 }
 
 export async function getGroupPageData() {
   const state = await loadAppState();
+  const stats = getGroupStatsFromState(state);
 
   return {
     group: state.group,
     members: listMembersFromState(state).map((member) => ({
       member,
-      profile: buildProfileFromState(state, member.id)
+      profileSummary: getProfileSummaryFromState(state, member.id)
     })),
-    stats: {
-      watchedCount: state.watchEntries.length,
-      averageScore: average(state.watchEntries.map((entry) => getMovieAverageFromState(state, entry.movieId)).filter((value) => value > 0)),
-      pendingCount: state.pendingMovieIds.length
-    }
+    stats
   };
 }
 
