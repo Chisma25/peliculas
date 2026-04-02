@@ -24,3 +24,24 @@ model TmdbCacheEntry {
 
   @@index([kind, expiresAt])
 }
+
+model PendingMovie {
+  groupId String
+  movieId String
+  addedAt DateTime @default(now())
+
+  @@id([groupId, movieId])
+  @@index([groupId, addedAt])
+}
+
+model WatchEntryRecord {
+  id              String   @id
+  movieId         String   @unique
+  groupId         String
+  watchedOn       DateTime?
+  selectedForWeek String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([groupId, watchedOn])
+}

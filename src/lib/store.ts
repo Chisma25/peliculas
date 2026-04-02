@@ -10,7 +10,7 @@ import { loadManualHistorySeed } from "@/lib/manual-history";
 import { resolveMovieMetadata, searchMovies } from "@/lib/movie-provider";
 import { generatePendingWeeklyOptions, generateWeeklyRecommendations } from "@/lib/recommendations";
 import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
-import { ActivityItem, AppState, Movie, User, UserRating } from "@/lib/types";
+import { ActivityItem, AppState, Movie, User, UserRating, WatchEntry } from "@/lib/types";
 import { average, getMovieAverage, safeId, slugify } from "@/lib/utils";
 const DATA_DIR = join(process.cwd(), "data");
 const STATE_FILE = join(DATA_DIR, "runtime-state.json");
@@ -399,6 +399,144 @@ function saveLocalStateToDisk(state: AppState) {
   }
 }
 
+function toCompactSnapshotState(state: AppState): AppState {
+  return {
+    ...state,
+    watchEntries: [],
+    pendingMovieIds: []
+  };
+}
+
+function parseWatchDate(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function mapWatchRecordsToStateEntries(records: Array<{
+  id: string;
+  movieId: string;
+  groupId: string;
+  watchedOn: Date | null;
+  selectedForWeek: string | null;
+}>): WatchEntry[] {
+  return records.map((entry) => ({
+    id: entry.id,
+    movieId: entry.movieId,
+    groupId: entry.groupId,
+    watchedOn: entry.watchedOn?.toISOString(),
+    selectedForWeek: entry.selectedForWeek ?? undefined
+  }));
+}
+
+async function backfillNormalizedCollectionsFromSnapshot(state: AppState) {
+  const { prisma } = await import("@/lib/prisma");
+  const [pendingCount, watchCount] = await Promise.all([
+    prisma.pendingMovie.count({ where: { groupId: state.group.id } }),
+    prisma.watchEntryRecord.count({ where: { groupId: state.group.id } })
+  ]);
+
+  const operations: Promise<unknown>[] = [];
+
+  if (pendingCount === 0 && state.pendingMovieIds.length > 0) {
+    operations.push(
+      prisma.pendingMovie.createMany({
+        data: state.pendingMovieIds.map((movieId, index) => ({
+          groupId: state.group.id,
+          movieId,
+          addedAt: new Date(Date.now() - index * 1000)
+        })),
+        skipDuplicates: true
+      })
+    );
+  }
+
+  if (watchCount === 0 && state.watchEntries.length > 0) {
+    operations.push(
+      prisma.watchEntryRecord.createMany({
+        data: state.watchEntries.map((entry, index) => ({
+          id: entry.id,
+          movieId: entry.movieId,
+          groupId: entry.groupId,
+          watchedOn: parseWatchDate(entry.watchedOn),
+          selectedForWeek: entry.selectedForWeek,
+          createdAt: parseWatchDate(entry.watchedOn) ?? new Date(Date.now() - index * 1000)
+        })),
+        skipDuplicates: true
+      })
+    );
+  }
+
+  if (operations.length > 0) {
+    await Promise.all(operations);
+  }
+}
+
+async function loadNormalizedCollections(groupId: string) {
+  const { prisma } = await import("@/lib/prisma");
+  const [pendingRows, watchRows] = await Promise.all([
+    prisma.pendingMovie.findMany({
+      where: { groupId },
+      orderBy: { addedAt: "desc" }
+    }),
+    prisma.watchEntryRecord.findMany({
+      where: { groupId },
+      orderBy: [{ watchedOn: "desc" }, { createdAt: "desc" }]
+    })
+  ]);
+
+  return {
+    pendingMovieIds: pendingRows.map((entry) => entry.movieId),
+    watchEntries: mapWatchRecordsToStateEntries(watchRows)
+  };
+}
+
+async function syncPendingMoviesToDatabase(groupId: string, pendingMovieIds: string[]) {
+  const { prisma } = await import("@/lib/prisma");
+
+  await prisma.$transaction([
+    prisma.pendingMovie.deleteMany({ where: { groupId } }),
+    ...(pendingMovieIds.length > 0
+      ? [
+          prisma.pendingMovie.createMany({
+            data: pendingMovieIds.map((movieId, index) => ({
+              groupId,
+              movieId,
+              addedAt: new Date(Date.now() - index * 1000)
+            })),
+            skipDuplicates: true
+          })
+        ]
+      : [])
+  ]);
+}
+
+async function syncWatchEntriesToDatabase(groupId: string, watchEntries: WatchEntry[]) {
+  const { prisma } = await import("@/lib/prisma");
+
+  await prisma.$transaction([
+    prisma.watchEntryRecord.deleteMany({ where: { groupId } }),
+    ...(watchEntries.length > 0
+      ? [
+          prisma.watchEntryRecord.createMany({
+            data: watchEntries.map((entry, index) => ({
+              id: entry.id,
+              movieId: entry.movieId,
+              groupId: entry.groupId,
+              watchedOn: parseWatchDate(entry.watchedOn),
+              selectedForWeek: entry.selectedForWeek,
+              createdAt: parseWatchDate(entry.watchedOn) ?? new Date(Date.now() - index * 1000)
+            })),
+            skipDuplicates: true
+          })
+        ]
+      : [])
+  ]);
+}
+
 async function loadDatabaseState() {
   const { prisma } = await import("@/lib/prisma");
   const snapshot = await prisma.appSnapshot.findUnique({
@@ -411,21 +549,40 @@ async function loadDatabaseState() {
     return null;
   }
 
-  return isAppState(snapshot.data) ? ensureStateIntegrity(snapshot.data) : null;
+  const parsed = isAppState(snapshot.data) ? ensureStateIntegrity(snapshot.data) : null;
+  if (!parsed) {
+    return null;
+  }
+
+  await backfillNormalizedCollectionsFromSnapshot(parsed);
+  const normalizedCollections = await loadNormalizedCollections(parsed.group.id);
+
+  return ensureStateIntegrity({
+    ...parsed,
+    pendingMovieIds:
+      normalizedCollections.pendingMovieIds.length > 0 || parsed.pendingMovieIds.length === 0
+        ? normalizedCollections.pendingMovieIds
+        : parsed.pendingMovieIds,
+    watchEntries:
+      normalizedCollections.watchEntries.length > 0 || parsed.watchEntries.length === 0
+        ? normalizedCollections.watchEntries
+        : parsed.watchEntries
+  });
 }
 
 async function saveDatabaseState(state: AppState) {
   const { prisma } = await import("@/lib/prisma");
+  const compactState = toCompactSnapshotState(state);
   await prisma.appSnapshot.upsert({
     where: {
       id: SNAPSHOT_ID
     },
     create: {
       id: SNAPSHOT_ID,
-      data: state
+      data: compactState
     },
     update: {
-      data: state
+      data: compactState
     }
   });
 }
@@ -438,6 +595,10 @@ async function loadAppStateUncached() {
     }
 
     const initial = loadLocalStateFromDisk() ?? buildInitialState();
+    await Promise.all([
+      syncPendingMoviesToDatabase(initial.group.id, initial.pendingMovieIds),
+      syncWatchEntriesToDatabase(initial.group.id, initial.watchEntries)
+    ]);
     await saveDatabaseState(initial);
     return initial;
   }
@@ -1284,7 +1445,7 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
   if (existingEntry) {
     if (!existingEntry.watchedOn) {
       existingEntry.watchedOn = watchedOn;
-      await saveAppState(state);
+      await Promise.all([syncWatchEntriesToDatabase(state.group.id, state.watchEntries), saveAppState(state)]);
     }
     return existingEntry;
   }
@@ -1307,7 +1468,11 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
     date: watchedOn
   });
 
-  await saveAppState(state);
+  await Promise.all([
+    syncWatchEntriesToDatabase(state.group.id, state.watchEntries),
+    syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds),
+    saveAppState(state)
+  ]);
   return watchEntry;
 }
 
@@ -1358,7 +1523,7 @@ export async function addPendingMovie(movieInput: Movie) {
     date: new Date().toISOString()
   });
 
-  await saveAppState(state);
+  await Promise.all([syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds), saveAppState(state)]);
   return {
     status: "added" as const,
     movie,
@@ -1388,7 +1553,7 @@ export async function removePendingMovie(movieId: string) {
     movieId: movie.id,
     date: new Date().toISOString()
   });
-  await saveAppState(state);
+  await Promise.all([syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds), saveAppState(state)]);
 
   return {
     status: "removed" as const,
