@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { getSessionUser, movieSearch } from "@/lib/store";
 
+export const preferredRegion = "fra1";
+
 export async function GET(request: Request) {
   const sessionUser = await getSessionUser();
   if (!sessionUser) {

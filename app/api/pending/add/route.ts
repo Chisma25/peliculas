@@ -4,6 +4,8 @@ import { ensureSameOrigin } from "@/lib/request-security";
 import { getSessionUser, addPendingMovie } from "@/lib/store";
 import { Movie } from "@/lib/types";
 
+export const preferredRegion = "fra1";
+
 export async function POST(request: Request) {
   const originError = ensureSameOrigin(request);
   if (originError) {

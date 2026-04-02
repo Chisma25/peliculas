@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "App privada para recomendar, elegir y puntuar películas en grupo."
 };
 
+export const preferredRegion = "fra1";
+
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const user = await getSessionUser();
 

@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { ensureSameOrigin } from "@/lib/request-security";
 import { getSessionUser, selectWeeklyMovie } from "@/lib/store";
 
+export const preferredRegion = "fra1";
+
 export async function POST(request: Request) {
   const originError = ensureSameOrigin(request);
   if (originError) {
@@ -24,7 +26,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "No se pudo seleccionar la pel\u00edcula."
+        error: error instanceof Error ? error.message : "No se pudo seleccionar la película."
       },
       { status: 400 }
     );
