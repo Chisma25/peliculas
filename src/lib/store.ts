@@ -100,6 +100,8 @@ type DashboardData = {
 };
 
 type DashboardOverviewData = Omit<DashboardData, "upcomingReleases">;
+type ProfileDataCacheKey = string;
+type MovieDetailCacheKey = string;
 
 type StateIndexes = {
   usersById: Map<string, User>;
@@ -141,6 +143,15 @@ let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedCollections>>();
 let dashboardDataMemoryCache: TimedCache<DashboardOverviewData> | null = null;
 let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null = null;
+const profilePageDataMemoryCache = new Map<ProfileDataCacheKey, TimedCache<ProfileData | null>>();
+const movieDetailDataMemoryCache = new Map<MovieDetailCacheKey, TimedCache<{
+  movie: Movie;
+  watchEntry: WatchEntry | null;
+  ratings: UserRating[];
+  members: User[];
+  average: number;
+  myRating: UserRating | null;
+} | null>>();
 
 function invalidateDerivedCaches(state: AppState) {
   stateIndexesCache.delete(state);
@@ -178,6 +189,8 @@ function invalidatePersistentStateCache() {
   normalizedCollectionsCache.clear();
   dashboardDataMemoryCache = null;
   upcomingReleasesMemoryCache = null;
+  profilePageDataMemoryCache.clear();
+  movieDetailDataMemoryCache.clear();
 }
 
 function normalizeUsername(value: string) {
@@ -1519,14 +1532,96 @@ export async function listHistoryHydrated(filters?: HistoryFilters, currentUserI
 }
 
 export async function getProfileDataHydrated(userId: string) {
+  const cached = readTimedCache(profilePageDataMemoryCache.get(userId));
+  if (cached !== null) {
+    return cached;
+  }
+
+  if (shouldUseDatabase()) {
+    const snapshotState = await loadSnapshotStateCached();
+    if (snapshotState) {
+      const user = findUserById(snapshotState, userId);
+      if (!user) {
+        profilePageDataMemoryCache.set(userId, writeTimedCache<ProfileData | null>(null));
+        return null;
+      }
+
+      const { prisma } = await import("@/lib/prisma");
+      const ratingRows = await prisma.ratingRecord.findMany({
+        where: { userId },
+        orderBy: [{ score: "desc" }, { watchedOn: "desc" }]
+      });
+      const ratings = mapRatingRecordsToStateEntries(ratingRows);
+      const snapshotIndexes = getStateIndexes(snapshotState);
+      const ratedMovies = ratings
+        .map((rating) => snapshotIndexes.moviesById.get(rating.movieId))
+        .filter((movie): movie is Movie => Boolean(movie));
+
+      const moviesToHydrate = new Map<string, Movie>();
+      const hydratedRatings = ratings
+        .map((rating) => {
+          const movie = snapshotIndexes.moviesById.get(rating.movieId);
+          return movie ? { ...rating, movie } : null;
+        })
+        .filter((item): item is UserRating & { movie: Movie } => Boolean(item));
+
+      const topThree = [...hydratedRatings].sort((left, right) => right.score - left.score || right.movie.year - left.movie.year).slice(0, 3);
+      const bottomThree = [...hydratedRatings].sort((left, right) => left.score - right.score || right.movie.year - left.movie.year).slice(0, 3);
+
+      [...topThree, ...bottomThree].forEach((item) => {
+        moviesToHydrate.set(item.movie.id, item.movie);
+      });
+
+      await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(snapshotState, movie)));
+
+      const distributionStep = 0.5;
+      const distributionBins = Array.from({ length: Math.floor(10 / distributionStep) + 1 }, (_, index) => ({
+        value: Number((index * distributionStep).toFixed(1)),
+        label: (index * distributionStep).toFixed(1),
+        count: 0
+      }));
+
+      for (const rating of ratings) {
+        const bucket = Math.max(0, Math.min(distributionBins.length - 1, Math.round(rating.score / distributionStep)));
+        distributionBins[bucket].count += 1;
+      }
+
+      const maxDistributionCount = Math.max(...distributionBins.map((item) => item.count), 1);
+      const profile = {
+        user,
+        ratingsCount: ratings.length,
+        averageScore: average(ratings.map((rating) => rating.score)),
+        topThree,
+        bottomThree,
+        bestScore: Math.max(0, ...ratings.map((rating) => rating.score)),
+        distribution: distributionBins.map((item, index) => ({
+          ...item,
+          ratio: item.count / maxDistributionCount,
+          axisLabel: index % 2 === 0 ? item.label : ""
+        }))
+      } satisfies ProfileData;
+
+      profilePageDataMemoryCache.set(userId, writeTimedCache(profile));
+      return cloneState(profile);
+    }
+  }
+
   const state = await loadAppState();
-  const ratedMovies = (getStateIndexes(state).ratingsByUserId.get(userId) ?? [])
-    .map((rating) => getMovieById(state, rating.movieId))
-    .filter((movie): movie is Movie => Boolean(movie));
+  const profile = buildProfileFromState(state, userId);
+  if (!profile) {
+    profilePageDataMemoryCache.set(userId, writeTimedCache<ProfileData | null>(null));
+    return null;
+  }
 
-  await Promise.all(ratedMovies.map((movie) => hydrateMovie(state, movie)));
+  const moviesToHydrate = new Map<string, Movie>();
+  [...profile.topThree, ...profile.bottomThree].forEach((item) => {
+    moviesToHydrate.set(item.movie.id, item.movie);
+  });
+  await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
 
-  return buildProfileFromState(state, userId);
+  const hydratedProfile = buildProfileFromState(state, userId);
+  profilePageDataMemoryCache.set(userId, writeTimedCache(hydratedProfile));
+  return hydratedProfile;
 }
 
 export async function getCurrentBatch() {
@@ -1556,16 +1651,67 @@ export async function getMovieBySlugHydrated(slug: string) {
 }
 
 export async function getMovieDetailDataHydrated(slug: string, currentUserId?: string) {
+  const cacheKey = `${slug}:${currentUserId ?? "anon"}`;
+  const cached = readTimedCache(movieDetailDataMemoryCache.get(cacheKey));
+  if (cached !== null) {
+    return cached;
+  }
+
+  if (shouldUseDatabase()) {
+    const snapshotState = await loadSnapshotStateCached();
+    if (!snapshotState) {
+      movieDetailDataMemoryCache.set(cacheKey, writeTimedCache(null));
+      return null;
+    }
+
+    const movie = getMovieBySlug(snapshotState, slug);
+    if (!movie) {
+      movieDetailDataMemoryCache.set(cacheKey, writeTimedCache(null));
+      return null;
+    }
+
+    await hydrateMovie(snapshotState, movie);
+
+    const { prisma } = await import("@/lib/prisma");
+    const [watchRow, ratingRows] = await Promise.all([
+      prisma.watchEntryRecord.findFirst({
+        where: { movieId: movie.id }
+      }),
+      prisma.ratingRecord.findMany({
+        where: { movieId: movie.id },
+        orderBy: [{ watchedOn: "desc" }, { userId: "asc" }]
+      })
+    ]);
+
+    const ratings = mapRatingRecordsToStateEntries(ratingRows);
+    const watchEntry = watchRow ? mapWatchRecordsToStateEntries([watchRow])[0] ?? null : null;
+    const members = listMembersFromState(snapshotState);
+    const averageScore = average(ratings.map((rating) => rating.score));
+    const myRating = currentUserId ? ratings.find((rating) => rating.userId === currentUserId) ?? null : null;
+    const detailData = {
+      movie,
+      watchEntry,
+      ratings,
+      members,
+      average: averageScore,
+      myRating
+    };
+
+    movieDetailDataMemoryCache.set(cacheKey, writeTimedCache(detailData));
+    return cloneState(detailData);
+  }
+
   const state = await loadAppState();
   const movie = getMovieBySlug(state, slug);
   if (!movie) {
+    movieDetailDataMemoryCache.set(cacheKey, writeTimedCache(null));
     return null;
   }
 
   await hydrateMovie(state, movie);
 
   const ratings = getRatingsForMovieFromState(state, movie.id);
-  return {
+  const detailData = {
     movie,
     watchEntry: getWatchEntryForMovieFromState(state, movie.id),
     ratings,
@@ -1573,6 +1719,8 @@ export async function getMovieDetailDataHydrated(slug: string, currentUserId?: s
     average: getMovieAverageFromState(state, movie.id),
     myRating: currentUserId ? getStateIndexes(state).ratingByUserMovie.get(`${currentUserId}:${movie.id}`) ?? null : null
   };
+  movieDetailDataMemoryCache.set(cacheKey, writeTimedCache(detailData));
+  return detailData;
 }
 
 export async function getDashboardData() {
