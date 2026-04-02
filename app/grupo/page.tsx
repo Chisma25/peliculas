@@ -5,6 +5,8 @@ import { slugify } from "@/lib/utils";
 export default async function GroupPage() {
   const [groupData, sessionUser] = await Promise.all([getGroupPageData(), getSessionUser()]);
   const adminCount = groupData.members.filter(({ member }) => member.isAdmin).length;
+  const memberGridClassName =
+    groupData.members.length === 6 ? "group-member-grid group-member-grid--balanced" : "group-member-grid";
 
   return (
     <div className="group-page-stack">
@@ -27,7 +29,7 @@ export default async function GroupPage() {
           </div>
         </div>
 
-        <div className="group-member-grid">
+        <div className={memberGridClassName}>
           {groupData.members.map(({ member, profileSummary }) => (
             <GroupMemberCard
               key={member.id}

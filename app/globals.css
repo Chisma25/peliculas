@@ -1286,6 +1286,10 @@ select {
   gap: 1rem;
 }
 
+.group-member-grid--balanced {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .member-card-topline {
   display: flex;
   align-items: flex-start;
@@ -2195,6 +2199,12 @@ textarea {
   flex-wrap: wrap;
 }
 
+@media (max-width: 1280px) {
+  .group-member-grid--balanced {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 code {
   display: block;
   padding: 0.8rem;
@@ -2289,6 +2299,10 @@ code {
   }
 
   .member-card-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .group-member-grid--balanced {
     grid-template-columns: 1fr;
   }
 
