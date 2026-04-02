@@ -95,8 +95,6 @@ type StateIndexes = {
   ratingsByUserId: Map<string, UserRating[]>;
   ratingByUserMovie: Map<string, UserRating>;
   movieAverageById: Map<string, number>;
-  profileSummaryByUserId: Map<string, ProfileSummary>;
-  profileOverviewByUserId: Map<string, ProfileOverview>;
   watchEntriesByMovieId: Map<string, AppState["watchEntries"][number]>;
   pendingMovieIdSet: Set<string>;
   watchedMovieIdSet: Set<string>;
@@ -119,12 +117,17 @@ type TimedCache<T> = {
 
 const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
 const profileDataCache = new WeakMap<AppState, Map<string, ProfileData | null>>();
+const profileSummaryCache = new WeakMap<AppState, Map<string, ProfileSummary>>();
+const profileOverviewCache = new WeakMap<AppState, Map<string, ProfileOverview>>();
 let snapshotMemoryCache: TimedCache<AppState | null> | null = null;
+let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedCollections>>();
 
 function invalidateDerivedCaches(state: AppState) {
   stateIndexesCache.delete(state);
   profileDataCache.delete(state);
+  profileSummaryCache.delete(state);
+  profileOverviewCache.delete(state);
 }
 
 function cloneState<T>(value: T): T {
@@ -152,6 +155,7 @@ function writeTimedCache<T>(value: T): TimedCache<T> {
 
 function invalidatePersistentStateCache() {
   snapshotMemoryCache = null;
+  snapshotUsersMemoryCache = null;
   normalizedCollectionsCache.clear();
 }
 
@@ -350,8 +354,6 @@ function getStateIndexes(state: AppState): StateIndexes {
   const ratingsByUserId = new Map<string, UserRating[]>();
   const ratingByUserMovie = new Map<string, UserRating>();
   const movieAverageById = new Map<string, number>();
-  const profileSummaryByUserId = new Map<string, ProfileSummary>();
-  const profileOverviewByUserId = new Map<string, ProfileOverview>();
   const watchEntriesByMovieId = new Map<string, AppState["watchEntries"][number]>();
   const pendingMovieIdSet = new Set(state.pendingMovieIds);
   const watchedMovieIdSet = new Set<string>();
@@ -387,49 +389,6 @@ function getStateIndexes(state: AppState): StateIndexes {
     movieAverageById.set(movieId, average(movieRatings.map((rating) => rating.score)));
   }
 
-  for (const user of state.users) {
-    const userRatings = ratingsByUserId.get(user.id) ?? [];
-    const summary = {
-      ratingsCount: userRatings.length,
-      averageScore: average(userRatings.map((rating) => rating.score)),
-      bestScore: userRatings.reduce((best, rating) => Math.max(best, rating.score), 0)
-    };
-    profileSummaryByUserId.set(user.id, summary);
-
-    const ratedMovies = userRatings
-      .map((rating) => ({
-        ...rating,
-        movie: moviesById.get(rating.movieId)
-      }))
-      .filter((rating): rating is UserRating & { movie: Movie } => Boolean(rating.movie));
-
-    const topThree = [...ratedMovies].sort((left, right) => right.score - left.score || right.movie.year - left.movie.year).slice(0, 3);
-    const bottomThree = [...ratedMovies].sort((left, right) => left.score - right.score || right.movie.year - left.movie.year).slice(0, 3);
-
-    const distributionStep = 0.5;
-    const distributionBins = Array.from({ length: Math.floor(10 / distributionStep) + 1 }, (_, index) => ({
-      value: Number((index * distributionStep).toFixed(1)),
-      label: (index * distributionStep).toFixed(1),
-      count: 0
-    }));
-
-    for (const rating of ratedMovies) {
-      const bucket = Math.max(0, Math.min(distributionBins.length - 1, Math.round(rating.score / distributionStep)));
-      distributionBins[bucket].count += 1;
-    }
-
-    const maxDistributionCount = Math.max(...distributionBins.map((item) => item.count), 1);
-    profileOverviewByUserId.set(user.id, {
-      topThree,
-      bottomThree,
-      distribution: distributionBins.map((item, index) => ({
-        ...item,
-        ratio: item.count / maxDistributionCount,
-        axisLabel: index % 2 === 0 ? item.label : ""
-      }))
-    });
-  }
-
   for (const watchEntry of state.watchEntries) {
     watchEntriesByMovieId.set(watchEntry.movieId, watchEntry);
     watchedMovieIdSet.add(watchEntry.movieId);
@@ -455,8 +414,6 @@ function getStateIndexes(state: AppState): StateIndexes {
     ratingsByUserId,
     ratingByUserMovie,
     movieAverageById,
-    profileSummaryByUserId,
-    profileOverviewByUserId,
     watchEntriesByMovieId,
     pendingMovieIdSet,
     watchedMovieIdSet,
@@ -467,6 +424,25 @@ function getStateIndexes(state: AppState): StateIndexes {
 
   stateIndexesCache.set(state, indexes);
   return indexes;
+}
+
+async function loadSnapshotUsersCached() {
+  const cached = readTimedCache(snapshotUsersMemoryCache);
+  if (cached) {
+    return cached;
+  }
+
+  if (snapshotMemoryCache && snapshotMemoryCache.expiresAt > Date.now() && snapshotMemoryCache.value) {
+    const users = cloneState(snapshotMemoryCache.value.users);
+    snapshotUsersMemoryCache = writeTimedCache(users);
+    return users;
+  }
+
+  const snapshot = await loadSnapshotStateUncached();
+  snapshotMemoryCache = writeTimedCache(snapshot);
+  const users = cloneState(snapshot?.users ?? []);
+  snapshotUsersMemoryCache = writeTimedCache(users);
+  return users;
 }
 
 function isAppState(value: unknown): value is AppState {
@@ -1149,13 +1125,72 @@ function getMovieAverageFromState(state: AppState, movieId: string) {
 }
 
 function getProfileSummaryFromState(state: AppState, userId: string): ProfileSummary {
-  return (
-    getStateIndexes(state).profileSummaryByUserId.get(userId) ?? {
-      ratingsCount: 0,
-      averageScore: 0,
-      bestScore: 0
-    }
-  );
+  const cachedSummaries = profileSummaryCache.get(state);
+  const cachedSummary = cachedSummaries?.get(userId);
+  if (cachedSummary) {
+    return cachedSummary;
+  }
+
+  const userRatings = getStateIndexes(state).ratingsByUserId.get(userId) ?? [];
+  const summary = {
+    ratingsCount: userRatings.length,
+    averageScore: average(userRatings.map((rating) => rating.score)),
+    bestScore: userRatings.reduce((best, rating) => Math.max(best, rating.score), 0)
+  };
+
+  const nextSummaries = cachedSummaries ?? new Map<string, ProfileSummary>();
+  nextSummaries.set(userId, summary);
+  profileSummaryCache.set(state, nextSummaries);
+
+  return summary;
+}
+
+function getProfileOverviewFromState(state: AppState, userId: string): ProfileOverview {
+  const cachedOverviews = profileOverviewCache.get(state);
+  const cachedOverview = cachedOverviews?.get(userId);
+  if (cachedOverview) {
+    return cachedOverview;
+  }
+
+  const indexes = getStateIndexes(state);
+  const ratedMovies = (indexes.ratingsByUserId.get(userId) ?? [])
+    .map((rating) => ({
+      ...rating,
+      movie: indexes.moviesById.get(rating.movieId)
+    }))
+    .filter((rating): rating is UserRating & { movie: Movie } => Boolean(rating.movie));
+
+  const topThree = [...ratedMovies].sort((left, right) => right.score - left.score || right.movie.year - left.movie.year).slice(0, 3);
+  const bottomThree = [...ratedMovies].sort((left, right) => left.score - right.score || right.movie.year - left.movie.year).slice(0, 3);
+
+  const distributionStep = 0.5;
+  const distributionBins = Array.from({ length: Math.floor(10 / distributionStep) + 1 }, (_, index) => ({
+    value: Number((index * distributionStep).toFixed(1)),
+    label: (index * distributionStep).toFixed(1),
+    count: 0
+  }));
+
+  for (const rating of ratedMovies) {
+    const bucket = Math.max(0, Math.min(distributionBins.length - 1, Math.round(rating.score / distributionStep)));
+    distributionBins[bucket].count += 1;
+  }
+
+  const maxDistributionCount = Math.max(...distributionBins.map((item) => item.count), 1);
+  const overview = {
+    topThree,
+    bottomThree,
+    distribution: distributionBins.map((item, index) => ({
+      ...item,
+      ratio: item.count / maxDistributionCount,
+      axisLabel: index % 2 === 0 ? item.label : ""
+    }))
+  };
+
+  const nextOverviews = cachedOverviews ?? new Map<string, ProfileOverview>();
+  nextOverviews.set(userId, overview);
+  profileOverviewCache.set(state, nextOverviews);
+
+  return overview;
 }
 
 function getGroupStatsFromState(state: AppState) {
@@ -1288,13 +1323,8 @@ function buildProfileFromState(state: AppState, userId: string): ProfileData | n
     return null;
   }
 
-  const { profileOverviewByUserId } = getStateIndexes(state);
   const summary = getProfileSummaryFromState(state, userId);
-  const overview = profileOverviewByUserId.get(userId) ?? {
-    topThree: [],
-    bottomThree: [],
-    distribution: []
-  };
+  const overview = getProfileOverviewFromState(state, userId);
 
   const profile = {
     user,
@@ -1324,8 +1354,9 @@ export async function getSessionUser() {
   if (!userId) {
     return null;
   }
-  const state = await loadAppState();
-  return findUserById(state, userId);
+
+  const users = await loadSnapshotUsersCached();
+  return users.find((user) => user.id === userId) ?? null;
 }
 
 export async function listMembers() {
@@ -1334,8 +1365,9 @@ export async function listMembers() {
 }
 
 export async function getUserByUsername(username: string) {
-  const state = await loadAppState();
-  return findUserByUsername(state, username);
+  const users = await loadSnapshotUsersCached();
+  const normalizedUsername = normalizeUsername(username);
+  return users.find((user) => normalizeUsername(user.username) === normalizedUsername) ?? null;
 }
 
 export async function listPendingHydrated() {
@@ -1613,8 +1645,8 @@ export async function getViewedPageDataHydrated(input: {
 }
 
 export async function authenticateUser(username: string, password: string) {
-  const state = await loadAppStateUncached();
-  const user = state.users.find((entry) => normalizeUsername(entry.username) === normalizeUsername(username)) ?? null;
+  const users = await loadSnapshotUsersCached();
+  const user = users.find((entry) => normalizeUsername(entry.username) === normalizeUsername(username)) ?? null;
   if (!user) {
     return null;
   }

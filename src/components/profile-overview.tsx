@@ -28,6 +28,8 @@ type ProfileOverviewProps = {
 export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps) {
   const isSelf = mode === "self";
   const averageMarker = Math.max(0, Math.min(100, (profile.averageScore / 10) * 100));
+  const dominantBand = [...profile.distribution].sort((left, right) => right.count - left.count || right.value - left.value)[0];
+  const occupiedBands = profile.distribution.filter((item) => item.count > 0).length;
 
   return (
     <div className="profile-grid">
@@ -41,7 +43,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
           <article className="stat-card">
             <p className="eyebrow">Valoración media</p>
             <strong>{profile.ratingsCount > 0 ? formatScore(profile.averageScore) : "-"}</strong>
-            <p className="body-copy">{isSelf ? "La nota media que tú sueles poner." : "La nota media que suele poner."}</p>
+            <p className="body-copy">{isSelf ? "La nota media que sueles poner." : "La nota media que suele poner."}</p>
           </article>
 
           <article className="stat-card">
@@ -123,39 +125,54 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
         </div>
         <p className="body-copy">
           {isSelf
-            ? "Histograma en intervalos de 0.5 puntos, con tu media marcada sobre el eje."
-            : "Histograma en intervalos de 0.5 puntos, con su media marcada sobre el eje."}
+            ? "Tu distribución real en intervalos de 0,5 puntos, con la media marcada sobre el eje."
+            : "Su distribución real en intervalos de 0,5 puntos, con la media marcada sobre el eje."}
         </p>
 
-        <div className="distribution-chart">
-          <div className="distribution-plot">
-            <div className="distribution-grid-lines" aria-hidden="true">
-              <span />
+        <div className="rating-distribution-shell">
+          <div className="rating-distribution-summary">
+            <article className="rating-distribution-stat">
+              <small>Media</small>
+              <strong>{profile.ratingsCount > 0 ? formatScore(profile.averageScore) : "-"}</strong>
+            </article>
+            <article className="rating-distribution-stat">
+              <small>Tramo dominante</small>
+              <strong>{dominantBand?.count ? dominantBand.label : "-"}</strong>
+            </article>
+            <article className="rating-distribution-stat">
+              <small>Tramos activos</small>
+              <strong>{occupiedBands}</strong>
+            </article>
+          </div>
+
+          <div className="rating-distribution-frame">
+            <div className="rating-distribution-grid" aria-hidden="true">
               <span />
               <span />
               <span />
             </div>
 
-            <div className="distribution-average-marker" style={{ left: `${averageMarker}%` }}>
+            <div className="rating-distribution-average" style={{ left: `${averageMarker}%` }}>
               <span />
               <small>Media {formatScore(profile.averageScore)}</small>
             </div>
 
-            <div className="distribution-columns">
+            <div className="rating-distribution-columns">
               {profile.distribution.map((item) => (
-                <div key={item.label} className="distribution-column">
-                  <div className="distribution-column-value">{item.count > 0 ? item.count : ""}</div>
-                  <div
-                    className="distribution-column-bar"
-                    style={{ height: `${Math.max(item.ratio * 100, item.count > 0 ? 8 : 0)}%` }}
-                    title={`${item.label}: ${item.count} notas`}
-                  />
+                <div key={item.label} className="rating-distribution-column" title={`${item.label}: ${item.count} notas`}>
+                  <div className="rating-distribution-count">{item.count > 0 ? item.count : ""}</div>
+                  <div className="rating-distribution-track">
+                    <div
+                      className={`rating-distribution-bar ${item.count > 0 ? "rating-distribution-bar-active" : ""}`}
+                      style={{ height: `${Math.max(item.ratio * 100, item.count > 0 ? 10 : 4)}%` }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="distribution-axis">
+          <div className="rating-distribution-axis">
             {profile.distribution.map((item) => (
               <span key={item.label}>{item.axisLabel}</span>
             ))}
