@@ -1017,6 +1017,60 @@ select {
   margin-top: 0.1rem;
 }
 
+.upcoming-release-card-skeleton {
+  align-items: stretch;
+}
+
+.upcoming-release-poster-skeleton {
+  min-height: 100%;
+  aspect-ratio: 0.69 / 1;
+  border-radius: 1.1rem;
+}
+
+.shimmer-block,
+.shimmer-line,
+.shimmer-card {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.shimmer-block::after,
+.shimmer-line::after,
+.shimmer-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  animation: shimmer-slide 1.6s ease-in-out infinite;
+}
+
+.shimmer-line {
+  height: 0.92rem;
+  border-radius: 999px;
+}
+
+.shimmer-line-wide {
+  width: min(15rem, 92%);
+}
+
+.shimmer-line-medium {
+  width: min(9.5rem, 70%);
+}
+
+.shimmer-card {
+  min-height: 4.5rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+@keyframes shimmer-slide {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .recommendation-copy h3 {
   margin: 0;
   font-size: 2rem;

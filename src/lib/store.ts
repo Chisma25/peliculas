@@ -99,6 +99,8 @@ type DashboardData = {
   };
 };
 
+type DashboardOverviewData = Omit<DashboardData, "upcomingReleases">;
+
 type StateIndexes = {
   usersById: Map<string, User>;
   usersByUsername: Map<string, User>;
@@ -137,7 +139,7 @@ const profileOverviewCache = new WeakMap<AppState, Map<string, ProfileOverview>>
 let snapshotMemoryCache: TimedCache<AppState | null> | null = null;
 let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedCollections>>();
-let dashboardDataMemoryCache: TimedCache<DashboardData> | null = null;
+let dashboardDataMemoryCache: TimedCache<DashboardOverviewData> | null = null;
 let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null = null;
 
 function invalidateDerivedCaches(state: AppState) {
@@ -1221,7 +1223,7 @@ function getGroupStatsFromState(state: AppState) {
   };
 }
 
-function buildDashboardDataFromState(state: AppState): DashboardData {
+function buildDashboardDataFromState(state: AppState): DashboardOverviewData {
   const batch = getCurrentBatchFromState(state);
   const selectedMovie = batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null;
 
@@ -1229,7 +1231,6 @@ function buildDashboardDataFromState(state: AppState): DashboardData {
     selectedMovie,
     selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
     recentActivity: state.activity.slice(0, 5),
-    upcomingReleases: [],
     stats: getGroupStatsFromState(state)
   };
 }
@@ -1252,7 +1253,7 @@ async function buildUpcomingDashboardReleases(state: AppState) {
       .filter((value): value is string => Boolean(value))
   );
 
-  const candidates = rawUpcoming.filter((movie) => !(movie.sourceIds?.tmdb && knownTmdbIds.has(movie.sourceIds.tmdb))).slice(0, 8);
+  const candidates = rawUpcoming.filter((movie) => !(movie.sourceIds?.tmdb && knownTmdbIds.has(movie.sourceIds.tmdb))).slice(0, 5);
 
   const enrichedUpcoming = await Promise.all(candidates.map((movie) => resolveMovieMetadata(movie)));
   const ranked = rankUpcomingReleasesForGroup(state, enrichedUpcoming, 3);
@@ -1263,7 +1264,7 @@ async function buildUpcomingDashboardReleases(state: AppState) {
   return ranked;
 }
 
-async function loadDashboardDataFromDatabase(): Promise<DashboardData | null> {
+async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | null> {
   const cached = readTimedCache(dashboardDataMemoryCache);
   if (cached) {
     return cached;
@@ -1315,19 +1316,16 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardData | null> {
   const selectedMovie = latestBatch?.selectedMovieId
     ? snapshotState.movies.find((movie) => movie.id === latestBatch.selectedMovieId) ?? null
     : null;
-  const upcomingReleases = await buildUpcomingDashboardReleases(snapshotState);
-
   const dashboardData = {
     selectedMovie,
     selectedWatchEntry: selectedWatchRecord ? mapWatchRecordsToStateEntries([selectedWatchRecord])[0] ?? null : null,
     recentActivity: snapshotState.activity.slice(0, 5),
-    upcomingReleases,
     stats: {
       watchedCount: watchedRows.length,
       averageScore,
       pendingCount
     }
-  } satisfies DashboardData;
+  } satisfies DashboardOverviewData;
 
   dashboardDataMemoryCache = writeTimedCache(dashboardData);
   return cloneState(dashboardData);
@@ -1585,7 +1583,7 @@ export async function getDashboardData() {
   };
 }
 
-export async function getDashboardDataHydrated() {
+export async function getDashboardOverviewHydrated() {
   if (shouldUseDatabase()) {
     const dashboardData = await loadDashboardDataFromDatabase();
     if (dashboardData) {
@@ -1594,9 +1592,18 @@ export async function getDashboardDataHydrated() {
   }
 
   const state = await loadAppState();
+  return buildDashboardDataFromState(state);
+}
+
+export async function getUpcomingDashboardReleasesHydrated() {
+  const state = await loadAppState();
+  return buildUpcomingDashboardReleases(state);
+}
+
+export async function getDashboardDataHydrated() {
   return {
-    ...buildDashboardDataFromState(state),
-    upcomingReleases: await buildUpcomingDashboardReleases(state)
+    ...(await getDashboardOverviewHydrated()),
+    upcomingReleases: await getUpcomingDashboardReleasesHydrated()
   };
 }
 
