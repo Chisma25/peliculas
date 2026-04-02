@@ -10,7 +10,7 @@ type SeenPageProps = {
 };
 
 const SORT_OPTIONS = [
-  { value: "watched-desc", label: "Última vista primero" },
+  { value: "watched-desc", label: "Última registrada primero" },
   { value: "group-desc", label: "Grupo: mayor a menor" },
   { value: "group-asc", label: "Grupo: menor a mayor" },
   { value: "mine-desc", label: "Mi nota: mayor a menor" },
@@ -69,22 +69,16 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
   const currentPage = Number.isFinite(pageFromQuery) && pageFromQuery > 0 ? pageFromQuery : 1;
 
   const sessionUser = await getSessionUser();
-  const {
-    genres,
-    totalHistoryCount,
-    filteredHistoryCount,
-    totalPages,
-    currentPage: safePage,
-    pagedHistory
-  } = await getViewedPageDataHydrated({
-    search,
-    year,
-    genre,
-    sort: activeSort,
-    currentUserId: sessionUser?.id,
-    page: currentPage,
-    pageSize: PAGE_SIZE
-  });
+  const { genres, totalHistoryCount, filteredHistoryCount, totalPages, currentPage: safePage, pagedHistory } =
+    await getViewedPageDataHydrated({
+      search,
+      year,
+      genre,
+      sort: activeSort,
+      currentUserId: sessionUser?.id,
+      page: currentPage,
+      pageSize: PAGE_SIZE
+    });
 
   const paginationItems = buildPaginationItems(safePage, totalPages);
 
@@ -93,7 +87,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
       <div className="panel-header">
         <p className="eyebrow">Vistas del grupo</p>
         <h1>Películas vistas y notas</h1>
-        <p className="body-copy">Todo lo que ya habéis visto, ordenado para consultar rápido notas, fechas y ficha.</p>
+        <p className="body-copy">Todo lo que ya habéis visto, ordenado para consultar rápido notas, fecha de registro y ficha.</p>
       </div>
 
       <form action="/vistas" method="get" className="pending-toolbar history-toolbar">
@@ -197,7 +191,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                       }
                     />
                     <div className="history-card-copy history-card-copy-spacious history-card-viewed-copy">
-                      <p className="eyebrow">{item.watchedOn ? `Vista ${formatShortDate(item.watchedOn)}` : "Sin fecha"}</p>
+                      <p className="eyebrow">Registro {formatShortDate(item.watchedOn ?? "")}</p>
                       <strong className="history-card-title">{item.movie.title}</strong>
                       <p className="history-card-subline">{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</p>
                       <div className="chips pending-card-genres history-card-genres">

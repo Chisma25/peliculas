@@ -27,6 +27,7 @@ const STATE_FILE = join(DATA_DIR, "runtime-state.json");
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
 const STATE_CACHE_TTL_MS = 20_000;
+const APP_REGISTRATION_FALLBACK_DATE = "2026-03-14T17:09:52.000Z";
 
 const INITIAL_PASSWORDS = {
   Isma: "Roca7!Marea",
@@ -1368,7 +1369,7 @@ function buildHistoryFromState(state: AppState, filters?: HistoryFilters, curren
     return [
       {
         movie,
-        watchedOn: entry.watchedOn,
+        watchedOn: entry.watchedOn ?? APP_REGISTRATION_FALLBACK_DATE,
         groupAverage: getMovieAverageFromState(state, movie.id),
         ratings,
         userRating
