@@ -487,7 +487,10 @@ async function loadSnapshotUsersCached() {
   return users;
 }
 
-const loadSnapshotUsersForRequest = cache(async () => loadSnapshotUsersCached());
+const loadSnapshotUsersForRequest = cache(async () => {
+  const snapshot = await loadSnapshotStateForRequest();
+  return cloneState(snapshot?.users ?? []);
+});
 
 function isAppState(value: unknown): value is AppState {
   if (!value || typeof value !== "object") {
