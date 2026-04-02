@@ -45,3 +45,18 @@ model WatchEntryRecord {
 
   @@index([groupId, watchedOn])
 }
+
+model RatingRecord {
+  id        String   @id
+  movieId   String
+  userId    String
+  score     Float
+  comment   String?
+  watchedOn DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([movieId, userId])
+  @@index([movieId])
+  @@index([userId])
+}
