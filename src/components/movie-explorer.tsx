@@ -151,8 +151,8 @@ export function MovieExplorer() {
         <p className="eyebrow">Búsqueda libre</p>
         <h1>Explorar películas en TMDb</h1>
         <p className="body-copy">
-          Busca cualquier película fuera de las recomendaciones semanales para consultar sinopsis, nota externa y
-          carátula, y añadirla a pendientes.
+          Busca cualquier película fuera de la lista del grupo para consultar su sinopsis, la nota externa y la carátula,
+          y añadirla a pendientes si os encaja.
         </p>
       </div>
 
@@ -175,6 +175,10 @@ export function MovieExplorer() {
           const pendingState = movieStates[movie.id] ?? "idle";
           const isActionDisabled =
             pendingState === "loading" || pendingState === "added" || pendingState === "already_pending" || pendingState === "already_watched";
+          const visibleGenres = movie.genres
+            .map((genre) => genre.trim())
+            .filter((genre) => genre && genre.toLowerCase() !== "pendiente")
+            .slice(0, 2);
 
           return (
             <article key={movie.id} className="catalog-card explorer-card">
@@ -183,22 +187,38 @@ export function MovieExplorer() {
                 style={
                   movie.posterUrl
                     ? {
-                        backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.1), rgba(10, 15, 24, 0.7)), url(${movie.posterUrl})`,
+                        backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.08), rgba(10, 15, 24, 0.72)), url(${movie.posterUrl})`,
                         backgroundSize: "cover",
                         backgroundPosition: "center"
                       }
                     : undefined
                 }
               />
-              <div className="stat-row">
-                <p className="eyebrow">{movie.year > 0 ? movie.year : "Año pendiente"}</p>
-                <span>
-                  {movie.externalRating.source}: {movie.externalRating.value}
-                </span>
+
+              <div className="explorer-card-copy">
+                <div className="stat-row explorer-card-meta">
+                  <p className="eyebrow">{movie.year > 0 ? movie.year : "Año pendiente"}</p>
+                  <span>
+                    {movie.externalRating.source}: {movie.externalRating.value}
+                  </span>
+                </div>
+
+                <strong className="explorer-card-title">{movie.title}</strong>
+
+                {visibleGenres.length > 0 ? (
+                  <div className="chips explorer-genres explorer-genres-compact">
+                    {visibleGenres.map((genre) => (
+                      <span key={`${movie.id}-${genre}`}>{genre}</span>
+                    ))}
+                  </div>
+                ) : null}
+
+                <p className="body-copy explorer-card-synopsis">
+                  {movie.synopsis || "La sinopsis todavía no está disponible para esta película."}
+                </p>
               </div>
-              <strong>{movie.title}</strong>
-              <p className="body-copy">{movie.synopsis}</p>
-              <div className="recommendation-actions">
+
+              <div className="recommendation-actions explorer-card-actions">
                 <button
                   type="button"
                   className="primary-button"

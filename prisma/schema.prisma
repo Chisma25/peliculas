@@ -60,3 +60,29 @@ model RatingRecord {
   @@index([movieId])
   @@index([userId])
 }
+
+model WeeklyBatchRecord {
+  id              String                  @id
+  groupId         String
+  weekOf          DateTime
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  selectedMovieId String?
+  items           WeeklyBatchItemRecord[]
+
+  @@index([groupId, createdAt])
+}
+
+model WeeklyBatchItemRecord {
+  id       String            @id
+  batchId  String
+  movieId  String
+  position Int               @default(0)
+  score    Float
+  summary  String
+  reasons  Json
+  metrics  Json?
+  batch    WeeklyBatchRecord @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, position])
+}

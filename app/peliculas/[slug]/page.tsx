@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { MoviePoster } from "@/components/movie-poster";
 import { RatingPanel } from "@/components/rating-panel";
 import { UserAvatar } from "@/components/user-avatar";
-import { getMovieBySlugHydrated, getRatingsForMovie, getSessionUser, getWatchEntryForMovie, listMembers } from "@/lib/store";
-import { formatLongDate, formatScore, getMovieAverage } from "@/lib/utils";
+import { getMovieDetailDataHydrated, getSessionUser } from "@/lib/store";
+import { formatLongDate, formatScore } from "@/lib/utils";
 
 type MoviePageProps = {
   params: Promise<{
@@ -14,19 +14,13 @@ type MoviePageProps = {
 
 export default async function MoviePage({ params }: MoviePageProps) {
   const { slug } = await params;
-  const movie = await getMovieBySlugHydrated(slug);
-  if (!movie) {
+  const sessionUser = await getSessionUser();
+  const movieData = await getMovieDetailDataHydrated(slug, sessionUser?.id);
+  if (!movieData) {
     notFound();
   }
 
-  const sessionUser = await getSessionUser();
-  const [watchEntry, ratings, members] = await Promise.all([
-    getWatchEntryForMovie(movie.id),
-    getRatingsForMovie(movie.id),
-    listMembers()
-  ]);
-  const average = getMovieAverage(movie.id, ratings);
-  const myRating = sessionUser ? ratings.find((rating) => rating.userId === sessionUser.id) : null;
+  const { movie, watchEntry, ratings, members, average, myRating } = movieData;
 
   return (
     <div className="detail-grid">

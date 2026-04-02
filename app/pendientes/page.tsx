@@ -71,8 +71,8 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
             <p className="eyebrow">5 posibles para esta semana</p>
             <h2>Las más fuertes dentro de pendientes</h2>
             <p className="body-copy">
-              Aquí el motor solo mira pelis que ya tenéis guardadas en pendientes y os ordena las cinco que mejor
-              encajan ahora mismo para plan de grupo.
+              Aquí el motor solo mira pelis que ya tenéis guardadas en pendientes y os ordena las cinco que mejor encajan
+              ahora mismo para plan de grupo.
             </p>
           </div>
           <div className="pending-weekly-grid">

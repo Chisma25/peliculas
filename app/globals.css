@@ -1726,7 +1726,7 @@ textarea {
 }
 
 .search-poster {
-  min-height: 240px;
+  aspect-ratio: 2 / 3;
   border-radius: 1rem;
   border: 1px solid var(--line);
   background:
@@ -1736,6 +1736,53 @@ textarea {
 
 .explorer-card {
   position: relative;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: start;
+  height: 100%;
+}
+
+.explorer-card-copy {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  min-height: 0;
+}
+
+.explorer-card-meta {
+  min-height: 1.35rem;
+}
+
+.explorer-card-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 1.2rem;
+  line-height: 1.18;
+  min-height: 3.2rem;
+}
+
+.explorer-genres-compact {
+  gap: 0.55rem;
+}
+
+.explorer-genres-compact span {
+  min-height: 2rem;
+  align-items: center;
+}
+
+.explorer-card-synopsis {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+  line-height: 1.58;
+  min-height: 9.5rem;
+}
+
+.explorer-card-actions {
+  margin-top: auto;
+  align-items: flex-start;
 }
 
 .explorer-genres {

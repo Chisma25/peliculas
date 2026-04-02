@@ -10,7 +10,17 @@ import { loadManualHistorySeed } from "@/lib/manual-history";
 import { resolveMovieMetadata, searchMovies } from "@/lib/movie-provider";
 import { generatePendingWeeklyOptions, generateWeeklyRecommendations } from "@/lib/recommendations";
 import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
-import { ActivityItem, AppState, Movie, User, UserRating, WatchEntry } from "@/lib/types";
+import {
+  ActivityItem,
+  AppState,
+  Movie,
+  RecommendationMetric,
+  User,
+  UserRating,
+  WatchEntry,
+  WeeklyRecommendationBatch,
+  WeeklyRecommendationItem
+} from "@/lib/types";
 import { average, safeId, slugify } from "@/lib/utils";
 const DATA_DIR = join(process.cwd(), "data");
 const STATE_FILE = join(DATA_DIR, "runtime-state.json");
@@ -67,6 +77,12 @@ type ProfileSummary = {
   bestScore: number;
 };
 
+type ProfileOverview = {
+  topThree: Array<UserRating & { movie: Movie }>;
+  bottomThree: Array<UserRating & { movie: Movie }>;
+  distribution: ProfileData["distribution"];
+};
+
 type StateIndexes = {
   usersById: Map<string, User>;
   usersByUsername: Map<string, User>;
@@ -79,12 +95,22 @@ type StateIndexes = {
   ratingByUserMovie: Map<string, UserRating>;
   movieAverageById: Map<string, number>;
   profileSummaryByUserId: Map<string, ProfileSummary>;
+  profileOverviewByUserId: Map<string, ProfileOverview>;
   watchEntriesByMovieId: Map<string, AppState["watchEntries"][number]>;
+  pendingMovieIdSet: Set<string>;
+  watchedMovieIdSet: Set<string>;
+  currentBatch: WeeklyRecommendationBatch | null;
+  weeklyBatchById: Map<string, WeeklyRecommendationBatch>;
   groupAverageScore: number;
 };
 
 const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
 const profileDataCache = new WeakMap<AppState, Map<string, ProfileData | null>>();
+
+function invalidateDerivedCaches(state: AppState) {
+  stateIndexesCache.delete(state);
+  profileDataCache.delete(state);
+}
 
 function normalizeUsername(value: string) {
   return slugify(value).replace(/-/g, "");
@@ -282,7 +308,11 @@ function getStateIndexes(state: AppState): StateIndexes {
   const ratingByUserMovie = new Map<string, UserRating>();
   const movieAverageById = new Map<string, number>();
   const profileSummaryByUserId = new Map<string, ProfileSummary>();
+  const profileOverviewByUserId = new Map<string, ProfileOverview>();
   const watchEntriesByMovieId = new Map<string, AppState["watchEntries"][number]>();
+  const pendingMovieIdSet = new Set(state.pendingMovieIds);
+  const watchedMovieIdSet = new Set<string>();
+  const weeklyBatchById = new Map<string, WeeklyRecommendationBatch>();
 
   for (const user of state.users) {
     usersById.set(user.id, user);
@@ -316,15 +346,55 @@ function getStateIndexes(state: AppState): StateIndexes {
 
   for (const user of state.users) {
     const userRatings = ratingsByUserId.get(user.id) ?? [];
-    profileSummaryByUserId.set(user.id, {
+    const summary = {
       ratingsCount: userRatings.length,
       averageScore: average(userRatings.map((rating) => rating.score)),
       bestScore: userRatings.reduce((best, rating) => Math.max(best, rating.score), 0)
+    };
+    profileSummaryByUserId.set(user.id, summary);
+
+    const ratedMovies = userRatings
+      .map((rating) => ({
+        ...rating,
+        movie: moviesById.get(rating.movieId)
+      }))
+      .filter((rating): rating is UserRating & { movie: Movie } => Boolean(rating.movie));
+
+    const topThree = [...ratedMovies].sort((left, right) => right.score - left.score || right.movie.year - left.movie.year).slice(0, 3);
+    const bottomThree = [...ratedMovies].sort((left, right) => left.score - right.score || right.movie.year - left.movie.year).slice(0, 3);
+
+    const distributionStep = 0.5;
+    const distributionBins = Array.from({ length: Math.floor(10 / distributionStep) + 1 }, (_, index) => ({
+      value: Number((index * distributionStep).toFixed(1)),
+      label: (index * distributionStep).toFixed(1),
+      count: 0
+    }));
+
+    for (const rating of ratedMovies) {
+      const bucket = Math.max(0, Math.min(distributionBins.length - 1, Math.round(rating.score / distributionStep)));
+      distributionBins[bucket].count += 1;
+    }
+
+    const maxDistributionCount = Math.max(...distributionBins.map((item) => item.count), 1);
+    profileOverviewByUserId.set(user.id, {
+      topThree,
+      bottomThree,
+      distribution: distributionBins.map((item, index) => ({
+        ...item,
+        ratio: item.count / maxDistributionCount,
+        axisLabel: index % 2 === 0 ? item.label : ""
+      }))
     });
   }
 
   for (const watchEntry of state.watchEntries) {
     watchEntriesByMovieId.set(watchEntry.movieId, watchEntry);
+    watchedMovieIdSet.add(watchEntry.movieId);
+  }
+
+  const currentBatch = [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+  for (const batch of state.weeklyBatches) {
+    weeklyBatchById.set(batch.id, batch);
   }
 
   const groupAverageScore = average(
@@ -343,7 +413,12 @@ function getStateIndexes(state: AppState): StateIndexes {
     ratingByUserMovie,
     movieAverageById,
     profileSummaryByUserId,
+    profileOverviewByUserId,
     watchEntriesByMovieId,
+    pendingMovieIdSet,
+    watchedMovieIdSet,
+    currentBatch,
+    weeklyBatchById,
     groupAverageScore
   };
 
@@ -436,7 +511,8 @@ function toCompactSnapshotState(state: AppState): AppState {
     ...state,
     ratings: [],
     watchEntries: [],
-    pendingMovieIds: []
+    pendingMovieIds: [],
+    weeklyBatches: []
   };
 }
 
@@ -483,12 +559,50 @@ function mapRatingRecordsToStateEntries(records: Array<{
   }));
 }
 
+function mapWeeklyBatchRecordsToStateEntries(
+  records: Array<{
+    id: string;
+    groupId: string;
+    weekOf: Date;
+    createdAt: Date;
+    selectedMovieId: string | null;
+    items: Array<{
+      id: string;
+      movieId: string;
+      score: number;
+      summary: string;
+      reasons: unknown;
+      metrics: unknown;
+      position: number;
+    }>;
+  }>
+): WeeklyRecommendationBatch[] {
+  return records.map((batch) => ({
+    id: batch.id,
+    groupId: batch.groupId,
+    weekOf: batch.weekOf.toISOString(),
+    createdAt: batch.createdAt.toISOString(),
+    selectedMovieId: batch.selectedMovieId ?? undefined,
+    items: [...batch.items]
+      .sort((left, right) => left.position - right.position)
+      .map((item) => ({
+        id: item.id,
+        movieId: item.movieId,
+        score: item.score,
+        summary: item.summary,
+        reasons: Array.isArray(item.reasons) ? (item.reasons as WeeklyRecommendationItem["reasons"]) : [],
+        metrics: Array.isArray(item.metrics) ? (item.metrics as RecommendationMetric[]) : undefined
+      }))
+  }));
+}
+
 async function backfillNormalizedCollectionsFromSnapshot(state: AppState) {
   const { prisma } = await import("@/lib/prisma");
-  const [pendingCount, watchCount, ratingsCount] = await Promise.all([
+  const [pendingCount, watchCount, ratingsCount, batchCount] = await Promise.all([
     prisma.pendingMovie.count({ where: { groupId: state.group.id } }),
     prisma.watchEntryRecord.count({ where: { groupId: state.group.id } }),
-    prisma.ratingRecord.count()
+    prisma.ratingRecord.count(),
+    prisma.weeklyBatchRecord.count({ where: { groupId: state.group.id } })
   ]);
 
   const operations: Promise<unknown>[] = [];
@@ -539,6 +653,38 @@ async function backfillNormalizedCollectionsFromSnapshot(state: AppState) {
     );
   }
 
+  if (batchCount === 0 && state.weeklyBatches.length > 0) {
+    operations.push(
+      prisma.$transaction([
+        prisma.weeklyBatchRecord.createMany({
+          data: state.weeklyBatches.map((batch) => ({
+            id: batch.id,
+            groupId: batch.groupId,
+            weekOf: new Date(batch.weekOf),
+            createdAt: new Date(batch.createdAt),
+            selectedMovieId: batch.selectedMovieId ?? null
+          })),
+          skipDuplicates: true
+        }),
+        prisma.weeklyBatchItemRecord.createMany({
+          data: state.weeklyBatches.flatMap((batch) =>
+            batch.items.map((item, index) => ({
+              id: item.id,
+              batchId: batch.id,
+              movieId: item.movieId,
+              position: index,
+              score: item.score,
+              summary: item.summary,
+              reasons: item.reasons,
+              metrics: item.metrics ?? []
+            }))
+          ),
+          skipDuplicates: true
+        })
+      ])
+    );
+  }
+
   if (operations.length > 0) {
     await Promise.all(operations);
   }
@@ -546,7 +692,7 @@ async function backfillNormalizedCollectionsFromSnapshot(state: AppState) {
 
 async function loadNormalizedCollections(groupId: string) {
   const { prisma } = await import("@/lib/prisma");
-  const [pendingRows, watchRows, ratingRows] = await Promise.all([
+  const [pendingRows, watchRows, ratingRows, batchRows] = await Promise.all([
     prisma.pendingMovie.findMany({
       where: { groupId },
       orderBy: { addedAt: "desc" }
@@ -557,13 +703,23 @@ async function loadNormalizedCollections(groupId: string) {
     }),
     prisma.ratingRecord.findMany({
       orderBy: [{ watchedOn: "desc" }, { updatedAt: "desc" }]
+    }),
+    prisma.weeklyBatchRecord.findMany({
+      where: { groupId },
+      orderBy: [{ createdAt: "desc" }],
+      include: {
+        items: {
+          orderBy: { position: "asc" }
+        }
+      }
     })
   ]);
 
   return {
     pendingMovieIds: pendingRows.map((entry) => entry.movieId),
     watchEntries: mapWatchRecordsToStateEntries(watchRows),
-    ratings: mapRatingRecordsToStateEntries(ratingRows)
+    ratings: mapRatingRecordsToStateEntries(ratingRows),
+    weeklyBatches: mapWeeklyBatchRecordsToStateEntries(batchRows)
   };
 }
 
@@ -634,6 +790,52 @@ async function syncRatingsToDatabase(ratings: UserRating[]) {
   ]);
 }
 
+async function syncWeeklyBatchesToDatabase(groupId: string, weeklyBatches: WeeklyRecommendationBatch[]) {
+  const { prisma } = await import("@/lib/prisma");
+  const existingBatchIds = (
+    await prisma.weeklyBatchRecord.findMany({
+      where: { groupId },
+      select: { id: true }
+    })
+  ).map((batch) => batch.id);
+
+  await prisma.$transaction([
+    ...(existingBatchIds.length > 0
+      ? [prisma.weeklyBatchItemRecord.deleteMany({ where: { batchId: { in: existingBatchIds } } })]
+      : []),
+    prisma.weeklyBatchRecord.deleteMany({ where: { groupId } }),
+    ...(weeklyBatches.length > 0
+      ? [
+          prisma.weeklyBatchRecord.createMany({
+            data: weeklyBatches.map((batch) => ({
+              id: batch.id,
+              groupId: batch.groupId,
+              weekOf: new Date(batch.weekOf),
+              createdAt: new Date(batch.createdAt),
+              selectedMovieId: batch.selectedMovieId ?? null
+            })),
+            skipDuplicates: true
+          }),
+          prisma.weeklyBatchItemRecord.createMany({
+            data: weeklyBatches.flatMap((batch) =>
+              batch.items.map((item, index) => ({
+                id: item.id,
+                batchId: batch.id,
+                movieId: item.movieId,
+                position: index,
+                score: item.score,
+                summary: item.summary,
+                reasons: item.reasons,
+                metrics: item.metrics ?? []
+              }))
+            ),
+            skipDuplicates: true
+          })
+        ]
+      : [])
+  ]);
+}
+
 async function loadDatabaseState() {
   const { prisma } = await import("@/lib/prisma");
   const snapshot = await prisma.appSnapshot.findUnique({
@@ -667,7 +869,11 @@ async function loadDatabaseState() {
     watchEntries:
       normalizedCollections.watchEntries.length > 0 || parsed.watchEntries.length === 0
         ? normalizedCollections.watchEntries
-        : parsed.watchEntries
+        : parsed.watchEntries,
+    weeklyBatches:
+      normalizedCollections.weeklyBatches.length > 0 || parsed.weeklyBatches.length === 0
+        ? normalizedCollections.weeklyBatches
+        : parsed.weeklyBatches
   });
 }
 
@@ -699,7 +905,8 @@ async function loadAppStateUncached() {
     await Promise.all([
       syncRatingsToDatabase(initial.ratings),
       syncPendingMoviesToDatabase(initial.group.id, initial.pendingMovieIds),
-      syncWatchEntriesToDatabase(initial.group.id, initial.watchEntries)
+      syncWatchEntriesToDatabase(initial.group.id, initial.watchEntries),
+      syncWeeklyBatchesToDatabase(initial.group.id, initial.weeklyBatches)
     ]);
     await saveDatabaseState(initial);
     return initial;
@@ -765,7 +972,7 @@ function getMovieBySlug(state: AppState, slug: string) {
 }
 
 function getCurrentBatchFromState(state: AppState) {
-  return [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+  return getStateIndexes(state).currentBatch;
 }
 
 function isDashboardBatchValid(state: AppState, batch: AppState["weeklyBatches"][number] | null) {
@@ -773,15 +980,14 @@ function isDashboardBatchValid(state: AppState, batch: AppState["weeklyBatches"]
     return false;
   }
 
-  const seenIds = new Set(state.watchEntries.map((entry) => entry.movieId));
-  const pendingIds = new Set(state.pendingMovieIds);
+  const { watchedMovieIdSet, pendingMovieIdSet } = getStateIndexes(state);
 
   return batch.items.every((item) => {
     const movie = getMovieById(state, item.movieId);
     return (
       Boolean(movie) &&
-      !seenIds.has(item.movieId) &&
-      !pendingIds.has(item.movieId) &&
+      !watchedMovieIdSet.has(item.movieId) &&
+      !pendingMovieIdSet.has(item.movieId) &&
       Array.isArray(item.metrics) &&
       item.metrics.length >= 4
     );
@@ -803,6 +1009,7 @@ async function ensureDashboardBatch(state: AppState) {
   }
 
   state.weeklyBatches.unshift(refreshedBatch);
+  invalidateDerivedCaches(state);
   return {
     batch: refreshedBatch,
     changed: true
@@ -961,45 +1168,22 @@ function buildProfileFromState(state: AppState, userId: string): ProfileData | n
     return null;
   }
 
-  const { ratingsByUserId } = getStateIndexes(state);
+  const { profileOverviewByUserId } = getStateIndexes(state);
   const summary = getProfileSummaryFromState(state, userId);
-  const userRatings = (ratingsByUserId.get(userId) ?? [])
-    .map((rating) => ({
-      ...rating,
-      movie: getMovieById(state, rating.movieId)
-    }))
-    .filter((rating): rating is UserRating & { movie: Movie } => Boolean(rating.movie));
-
-  const averageScore = average(userRatings.map((rating) => rating.score));
-  const topThree = [...userRatings].sort((left, right) => right.score - left.score || right.movie.year - left.movie.year).slice(0, 3);
-  const bottomThree = [...userRatings].sort((left, right) => left.score - right.score || right.movie.year - left.movie.year).slice(0, 3);
-
-  const distributionStep = 0.5;
-  const distributionBins = Array.from({ length: Math.floor(10 / distributionStep) + 1 }, (_, index) => ({
-    value: Number((index * distributionStep).toFixed(1)),
-    label: (index * distributionStep).toFixed(1),
-    count: 0
-  }));
-
-  for (const rating of userRatings) {
-    const bucket = Math.max(0, Math.min(distributionBins.length - 1, Math.round(rating.score / distributionStep)));
-    distributionBins[bucket].count += 1;
-  }
-
-  const maxDistributionCount = Math.max(...distributionBins.map((item) => item.count), 1);
+  const overview = profileOverviewByUserId.get(userId) ?? {
+    topThree: [],
+    bottomThree: [],
+    distribution: []
+  };
 
   const profile = {
     user,
     ratingsCount: summary.ratingsCount,
-    averageScore: summary.ratingsCount > 0 ? summary.averageScore : averageScore,
-    topThree,
-    bottomThree,
-    bestScore: summary.bestScore || topThree[0]?.score || 0,
-    distribution: distributionBins.map((item, index) => ({
-      ...item,
-      ratio: item.count / maxDistributionCount,
-      axisLabel: index % 2 === 0 ? item.label : ""
-    }))
+    averageScore: summary.averageScore,
+    topThree: overview.topThree,
+    bottomThree: overview.bottomThree,
+    bestScore: summary.bestScore || overview.topThree[0]?.score || 0,
+    distribution: overview.distribution
   };
 
   const nextProfiles = cachedProfiles ?? new Map<string, ProfileData | null>();
@@ -1068,7 +1252,7 @@ export async function getCurrentBatch() {
   const state = await loadAppState();
   const { batch, changed } = await ensureDashboardBatch(state);
   if (changed) {
-    await saveAppState(state);
+    await Promise.all([syncWeeklyBatchesToDatabase(state.group.id, state.weeklyBatches), saveAppState(state)]);
   }
   return batch;
 }
@@ -1088,6 +1272,26 @@ export async function getMovieBySlugHydrated(slug: string) {
   const movie = getMovieBySlug(state, slug);
   await hydrateMovie(state, movie);
   return movie;
+}
+
+export async function getMovieDetailDataHydrated(slug: string, currentUserId?: string) {
+  const state = await loadAppState();
+  const movie = getMovieBySlug(state, slug);
+  if (!movie) {
+    return null;
+  }
+
+  await hydrateMovie(state, movie);
+
+  const ratings = getRatingsForMovieFromState(state, movie.id);
+  return {
+    movie,
+    watchEntry: getWatchEntryForMovieFromState(state, movie.id),
+    ratings,
+    members: listMembersFromState(state),
+    average: getMovieAverageFromState(state, movie.id),
+    myRating: currentUserId ? getStateIndexes(state).ratingByUserMovie.get(`${currentUserId}:${movie.id}`) ?? null : null
+  };
 }
 
 export async function getDashboardData() {
@@ -1353,6 +1557,7 @@ export async function updateUserProfile(
     date: new Date().toISOString()
   });
 
+  invalidateDerivedCaches(state);
   await saveAppState(state);
   return user;
 }
@@ -1409,6 +1614,7 @@ export async function updateUserCredentialsByAdmin(
     date: new Date().toISOString()
   });
 
+  invalidateDerivedCaches(state);
   await saveAppState(state);
 
   return {
@@ -1468,6 +1674,7 @@ export async function resetUserCredentials(input: {
     date: new Date().toISOString()
   });
 
+  invalidateDerivedCaches(state);
   await saveAppState(state);
 
   return {
@@ -1518,6 +1725,7 @@ export async function upsertRating(input: { movieId: string; userId: string; sco
     });
   }
 
+  invalidateDerivedCaches(state);
   await Promise.all([syncRatingsToDatabase(state.ratings), saveAppState(state)]);
   return getStateIndexes(state).ratingByUserMovie.get(`${input.userId}:${input.movieId}`) as UserRating;
 }
@@ -1535,13 +1743,14 @@ export async function generateBatch() {
     label: "Se generó una nueva tanda de recomendaciones para esta semana",
     date: batch.createdAt
   });
-  await saveAppState(state);
+  invalidateDerivedCaches(state);
+  await Promise.all([syncWeeklyBatchesToDatabase(state.group.id, state.weeklyBatches), saveAppState(state)]);
   return batch;
 }
 
 export async function selectWeeklyMovie(batchId: string, movieId: string) {
   const state = await loadAppStateUncached();
-  const batch = state.weeklyBatches.find((entry) => entry.id === batchId);
+  const batch = getStateIndexes(state).weeklyBatchById.get(batchId);
   if (!batch) {
     throw new Error("No se encontró la tanda semanal.");
   }
@@ -1557,7 +1766,8 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
     });
   }
 
-  await saveAppState(state);
+  invalidateDerivedCaches(state);
+  await Promise.all([syncWeeklyBatchesToDatabase(state.group.id, state.weeklyBatches), saveAppState(state)]);
   return batch;
 }
 
@@ -1572,6 +1782,7 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
   if (existingEntry) {
     if (!existingEntry.watchedOn) {
       existingEntry.watchedOn = watchedOn;
+      invalidateDerivedCaches(state);
       await Promise.all([syncWatchEntriesToDatabase(state.group.id, state.watchEntries), saveAppState(state)]);
     }
     return existingEntry;
@@ -1595,6 +1806,7 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
     date: watchedOn
   });
 
+  invalidateDerivedCaches(state);
   await Promise.all([
     syncWatchEntriesToDatabase(state.group.id, state.watchEntries),
     syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds),
@@ -1650,6 +1862,7 @@ export async function addPendingMovie(movieInput: Movie) {
     date: new Date().toISOString()
   });
 
+  invalidateDerivedCaches(state);
   await Promise.all([syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds), saveAppState(state)]);
   return {
     status: "added" as const,
@@ -1680,6 +1893,7 @@ export async function removePendingMovie(movieId: string) {
     movieId: movie.id,
     date: new Date().toISOString()
   });
+  invalidateDerivedCaches(state);
   await Promise.all([syncPendingMoviesToDatabase(state.group.id, state.pendingMovieIds), saveAppState(state)]);
 
   return {
