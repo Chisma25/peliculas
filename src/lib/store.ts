@@ -84,6 +84,17 @@ type ProfileOverview = {
   distribution: ProfileData["distribution"];
 };
 
+type DashboardData = {
+  selectedMovie: Movie | null;
+  selectedWatchEntry: WatchEntry | null;
+  recentActivity: ActivityItem[];
+  stats: {
+    watchedCount: number;
+    averageScore: number;
+    pendingCount: number;
+  };
+};
+
 type StateIndexes = {
   usersById: Map<string, User>;
   usersByUsername: Map<string, User>;
@@ -122,6 +133,7 @@ const profileOverviewCache = new WeakMap<AppState, Map<string, ProfileOverview>>
 let snapshotMemoryCache: TimedCache<AppState | null> | null = null;
 let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedCollections>>();
+let dashboardDataMemoryCache: TimedCache<DashboardData> | null = null;
 
 function invalidateDerivedCaches(state: AppState) {
   stateIndexesCache.delete(state);
@@ -157,6 +169,7 @@ function invalidatePersistentStateCache() {
   snapshotMemoryCache = null;
   snapshotUsersMemoryCache = null;
   normalizedCollectionsCache.clear();
+  dashboardDataMemoryCache = null;
 }
 
 function normalizeUsername(value: string) {
@@ -1202,6 +1215,86 @@ function getGroupStatsFromState(state: AppState) {
   };
 }
 
+function buildDashboardDataFromState(state: AppState): DashboardData {
+  const batch = getCurrentBatchFromState(state);
+  const selectedMovie = batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null;
+
+  return {
+    selectedMovie,
+    selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
+    recentActivity: state.activity.slice(0, 5),
+    stats: getGroupStatsFromState(state)
+  };
+}
+
+async function loadDashboardDataFromDatabase(): Promise<DashboardData | null> {
+  const cached = readTimedCache(dashboardDataMemoryCache);
+  if (cached) {
+    return cached;
+  }
+
+  const snapshotState = await loadSnapshotStateCached();
+  if (!snapshotState) {
+    return null;
+  }
+
+  const { prisma } = await import("@/lib/prisma");
+  const groupId = snapshotState.group.id;
+
+  const [pendingCount, watchedRows, latestBatch] = await Promise.all([
+    prisma.pendingMovie.count({ where: { groupId } }),
+    prisma.watchEntryRecord.findMany({
+      where: { groupId },
+      select: { movieId: true }
+    }),
+    prisma.weeklyBatchRecord.findFirst({
+      where: { groupId },
+      orderBy: { createdAt: "desc" },
+      select: { selectedMovieId: true }
+    })
+  ]);
+
+  const watchedMovieIds = watchedRows.map((entry) => entry.movieId);
+  const [selectedWatchRecord, movieAverageRows] = await Promise.all([
+    latestBatch?.selectedMovieId
+      ? prisma.watchEntryRecord.findUnique({
+          where: { movieId: latestBatch.selectedMovieId }
+        })
+      : Promise.resolve(null),
+    watchedMovieIds.length > 0
+      ? prisma.ratingRecord.groupBy({
+          by: ["movieId"],
+          where: { movieId: { in: watchedMovieIds } },
+          _avg: { score: true }
+        })
+      : Promise.resolve([])
+  ]);
+
+  const averageScore = average(
+    movieAverageRows
+      .map((entry) => entry._avg.score ?? 0)
+      .filter((value) => value > 0)
+  );
+
+  const selectedMovie = latestBatch?.selectedMovieId
+    ? snapshotState.movies.find((movie) => movie.id === latestBatch.selectedMovieId) ?? null
+    : null;
+
+  const dashboardData = {
+    selectedMovie,
+    selectedWatchEntry: selectedWatchRecord ? mapWatchRecordsToStateEntries([selectedWatchRecord])[0] ?? null : null,
+    recentActivity: snapshotState.activity.slice(0, 5),
+    stats: {
+      watchedCount: watchedRows.length,
+      averageScore,
+      pendingCount
+    }
+  } satisfies DashboardData;
+
+  dashboardDataMemoryCache = writeTimedCache(dashboardData);
+  return cloneState(dashboardData);
+}
+
 function listMembersFromState(state: AppState) {
   const { usersById } = getStateIndexes(state);
   return state.group.memberIds.map((memberId) => usersById.get(memberId)).filter((user): user is User => Boolean(user));
@@ -1448,40 +1541,19 @@ export async function getMovieDetailDataHydrated(slug: string, currentUserId?: s
 
 export async function getDashboardData() {
   const state = await loadAppState();
-  const batch = getCurrentBatchFromState(state);
-  const stats = getGroupStatsFromState(state);
-
-  return {
-    group: state.group,
-    members: listMembersFromState(state),
-    pendingMovies: listPendingFromState(state),
-    recommendations: [],
-    batch,
-    selectedMovie: batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null,
-    selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
-    recentActivity: state.activity.slice(0, 5),
-    stats
-  };
+  return buildDashboardDataFromState(state);
 }
 
 export async function getDashboardDataHydrated() {
-  const state = await loadAppState();
-  const batch = getCurrentBatchFromState(state);
-  const selectedMovie = batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null;
-  const stats = getGroupStatsFromState(state);
-  await Promise.all([hydrateMovie(state, selectedMovie)]);
+  if (shouldUseDatabase()) {
+    const dashboardData = await loadDashboardDataFromDatabase();
+    if (dashboardData) {
+      return dashboardData;
+    }
+  }
 
-  return {
-    group: state.group,
-    members: listMembersFromState(state),
-    pendingMovies: listPendingFromState(state),
-    recommendations: [],
-    batch,
-    selectedMovie: batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null,
-    selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
-    recentActivity: state.activity.slice(0, 5),
-    stats
-  };
+  const state = await loadAppState();
+  return buildDashboardDataFromState(state);
 }
 
 export async function getGroupPageData() {
