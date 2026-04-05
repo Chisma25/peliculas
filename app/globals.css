@@ -1909,6 +1909,10 @@ textarea {
   margin-bottom: 1.25rem;
 }
 
+.pending-list-anchor {
+  scroll-margin-top: 7.5rem;
+}
+
 .pending-weekly-block {
   display: grid;
   gap: 1rem;

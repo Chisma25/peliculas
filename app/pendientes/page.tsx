@@ -32,6 +32,10 @@ function buildPendingQuery(params: { search?: string; genre?: string; page?: num
   return serialized ? `/pendientes?${serialized}` : "/pendientes";
 }
 
+function buildPendingPageHref(params: { search?: string; genre?: string; page?: number }) {
+  return `${buildPendingQuery(params)}#lista-pendientes`;
+}
+
 export default async function PendingPage({ searchParams }: PendingPageProps) {
   const params = searchParams ? await searchParams : {};
   const search = getSingleParam(params.search).trim();
@@ -168,6 +172,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         </div>
       </form>
 
+      <div id="lista-pendientes" className="pending-list-anchor">
       <div className="pending-summary-row">
         <p className="status-text">
           {filteredPendingCount === totalPendingCount
@@ -257,7 +262,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           {totalPages > 1 ? (
             <nav className="pagination-bar" aria-label="Paginación de pendientes">
               <PrefetchLink
-                href={buildPendingQuery({ search, genre: activeGenre, page: Math.max(1, safePage - 1) })}
+                href={buildPendingPageHref({ search, genre: activeGenre, page: Math.max(1, safePage - 1) })}
                 className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}
                 aria-disabled={safePage === 1}
               >
@@ -272,7 +277,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                   ) : (
                     <PrefetchLink
                       key={item}
-                      href={buildPendingQuery({ search, genre: activeGenre, page: item })}
+                      href={buildPendingPageHref({ search, genre: activeGenre, page: item })}
                       className={`pagination-page ${item === safePage ? "pagination-page-active" : ""}`}
                       aria-current={item === safePage ? "page" : undefined}
                     >
@@ -282,7 +287,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                 )}
               </div>
               <PrefetchLink
-                href={buildPendingQuery({ search, genre: activeGenre, page: Math.min(totalPages, safePage + 1) })}
+                href={buildPendingPageHref({ search, genre: activeGenre, page: Math.min(totalPages, safePage + 1) })}
                 className={`pagination-side ${safePage === totalPages ? "is-disabled" : ""}`}
                 aria-disabled={safePage === totalPages}
               >
@@ -292,6 +297,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           ) : null}
         </>
       )}
+      </div>
     </section>
   );
 }
