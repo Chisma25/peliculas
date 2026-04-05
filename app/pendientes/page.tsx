@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { FilterDropdown } from "@/components/filter-dropdown";
+import { PrefetchLink } from "@/components/prefetch-link";
 import { getPendingPageDataHydrated } from "@/lib/store";
 import { buildPaginationItems, formatFitScore } from "@/lib/utils";
 
@@ -83,7 +82,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                   key={item.id}
                   className={`history-card-compact pending-weekly-card ${batch.selectedMovieId === item.movie.id ? "selected-card" : ""}`}
                 >
-                  <Link href={`/peliculas/${item.movie.slug}`} className="pending-card-linkblock">
+                  <PrefetchLink href={`/peliculas/${item.movie.slug}`} className="pending-card-linkblock">
                     <div
                       className="history-poster-compact"
                       style={
@@ -122,7 +121,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                         </div>
                       ) : null}
                     </div>
-                  </Link>
+                  </PrefetchLink>
                   <div className="recommendation-actions recommendation-actions-compact-card">
                     <form action="/api/weekly-recommendations/select" method="post">
                       <input type="hidden" name="batchId" value={batch.id} />
@@ -163,9 +162,9 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           <button type="submit" className="primary-button">
             Aplicar
           </button>
-          <Link href="/pendientes" className="ghost-button">
+          <PrefetchLink href="/pendientes" className="ghost-button">
             Limpiar filtros
-          </Link>
+          </PrefetchLink>
         </div>
       </form>
 
@@ -190,13 +189,13 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               : "No hay ninguna pendiente que encaje con esos filtros."}
           </p>
           <div className="inline-actions">
-            <Link href="/explorar" className="secondary-button">
+            <PrefetchLink href="/explorar" className="secondary-button">
               Ir a explorar
-            </Link>
+            </PrefetchLink>
             {totalPendingCount > 0 ? (
-              <Link href="/pendientes" className="ghost-button">
+              <PrefetchLink href="/pendientes" className="ghost-button">
                 Ver todas
-              </Link>
+              </PrefetchLink>
             ) : null}
           </div>
         </div>
@@ -205,7 +204,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           <div className={`pending-grid ${pagedPending.length <= 2 ? "pending-grid-tight" : ""}`}>
             {pagedPending.map((movie) => (
               <article key={movie.id} className="history-card-compact history-card-pending">
-                <Link href={`/peliculas/${movie.slug}`} className="pending-card-linkblock">
+                <PrefetchLink href={`/peliculas/${movie.slug}`} className="pending-card-linkblock">
                   <div
                     className="history-poster-compact"
                     style={
@@ -232,7 +231,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                       ))}
                     </div>
                   </div>
-                </Link>
+                </PrefetchLink>
                 <div className="recommendation-actions">
                   <form action="/api/pending/remove" method="post">
                     <input type="hidden" name="movieId" value={movie.id} />
@@ -257,13 +256,13 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
 
           {totalPages > 1 ? (
             <nav className="pagination-bar" aria-label="Paginación de pendientes">
-              <Link
+              <PrefetchLink
                 href={buildPendingQuery({ search, genre: activeGenre, page: Math.max(1, safePage - 1) })}
                 className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}
                 aria-disabled={safePage === 1}
               >
                 Anterior
-              </Link>
+              </PrefetchLink>
               <div className="pagination-pages">
                 {paginationItems.map((item, index) =>
                   item === "ellipsis" ? (
@@ -271,24 +270,24 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                       …
                     </span>
                   ) : (
-                    <Link
+                    <PrefetchLink
                       key={item}
                       href={buildPendingQuery({ search, genre: activeGenre, page: item })}
                       className={`pagination-page ${item === safePage ? "pagination-page-active" : ""}`}
                       aria-current={item === safePage ? "page" : undefined}
                     >
                       {item}
-                    </Link>
+                    </PrefetchLink>
                   )
                 )}
               </div>
-              <Link
+              <PrefetchLink
                 href={buildPendingQuery({ search, genre: activeGenre, page: Math.min(totalPages, safePage + 1) })}
                 className={`pagination-side ${safePage === totalPages ? "is-disabled" : ""}`}
                 aria-disabled={safePage === totalPages}
               >
                 Siguiente
-              </Link>
+              </PrefetchLink>
             </nav>
           ) : null}
         </>

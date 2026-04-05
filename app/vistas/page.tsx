@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { FilterDropdown } from "@/components/filter-dropdown";
+import { PrefetchLink } from "@/components/prefetch-link";
 import { getSessionUser, getViewedPageDataHydrated } from "@/lib/store";
 import { buildPaginationItems, formatScore, formatShortDate } from "@/lib/utils";
 
@@ -129,9 +128,9 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
           <button type="submit" className="primary-button">
             Aplicar
           </button>
-          <Link href="/vistas" className="ghost-button">
+          <PrefetchLink href="/vistas" className="ghost-button">
             Limpiar filtros
-          </Link>
+          </PrefetchLink>
         </div>
       </form>
 
@@ -152,9 +151,9 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
         <div className="empty-state">
           <p className="body-copy">No hay películas vistas que encajen con esos filtros.</p>
           <div className="inline-actions">
-            <Link href="/vistas" className="ghost-button">
+            <PrefetchLink href="/vistas" className="ghost-button">
               Ver todas
-            </Link>
+            </PrefetchLink>
           </div>
         </div>
       ) : (
@@ -164,7 +163,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
               const visibleGenres = item.movie.genres.length > 0 ? item.movie.genres.slice(0, 3) : ["Sin género"];
 
               return (
-                <Link key={item.movie.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
+                <PrefetchLink key={item.movie.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
                   <article className="history-card-compact history-card-viewed">
                     <div
                       className="history-poster-compact"
@@ -199,20 +198,20 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                       </div>
                     </div>
                   </article>
-                </Link>
+                </PrefetchLink>
               );
             })}
           </div>
 
           {totalPages > 1 ? (
             <nav className="pagination-bar" aria-label="Paginación de vistas">
-              <Link
+              <PrefetchLink
                 href={buildSeenQuery({ search, year, genre, sort: activeSort, page: Math.max(1, safePage - 1) })}
                 className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}
                 aria-disabled={safePage === 1}
               >
                 Anterior
-              </Link>
+              </PrefetchLink>
               <div className="pagination-pages">
                 {paginationItems.map((item, index) =>
                   item === "ellipsis" ? (
@@ -220,24 +219,24 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                       …
                     </span>
                   ) : (
-                    <Link
+                    <PrefetchLink
                       key={item}
                       href={buildSeenQuery({ search, year, genre, sort: activeSort, page: item })}
                       className={`pagination-page ${item === safePage ? "pagination-page-active" : ""}`}
                       aria-current={item === safePage ? "page" : undefined}
                     >
                       {item}
-                    </Link>
+                    </PrefetchLink>
                   )
                 )}
               </div>
-              <Link
+              <PrefetchLink
                 href={buildSeenQuery({ search, year, genre, sort: activeSort, page: Math.min(totalPages, safePage + 1) })}
                 className={`pagination-side ${safePage === totalPages ? "is-disabled" : ""}`}
                 aria-disabled={safePage === totalPages}
               >
                 Siguiente
-              </Link>
+              </PrefetchLink>
             </nav>
           ) : null}
         </>

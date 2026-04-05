@@ -104,6 +104,8 @@ type DashboardData = {
 type DashboardOverviewData = Omit<DashboardData, "upcomingReleases">;
 type ProfileDataCacheKey = string;
 type MovieDetailCacheKey = string;
+type PendingListCacheKey = string;
+type ViewedListCacheKey = string;
 
 type StateIndexes = {
   usersById: Map<string, User>;
@@ -129,6 +131,27 @@ type NormalizedCollections = {
   watchEntries: WatchEntry[];
   ratings: UserRating[];
   weeklyBatches: WeeklyRecommendationBatch[];
+};
+
+type PendingListBase = {
+  batch: WeeklyRecommendationBatch | null;
+  genres: string[];
+  totalPendingCount: number;
+  filteredPendingIds: string[];
+  weeklyOptions: WeeklyRecommendationItem[];
+};
+
+type ViewedHistorySummary = {
+  movieId: string;
+  watchedOn: string | undefined;
+  groupAverage: number;
+  userRating: number | undefined;
+};
+
+type ViewedListBase = {
+  genres: string[];
+  totalHistoryCount: number;
+  filteredHistory: ViewedHistorySummary[];
 };
 
 type TimedCache<T> = {
@@ -161,6 +184,8 @@ const movieDetailDataMemoryCache = new Map<MovieDetailCacheKey, TimedCache<{
   average: number;
   myRating: UserRating | null;
 } | null>>();
+const pendingListMemoryCache = new Map<PendingListCacheKey, TimedCache<PendingListBase>>();
+const viewedListMemoryCache = new Map<ViewedListCacheKey, TimedCache<ViewedListBase>>();
 
 function invalidateDerivedCaches(state: AppState) {
   stateIndexesCache.delete(state);
@@ -208,6 +233,8 @@ function invalidatePersistentStateCache() {
   groupPageDataMemoryCache = null;
   profilePageDataMemoryCache.clear();
   movieDetailDataMemoryCache.clear();
+  pendingListMemoryCache.clear();
+  viewedListMemoryCache.clear();
 }
 
 function normalizeUsername(value: string) {
@@ -1378,6 +1405,26 @@ function listPendingFromState(state: AppState) {
   return state.pendingMovieIds.map((movieId) => moviesById.get(movieId)).filter((movie): movie is Movie => Boolean(movie));
 }
 
+function buildPendingListCacheKey(search: string, genre: string) {
+  return `${search.toLocaleLowerCase("es")}::${genre.toLocaleLowerCase("es")}`;
+}
+
+function buildViewedListCacheKey(input: {
+  search?: string;
+  year?: string;
+  genre?: string;
+  sort?: HistoryFilters["sort"];
+  currentUserId?: string;
+}) {
+  return [
+    input.currentUserId ?? "guest",
+    input.search?.trim().toLocaleLowerCase("es") ?? "",
+    input.year?.trim() ?? "",
+    input.genre?.trim().toLocaleLowerCase("es") ?? "",
+    input.sort ?? "watched-desc"
+  ].join("::");
+}
+
 function addActivity(state: AppState, entry: ActivityItem) {
   const latestEntry = state.activity[0];
   if (latestEntry) {
@@ -1476,6 +1523,153 @@ function buildHistoryFromState(state: AppState, filters?: HistoryFilters, curren
 
     return (new Date(right.watchedOn ?? 0).getTime() || 0) - (new Date(left.watchedOn ?? 0).getTime() || 0);
   });
+}
+
+function getPendingListBaseFromState(state: AppState, search: string, activeGenre: string): PendingListBase {
+  const cacheKey = buildPendingListCacheKey(search, activeGenre);
+  const cached = readTimedCache(pendingListMemoryCache.get(cacheKey));
+  if (cached !== null) {
+    return cached;
+  }
+
+  const pending = listPendingFromState(state);
+  const batch = getCurrentBatchFromState(state);
+  const weeklyOptions = generatePendingWeeklyOptions(state);
+  const normalizedSearch = search.toLocaleLowerCase("es");
+  const normalizedGenre = activeGenre.toLocaleLowerCase("es");
+
+  const genres = Array.from(
+    new Set(
+      pending
+        .flatMap((movie) => movie.genres)
+        .map((genre) => genre.trim())
+        .filter((genre) => genre && genre.toLowerCase() !== "pendiente")
+    )
+  ).sort((left, right) => left.localeCompare(right, "es"));
+
+  const filteredPendingIds = pending
+    .filter((movie) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        `${movie.title} ${movie.year} ${movie.director} ${movie.cast.join(" ")}`
+          .toLocaleLowerCase("es")
+          .includes(normalizedSearch);
+
+      const matchesGenre =
+        !normalizedGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === normalizedGenre);
+
+      return matchesSearch && matchesGenre;
+    })
+    .map((movie) => movie.id);
+
+  const base = {
+    batch,
+    genres,
+    totalPendingCount: pending.length,
+    filteredPendingIds,
+    weeklyOptions
+  };
+
+  pendingListMemoryCache.set(cacheKey, writeTimedCacheWithTtl(base, PAGE_ROUTE_CACHE_TTL_MS));
+  return base;
+}
+
+function getViewedListBaseFromState(
+  state: AppState,
+  input: {
+    search?: string;
+    year?: string;
+    genre?: string;
+    sort?: HistoryFilters["sort"];
+    currentUserId?: string;
+  }
+): ViewedListBase {
+  const cacheKey = buildViewedListCacheKey(input);
+  const cached = readTimedCache(viewedListMemoryCache.get(cacheKey));
+  if (cached !== null) {
+    return cached;
+  }
+
+  const indexes = getStateIndexes(state);
+  const allHistory = state.watchEntries
+    .flatMap((entry) => {
+      const movie = indexes.moviesById.get(entry.movieId);
+      if (!movie) {
+        return [];
+      }
+
+      const userRating = input.currentUserId ? indexes.ratingByUserMovie.get(`${input.currentUserId}:${movie.id}`)?.score : undefined;
+
+      return [
+        {
+          movieId: movie.id,
+          watchedOn: entry.watchedOn ?? APP_REGISTRATION_FALLBACK_DATE,
+          groupAverage: getMovieAverageFromState(state, movie.id),
+          userRating
+        }
+      ];
+    });
+
+  const normalizedSearch = input.search?.trim().toLocaleLowerCase("es") ?? "";
+  const normalizedGenre = input.genre?.trim().toLocaleLowerCase("es") ?? "";
+  const activeYear = input.year?.trim() ?? "";
+
+  const filteredHistory = allHistory
+    .filter((item) => {
+      const movie = indexes.moviesById.get(item.movieId);
+      if (!movie) {
+        return false;
+      }
+
+      const genreMatch = !normalizedGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === normalizedGenre);
+      const yearMatch = !activeYear || String(movie.year) === activeYear;
+      const searchMatch = !normalizedSearch || movie.title.toLocaleLowerCase("es").includes(normalizedSearch);
+      return genreMatch && yearMatch && searchMatch;
+    })
+    .sort((left, right) => {
+      const sort = input.sort ?? "watched-desc";
+      const leftMovie = indexes.moviesById.get(left.movieId);
+      const rightMovie = indexes.moviesById.get(right.movieId);
+      if (!leftMovie || !rightMovie) {
+        return 0;
+      }
+
+      if (sort === "group-desc") {
+        return right.groupAverage - left.groupAverage || rightMovie.year - leftMovie.year;
+      }
+
+      if (sort === "group-asc") {
+        return left.groupAverage - right.groupAverage || leftMovie.year - rightMovie.year;
+      }
+
+      if (sort === "mine-desc") {
+        return (right.userRating ?? -1) - (left.userRating ?? -1) || right.groupAverage - left.groupAverage;
+      }
+
+      if (sort === "mine-asc") {
+        return (left.userRating ?? 11) - (right.userRating ?? 11) || left.groupAverage - right.groupAverage;
+      }
+
+      return (new Date(right.watchedOn ?? 0).getTime() || 0) - (new Date(left.watchedOn ?? 0).getTime() || 0);
+    });
+
+  const genres = Array.from(
+    new Set(
+      allHistory
+        .flatMap((item) => indexes.moviesById.get(item.movieId)?.genres ?? [])
+        .map((genre) => genre.trim())
+        .filter((genre) => genre && genre.toLowerCase() !== "pendiente")
+    )
+  ).sort((left, right) => left.localeCompare(right, "es"));
+
+  const base = {
+    genres,
+    totalHistoryCount: allHistory.length,
+    filteredHistory
+  };
+
+  viewedListMemoryCache.set(cacheKey, writeTimedCacheWithTtl(base, PAGE_ROUTE_CACHE_TTL_MS));
+  return base;
 }
 
 function buildProfileFromState(state: AppState, userId: string): ProfileData | null {
@@ -1881,37 +2075,16 @@ export async function getPendingPageDataHydrated(input: { search?: string; genre
   const activeGenre = input.genre?.trim() ?? "";
   const currentPage = input.page && input.page > 0 ? input.page : 1;
   const itemsPerPage = input.pageSize && input.pageSize > 0 ? input.pageSize : 15;
-  const pending = listPendingFromState(state);
-  const batch = getCurrentBatchFromState(state);
-  const weeklyOptions = generatePendingWeeklyOptions(state);
-
-  const genres = Array.from(
-    new Set(
-      pending
-        .flatMap((movie) => movie.genres)
-        .map((genre) => genre.trim())
-        .filter((genre) => genre && genre.toLowerCase() !== "pendiente")
-    )
-  ).sort((left, right) => left.localeCompare(right, "es"));
-
-  const filteredPending = pending.filter((movie) => {
-    const matchesSearch =
-      !search ||
-      `${movie.title} ${movie.year} ${movie.director} ${movie.cast.join(" ")}`
-        .toLocaleLowerCase("es")
-        .includes(search.toLocaleLowerCase("es"));
-
-    const matchesGenre =
-      !activeGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === activeGenre.toLocaleLowerCase("es"));
-
-    return matchesSearch && matchesGenre;
-  });
+  const { batch, genres, totalPendingCount, filteredPendingIds, weeklyOptions } = getPendingListBaseFromState(state, search, activeGenre);
 
   const moviesToHydrate = new Map<string, Movie>();
-  const totalPages = Math.max(1, Math.ceil(filteredPending.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(filteredPendingIds.length / itemsPerPage));
   const safePage = Math.min(currentPage, totalPages);
   const pageStart = (safePage - 1) * itemsPerPage;
-  const pagedPending = filteredPending.slice(pageStart, pageStart + itemsPerPage);
+  const pagedPending = filteredPendingIds
+    .slice(pageStart, pageStart + itemsPerPage)
+    .map((movieId) => getMovieById(state, movieId))
+    .filter((movie): movie is Movie => Boolean(movie));
 
   for (const movie of pagedPending) {
     moviesToHydrate.set(movie.id, movie);
@@ -1928,8 +2101,8 @@ export async function getPendingPageDataHydrated(input: { search?: string; genre
   return {
     batch,
     genres,
-    totalPendingCount: pending.length,
-    filteredPendingCount: filteredPending.length,
+    totalPendingCount,
+    filteredPendingCount: filteredPendingIds.length,
     totalPages,
     currentPage: safePage,
     pagedPending,
@@ -1952,34 +2125,38 @@ export async function getViewedPageDataHydrated(input: {
   pageSize?: number;
 }) {
   const state = await loadAppState();
+  const indexes = getStateIndexes(state);
   const currentPage = input.page && input.page > 0 ? input.page : 1;
   const itemsPerPage = input.pageSize && input.pageSize > 0 ? input.pageSize : 15;
-  const history = buildHistoryFromState(
-    state,
-    {
-      search: input.search,
-      year: input.year,
-      genre: input.genre,
-      sort: input.sort
-    },
-    input.currentUserId
-  );
-  const allHistory = buildHistoryFromState(state, undefined, input.currentUserId);
-
-  const genres = Array.from(
-    new Set(
-      allHistory
-        .flatMap((item) => item.movie.genres)
-        .map((item) => item.trim())
-        .filter((item) => item && item.toLowerCase() !== "pendiente")
-    )
-  ).sort((left, right) => left.localeCompare(right, "es"));
+  const { genres, totalHistoryCount, filteredHistory } = getViewedListBaseFromState(state, {
+    search: input.search,
+    year: input.year,
+    genre: input.genre,
+    sort: input.sort,
+    currentUserId: input.currentUserId
+  });
 
   const moviesToHydrate = new Map<string, Movie>();
-  const totalPages = Math.max(1, Math.ceil(history.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(filteredHistory.length / itemsPerPage));
   const safePage = Math.min(currentPage, totalPages);
   const pageStart = (safePage - 1) * itemsPerPage;
-  const pagedHistory = history.slice(pageStart, pageStart + itemsPerPage);
+  const pagedHistory = filteredHistory
+    .slice(pageStart, pageStart + itemsPerPage)
+    .map((item) => {
+      const movie = indexes.moviesById.get(item.movieId);
+      if (!movie) {
+        return null;
+      }
+
+      return {
+        movie,
+        watchedOn: item.watchedOn,
+        groupAverage: item.groupAverage,
+        ratings: indexes.ratingsByMovieId.get(item.movieId) ?? [],
+        userRating: item.userRating
+      };
+    })
+    .filter((item): item is HistoryItem => Boolean(item));
 
   for (const item of pagedHistory) {
     moviesToHydrate.set(item.movie.id, item.movie);
@@ -1989,8 +2166,8 @@ export async function getViewedPageDataHydrated(input: {
 
   return {
     genres,
-    totalHistoryCount: allHistory.length,
-    filteredHistoryCount: history.length,
+    totalHistoryCount,
+    filteredHistoryCount: filteredHistory.length,
     totalPages,
     currentPage: safePage,
     pagedHistory
