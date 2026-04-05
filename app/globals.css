@@ -972,8 +972,8 @@ select {
 
 .upcoming-release-card {
   display: grid;
-  grid-template-columns: 118px minmax(0, 1fr);
-  gap: 1rem;
+  grid-template-rows: auto 1fr;
+  gap: 0.95rem;
   min-height: 100%;
   padding: 1rem;
   border-radius: 1.3rem;
@@ -985,7 +985,7 @@ select {
 
 .upcoming-release-poster-frame {
   display: grid;
-  padding: 0.35rem;
+  padding: 0.4rem;
   border-radius: 1.18rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background:
@@ -995,11 +995,13 @@ select {
 
 .upcoming-release-poster {
   min-width: 0;
+  display: grid;
 }
 
 .upcoming-release-poster .poster-card-compact {
-  min-height: 100%;
-  aspect-ratio: 0.69 / 1;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 0.7 / 1;
   border-radius: 1rem;
 }
 
@@ -1007,6 +1009,7 @@ select {
   display: grid;
   gap: 0.8rem;
   align-content: start;
+  min-height: 0;
 }
 
 .upcoming-release-title-stack {
@@ -1803,6 +1806,23 @@ textarea {
     rgba(9, 16, 28, 0.98);
   box-shadow: 0 22px 42px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(18px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 196, 141, 0.52) rgba(255, 255, 255, 0.05);
+}
+
+.filter-dropdown-menu::-webkit-scrollbar {
+  width: 0.72rem;
+}
+
+.filter-dropdown-menu::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.filter-dropdown-menu::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid rgba(9, 16, 28, 0.98);
+  background: linear-gradient(180deg, rgba(242, 177, 112, 0.92), rgba(214, 101, 53, 0.9));
 }
 
 .filter-dropdown-option {
@@ -2407,7 +2427,7 @@ code {
   }
 
   .upcoming-release-card {
-    grid-template-columns: minmax(116px, 140px) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
   }
 
   .top-picks-layout {
@@ -2499,7 +2519,7 @@ code {
 }
 
 @media (max-width: 640px) {
-  .upcoming-release-card {
-    grid-template-columns: 1fr;
+  .upcoming-release-poster .poster-card-compact {
+    aspect-ratio: 0.68 / 1;
   }
 }
