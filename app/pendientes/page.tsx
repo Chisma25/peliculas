@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { FilterDropdown } from "@/components/filter-dropdown";
 import { getPendingPageDataHydrated } from "@/lib/store";
 import { buildPaginationItems, formatFitScore } from "@/lib/utils";
 
@@ -39,13 +40,21 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   const pageFromQuery = Number.parseInt(getSingleParam(params.page), 10);
   const currentPage = Number.isFinite(pageFromQuery) && pageFromQuery > 0 ? pageFromQuery : 1;
 
-  const { batch, weeklyOptions, genres, totalPendingCount, filteredPendingCount, totalPages, currentPage: safePage, pagedPending } =
-    await getPendingPageDataHydrated({
-      search,
-      genre: activeGenre,
-      page: currentPage,
-      pageSize: PAGE_SIZE
-    });
+  const {
+    batch,
+    weeklyOptions,
+    genres,
+    totalPendingCount,
+    filteredPendingCount,
+    totalPages,
+    currentPage: safePage,
+    pagedPending
+  } = await getPendingPageDataHydrated({
+    search,
+    genre: activeGenre,
+    page: currentPage,
+    pageSize: PAGE_SIZE
+  });
 
   const paginationItems = buildPaginationItems(safePage, totalPages);
 
@@ -138,16 +147,16 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           </label>
           <label className="pending-search-field pending-search-field-sm">
             Género
-            <span className="filter-select-shell">
-              <select name="genre" defaultValue={activeGenre}>
-                <option value="">Todos los géneros</option>
-                {genres.map((genre) => (
-                  <option key={genre} value={genre}>
-                    {genre}
-                  </option>
-                ))}
-              </select>
-            </span>
+            <FilterDropdown
+              name="genre"
+              value={activeGenre}
+              placeholder="Todos los géneros"
+              ariaLabel="Filtrar pendientes por género"
+              options={[
+                { value: "", label: "Todos los géneros" },
+                ...genres.map((genre) => ({ value: genre, label: genre }))
+              ]}
+            />
           </label>
         </div>
         <div className="pending-toolbar-actions">

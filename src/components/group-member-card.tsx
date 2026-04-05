@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { GroupMemberAccessButton } from "@/components/group-member-access-button";
+import { PrefetchLink } from "@/components/prefetch-link";
 import { UserAvatar } from "@/components/user-avatar";
 import { formatScore } from "@/lib/utils";
 
@@ -51,9 +50,9 @@ export function GroupMemberCard({ member, profileSummary, profileHref, canManage
       </div>
 
       <div className="member-card-actions">
-        <Link href={profileHref} className="secondary-button">
+        <PrefetchLink href={profileHref} className="secondary-button">
           Ver perfil
-        </Link>
+        </PrefetchLink>
         {canManage ? <GroupMemberAccessButton member={member} /> : null}
       </div>
     </article>

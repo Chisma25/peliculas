@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { FilterDropdown } from "@/components/filter-dropdown";
 import { getSessionUser, getViewedPageDataHydrated } from "@/lib/store";
 import { buildPaginationItems, formatScore, formatShortDate } from "@/lib/utils";
 
@@ -102,28 +103,26 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
           </label>
           <label className="pending-search-field pending-search-field-sm">
             Género
-            <span className="filter-select-shell">
-              <select name="genre" defaultValue={genre}>
-                <option value="">Todos los géneros</option>
-                {genres.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </span>
+            <FilterDropdown
+              name="genre"
+              value={genre}
+              placeholder="Todos los géneros"
+              ariaLabel="Filtrar vistas por género"
+              options={[
+                { value: "", label: "Todos los géneros" },
+                ...genres.map((item) => ({ value: item, label: item }))
+              ]}
+            />
           </label>
           <label className="pending-search-field pending-search-field-sm">
             Orden
-            <span className="filter-select-shell">
-              <select name="sort" defaultValue={activeSort}>
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </span>
+            <FilterDropdown
+              name="sort"
+              value={activeSort}
+              placeholder="Ordenar"
+              ariaLabel="Ordenar películas vistas"
+              options={SORT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+            />
           </label>
         </div>
         <div className="pending-toolbar-actions">

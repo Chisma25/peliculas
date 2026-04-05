@@ -451,6 +451,7 @@ function mergeMovies(primary: Movie, fallback?: Movie | null): Movie {
   return {
     ...fallback,
     ...primary,
+    releaseDateEs: fallback.releaseDateEs ?? primary.releaseDateEs,
     sourceIds: {
       ...fallback.sourceIds,
       ...primary.sourceIds

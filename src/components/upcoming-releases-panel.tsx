@@ -27,14 +27,16 @@ export async function UpcomingReleasesPanel() {
 
             return (
               <article key={item.movie.id} className="upcoming-release-card">
-                <div className="upcoming-release-poster">
-                  <MoviePoster
-                    movie={item.movie}
-                    compact
-                    showDetails={false}
-                    metaStartLabel={formatShortDate(item.releaseDate)}
-                    metaLabel={item.movie.genres.slice(0, 1).join(" / ") || "Estreno"}
-                  />
+                <div className="upcoming-release-poster-frame">
+                  <div className="upcoming-release-poster">
+                    <MoviePoster
+                      movie={item.movie}
+                      compact
+                      showDetails={false}
+                      metaStartLabel={formatShortDate(item.releaseDate)}
+                      metaLabel={item.movie.genres.slice(0, 1).join(" / ") || "Estreno"}
+                    />
+                  </div>
                 </div>
 
                 <div className="upcoming-release-copy">
@@ -102,8 +104,10 @@ export function UpcomingReleasesPanelFallback() {
       <div className="upcoming-release-grid">
         {Array.from({ length: 3 }, (_, index) => (
           <article key={index} className="upcoming-release-card upcoming-release-card-skeleton" aria-hidden="true">
-            <div className="upcoming-release-poster">
-              <div className="upcoming-release-poster-skeleton shimmer-block" />
+            <div className="upcoming-release-poster-frame">
+              <div className="upcoming-release-poster">
+                <div className="upcoming-release-poster-skeleton shimmer-block" />
+              </div>
             </div>
             <div className="upcoming-release-copy">
               <div className="shimmer-line shimmer-line-wide" />

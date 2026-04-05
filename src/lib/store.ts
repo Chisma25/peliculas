@@ -1535,7 +1535,7 @@ export async function listMembers() {
 }
 
 export async function getUserByUsername(username: string) {
-  const users = await loadSnapshotUsersCached();
+  const users = await loadSnapshotUsersForRequest();
   const normalizedUsername = normalizeUsername(username);
   return users.find((user) => normalizeUsername(user.username) === normalizedUsername) ?? null;
 }

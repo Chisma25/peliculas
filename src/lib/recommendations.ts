@@ -1406,16 +1406,27 @@ export function rankUpcomingReleasesForGroup(state: AppState, upcomingMovies: Mo
       .filter((value): value is string => Boolean(value))
   );
   const now = new Date();
+  const maxUpcomingDate = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
 
   const candidates = upcomingMovies
-    .filter(
-      (movie) =>
-        (movie.releaseDateEs ?? movie.releaseDate) &&
+    .filter((movie) => {
+      const releaseDateValue = movie.releaseDateEs ?? movie.releaseDate;
+      if (!releaseDateValue) {
+        return false;
+      }
+
+      const releaseDate = new Date(releaseDateValue);
+      if (Number.isNaN(releaseDate.getTime()) || releaseDate < now || releaseDate > maxUpcomingDate) {
+        return false;
+      }
+
+      return (
         !watchedIds.has(movie.id) &&
         !pendingIds.has(movie.id) &&
         !(movie.sourceIds?.tmdb && watchedTmdbIds.has(movie.sourceIds.tmdb)) &&
         !(movie.sourceIds?.tmdb && pendingTmdbIds.has(movie.sourceIds.tmdb))
-    )
+      );
+    })
     .map((movie) => {
       const scored = scoreMovie(movie, groupProfile, userProfiles, context, feedback, "upcoming", previousMovieIds);
       const releaseDate = new Date(movie.releaseDateEs ?? movie.releaseDate!);
