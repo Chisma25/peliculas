@@ -1410,7 +1410,7 @@ export function rankUpcomingReleasesForGroup(state: AppState, upcomingMovies: Mo
   const candidates = upcomingMovies
     .filter(
       (movie) =>
-        movie.releaseDate &&
+        (movie.releaseDateEs ?? movie.releaseDate) &&
         !watchedIds.has(movie.id) &&
         !pendingIds.has(movie.id) &&
         !(movie.sourceIds?.tmdb && watchedTmdbIds.has(movie.sourceIds.tmdb)) &&
@@ -1418,7 +1418,7 @@ export function rankUpcomingReleasesForGroup(state: AppState, upcomingMovies: Mo
     )
     .map((movie) => {
       const scored = scoreMovie(movie, groupProfile, userProfiles, context, feedback, "upcoming", previousMovieIds);
-      const releaseDate = new Date(movie.releaseDate!);
+      const releaseDate = new Date(movie.releaseDateEs ?? movie.releaseDate!);
       const daysUntilRelease = Math.max(0, (releaseDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       const releaseMomentum = clamp(1 - daysUntilRelease / 31, 0.2, 1);
       const urgencyBoost = releaseMomentum * 0.44;
@@ -1435,7 +1435,7 @@ export function rankUpcomingReleasesForGroup(state: AppState, upcomingMovies: Mo
 
   return applyDisplayScores(pickDiverseCandidates(candidates, desiredCount), "upcoming").map((candidate) => ({
     movie: candidate.movie,
-    releaseDate: candidate.movie.releaseDate!,
+    releaseDate: candidate.movie.releaseDateEs ?? candidate.movie.releaseDate!,
     score: candidate.displayScore,
     metrics: candidate.metrics
   }));

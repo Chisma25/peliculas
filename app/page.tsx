@@ -17,12 +17,12 @@ export default async function HomePage() {
           <h1>Este es vuestro rincón para decidir la peli de la semana.</h1>
           <div className="hero-copy-stack">
             <p className="body-copy">
-              Aquí tenéis todo lo vuestro: las películas que ya habéis visto, las que siguen en pendientes, la elegida de la semana y
-              un radar corto de estrenos para no perder de vista lo que viene.
+              Aquí tenéis todo lo vuestro: las películas que ya habéis visto, las que siguen en pendientes, la elegida de la
+              semana y un radar corto de estrenos para no perder de vista lo que viene.
             </p>
             <p className="body-copy">
-              La idea sigue siendo simple: tener en un solo sitio vuestras vistas, notas y decisiones semanales para que elegir entre
-              vosotros sea rápido y quede todo bien guardado.
+              La idea sigue siendo simple: tener en un solo sitio vuestras vistas, notas y decisiones semanales para que elegir
+              entre vosotros sea rápido y quede todo bien guardado.
             </p>
           </div>
           <div className="chips">

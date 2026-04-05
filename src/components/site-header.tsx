@@ -52,10 +52,9 @@ function CineSemanalMark() {
 export function SiteHeader({ user }: SiteHeaderProps) {
   return (
     <header className="site-header">
-      <Link href="/" className="brand-lockup">
+      <Link href="/" className="brand-lockup" aria-label="Ir al dashboard de Cine Semanal">
         <CineSemanalMark />
         <div className="brand-copy">
-          <span className="brand-kicker">Privado</span>
           <p>Cine Semanal</p>
           <span>Vuestras pelis, notas y planes de cada semana</span>
         </div>
@@ -73,7 +72,7 @@ export function SiteHeader({ user }: SiteHeaderProps) {
           <strong>{user?.name ?? "Invitado"}</strong>
           {user?.isAdmin ? <p className="user-chip-role">Administrador</p> : null}
           <div className="user-chip-actions">
-            <Link href="/perfil">Editar perfil</Link>
+            <Link href="/perfil">Ver perfil</Link>
             <form action="/api/auth/logout" method="post">
               <button type="submit" className="text-button">
                 Salir

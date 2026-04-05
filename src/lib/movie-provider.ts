@@ -190,6 +190,18 @@ type TmdbMovieDetails = {
     cast?: Array<{ name: string; order?: number }>;
     crew?: Array<{ name: string; job: string }>;
   };
+  release_dates?: {
+    results?: Array<{
+      iso_3166_1: string;
+      release_dates?: Array<{
+        certification?: string;
+        iso_639_1?: string;
+        note?: string;
+        release_date: string;
+        type: number;
+      }>;
+    }>;
+  };
 };
 
 type CachedPayload<T> = {
@@ -384,6 +396,17 @@ function mapSearchResultToMovie(item: TmdbSearchResult): Movie {
   };
 }
 
+function getSpainReleaseDate(item: TmdbMovieDetails) {
+  const releaseDates =
+    item.release_dates?.results
+      ?.find((entry) => entry.iso_3166_1 === "ES")
+      ?.release_dates?.map((entry) => entry.release_date)
+      .filter((value): value is string => Boolean(value))
+      .sort((left, right) => new Date(left).getTime() - new Date(right).getTime()) ?? [];
+
+  return releaseDates[0] ?? item.release_date;
+}
+
 function mapDetailsToMovie(item: TmdbMovieDetails): Movie {
   const director = item.credits?.crew?.find((member) => member.job === "Director")?.name ?? "Pendiente";
   const cast =
@@ -399,6 +422,7 @@ function mapDetailsToMovie(item: TmdbMovieDetails): Movie {
     title: item.title,
     year: Number.parseInt(item.release_date?.slice(0, 4) ?? "0", 10) || 0,
     releaseDate: item.release_date,
+    releaseDateEs: getSpainReleaseDate(item),
     synopsis: item.overview || "Sinopsis pendiente de enriquecimiento.",
     durationMinutes: item.runtime || 120,
     genres: item.genres?.map((genre) => genre.name) ?? ["Pendiente"],
@@ -450,7 +474,7 @@ async function fetchMovieByTmdbId(tmdbId: string) {
     return cached.hit && cached.data ? mapDetailsToMovie(cached.data) : null;
   }
 
-  const details = await tmdbFetch<TmdbMovieDetails>(`/movie/${tmdbId}?append_to_response=credits,videos`);
+  const details = await tmdbFetch<TmdbMovieDetails>(`/movie/${tmdbId}?append_to_response=credits,videos,release_dates`);
   await writeCachedPayload("movie-details", tmdbId, { hit: Boolean(details), data: details ?? null }, TMDB_DETAILS_CACHE_TTL_MS);
   return details ? mapDetailsToMovie(details) : null;
 }
@@ -501,7 +525,10 @@ export async function fetchUpcomingMovies(daysAhead = 31, region = "ES", limit =
   const results = (payload?.results ?? []).filter((item) => isWithinDaysWindow(item.release_date, today, daysAhead));
   await writeCachedPayload("movie-upcoming", cacheKey, { hit: results.length > 0, data: results }, TMDB_UPCOMING_CACHE_TTL_MS);
 
-  return results.slice(0, limit).map(mapSearchResultToMovie);
+  return results.slice(0, limit).map((item) => ({
+    ...mapSearchResultToMovie(item),
+    releaseDateEs: item.release_date
+  }));
 }
 
 export async function searchMovies(query: string, fallbackMovies: Movie[]) {

@@ -39,21 +39,13 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   const pageFromQuery = Number.parseInt(getSingleParam(params.page), 10);
   const currentPage = Number.isFinite(pageFromQuery) && pageFromQuery > 0 ? pageFromQuery : 1;
 
-  const {
-    batch,
-    weeklyOptions,
-    genres,
-    totalPendingCount,
-    filteredPendingCount,
-    totalPages,
-    currentPage: safePage,
-    pagedPending
-  } = await getPendingPageDataHydrated({
-    search,
-    genre: activeGenre,
-    page: currentPage,
-    pageSize: PAGE_SIZE
-  });
+  const { batch, weeklyOptions, genres, totalPendingCount, filteredPendingCount, totalPages, currentPage: safePage, pagedPending } =
+    await getPendingPageDataHydrated({
+      search,
+      genre: activeGenre,
+      page: currentPage,
+      pageSize: PAGE_SIZE
+    });
 
   const paginationItems = buildPaginationItems(safePage, totalPages);
 
@@ -71,8 +63,8 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
             <p className="eyebrow">5 posibles para esta semana</p>
             <h2>Las más fuertes dentro de pendientes</h2>
             <p className="body-copy">
-              Aquí el motor solo mira pelis que ya tenéis guardadas en pendientes y os ordena las cinco que mejor encajan
-              ahora mismo para plan de grupo.
+              Aquí el motor solo mira pelis que ya tenéis guardadas en pendientes y os ordena las cinco que mejor encajan ahora
+              mismo para plan de grupo.
             </p>
           </div>
           <div className="pending-weekly-grid">
@@ -138,12 +130,26 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         </div>
       ) : null}
 
-      <form action="/pendientes" method="get" className="pending-toolbar">
-        <label className="pending-search-field">
-          Buscar una peli concreta
-          <input type="search" name="search" defaultValue={search} placeholder="Interstellar, Toy Story, Whiplash..." />
-        </label>
-        <input type="hidden" name="genre" value={activeGenre} />
+      <form action="/pendientes" method="get" className="pending-toolbar pending-toolbar-refined">
+        <div className="history-toolbar-fields pending-toolbar-fields-refined">
+          <label className="pending-search-field">
+            Buscar una peli concreta
+            <input type="search" name="search" defaultValue={search} placeholder="Interstellar, Toy Story, Whiplash..." />
+          </label>
+          <label className="pending-search-field pending-search-field-sm">
+            Género
+            <span className="filter-select-shell">
+              <select name="genre" defaultValue={activeGenre}>
+                <option value="">Todos los géneros</option>
+                {genres.map((genre) => (
+                  <option key={genre} value={genre}>
+                    {genre}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
+        </div>
         <div className="pending-toolbar-actions">
           <button type="submit" className="primary-button">
             Aplicar
@@ -153,23 +159,6 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           </Link>
         </div>
       </form>
-
-      {genres.length > 0 ? (
-        <div className="chips filter-chips">
-          <Link href={buildPendingQuery({ search })} className={`filter-chip ${!activeGenre ? "filter-chip-active" : ""}`}>
-            Todos
-          </Link>
-          {genres.map((genre) => (
-            <Link
-              key={genre}
-              href={buildPendingQuery({ search, genre })}
-              className={`filter-chip ${activeGenre === genre ? "filter-chip-active" : ""}`}
-            >
-              {genre}
-            </Link>
-          ))}
-        </div>
-      ) : null}
 
       <div className="pending-summary-row">
         <p className="status-text">
@@ -238,11 +227,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                 <div className="recommendation-actions">
                   <form action="/api/pending/remove" method="post">
                     <input type="hidden" name="movieId" value={movie.id} />
-                    <input
-                      type="hidden"
-                      name="redirectTo"
-                      value={buildPendingQuery({ search, genre: activeGenre, page: safePage })}
-                    />
+                    <input type="hidden" name="redirectTo" value={buildPendingQuery({ search, genre: activeGenre, page: safePage })} />
                     <button type="submit" className="ghost-button">
                       Quitar de pendientes
                     </button>

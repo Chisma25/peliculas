@@ -6,19 +6,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard" },
   { href: "/vistas", label: "Vistas" },
   { href: "/pendientes", label: "Pendientes" },
   { href: "/explorar", label: "Explorar" },
-  { href: "/grupo", label: "Grupo" },
-  { href: "/perfil", label: "Perfil" }
+  { href: "/grupo", label: "Grupo" }
 ];
 
 function isActivePath(pathname: string, href: string) {
-  if (href === "/") {
-    return pathname === "/";
-  }
-
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

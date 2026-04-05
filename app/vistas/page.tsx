@@ -90,8 +90,8 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
         <p className="body-copy">Todo lo que ya habéis visto, ordenado para consultar rápido notas, fecha de registro y ficha.</p>
       </div>
 
-      <form action="/vistas" method="get" className="pending-toolbar history-toolbar">
-        <div className="history-toolbar-fields">
+      <form action="/vistas" method="get" className="pending-toolbar history-toolbar history-toolbar-refined">
+        <div className="history-toolbar-fields history-toolbar-fields-extended">
           <label className="pending-search-field">
             Buscar por título
             <input type="search" name="search" defaultValue={search} placeholder="Pulp Fiction, Soul, Interstellar..." />
@@ -100,9 +100,32 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
             Año
             <input type="text" name="year" defaultValue={year} placeholder="2022" />
           </label>
+          <label className="pending-search-field pending-search-field-sm">
+            Género
+            <span className="filter-select-shell">
+              <select name="genre" defaultValue={genre}>
+                <option value="">Todos los géneros</option>
+                {genres.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
+          <label className="pending-search-field pending-search-field-sm">
+            Orden
+            <span className="filter-select-shell">
+              <select name="sort" defaultValue={activeSort}>
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
         </div>
-        <input type="hidden" name="genre" value={genre} />
-        <input type="hidden" name="sort" value={activeSort} />
         <div className="pending-toolbar-actions">
           <button type="submit" className="primary-button">
             Aplicar
@@ -112,40 +135,6 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
           </Link>
         </div>
       </form>
-
-      <div className="history-toolbar-layers">
-        {genres.length > 0 ? (
-          <div className="chips filter-chips">
-            <Link
-              href={buildSeenQuery({ search, year, sort: activeSort })}
-              className={`filter-chip ${!genre ? "filter-chip-active" : ""}`}
-            >
-              Todos
-            </Link>
-            {genres.map((item) => (
-              <Link
-                key={item}
-                href={buildSeenQuery({ search, year, genre: item, sort: activeSort })}
-                className={`filter-chip ${genre === item ? "filter-chip-active" : ""}`}
-              >
-                {item}
-              </Link>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="sort-pills sort-pills-panel" aria-label="Ordenar vistas">
-          {SORT_OPTIONS.map((option) => (
-            <Link
-              key={option.value}
-              href={buildSeenQuery({ search, year, genre, sort: option.value })}
-              className={`sort-pill ${activeSort === option.value ? "sort-pill-active" : ""}`}
-            >
-              {option.label}
-            </Link>
-          ))}
-        </div>
-      </div>
 
       <div className="pending-summary-row">
         <p className="status-text">

@@ -1,6 +1,6 @@
 import { MoviePoster } from "@/components/movie-poster";
 import { getUpcomingDashboardReleasesHydrated } from "@/lib/store";
-import { formatFitScore, formatShortDate } from "@/lib/utils";
+import { formatFitScore, formatLongDate, formatShortDate } from "@/lib/utils";
 
 function getTmdbMovieUrl(tmdbId?: string) {
   return tmdbId ? `https://www.themoviedb.org/movie/${tmdbId}` : undefined;
@@ -15,8 +15,8 @@ export async function UpcomingReleasesPanel() {
         <p className="eyebrow">Próximos estrenos</p>
         <h2>Tres lanzamientos que os pueden interesar</h2>
         <p className="body-copy">
-          Una selección de estrenos dentro del próximo mes que encajan con vuestro radar de grupo para tenerlos presentes si salen en
-          digital o si merece la pena ir al cine.
+          Una selección de estrenos dentro del próximo mes que encajan con vuestro radar de grupo para tenerlos presentes
+          cuando lleguen al público en España.
         </p>
       </div>
 
@@ -32,6 +32,7 @@ export async function UpcomingReleasesPanel() {
                     movie={item.movie}
                     compact
                     showDetails={false}
+                    metaStartLabel={formatShortDate(item.releaseDate)}
                     metaLabel={item.movie.genres.slice(0, 1).join(" / ") || "Estreno"}
                   />
                 </div>
@@ -50,7 +51,7 @@ export async function UpcomingReleasesPanel() {
                   </div>
 
                   <div className="upcoming-release-meta">
-                    <span>Estreno {formatShortDate(item.releaseDate)}</span>
+                    <span>Estreno en España: {formatLongDate(item.releaseDate)}</span>
                     <span>{item.movie.genres.slice(0, 2).join(" / ") || "Próximo estreno"}</span>
                   </div>
 
