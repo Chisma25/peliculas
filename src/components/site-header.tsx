@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { PrefetchLink } from "@/components/prefetch-link";
 import { PrimaryNav } from "@/components/primary-nav";
 import { UserAvatar } from "@/components/user-avatar";
 import { User } from "@/lib/types";
@@ -52,13 +51,13 @@ function CineSemanalMark() {
 export function SiteHeader({ user }: SiteHeaderProps) {
   return (
     <header className="site-header">
-      <Link href="/" className="brand-lockup" aria-label="Ir al dashboard de Cine Semanal">
+      <PrefetchLink href="/" className="brand-lockup" aria-label="Ir al dashboard de Cine Semanal">
         <CineSemanalMark />
         <div className="brand-copy">
           <p>Cine Semanal</p>
           <span>Vuestras pelis, notas y planes de cada semana</span>
         </div>
-      </Link>
+      </PrefetchLink>
 
       <PrimaryNav />
 
@@ -72,7 +71,7 @@ export function SiteHeader({ user }: SiteHeaderProps) {
           <strong>{user?.name ?? "Invitado"}</strong>
           {user?.isAdmin ? <p className="user-chip-role">Administrador</p> : null}
           <div className="user-chip-actions">
-            <Link href="/perfil">Ver perfil</Link>
+            <PrefetchLink href="/perfil">Ver perfil</PrefetchLink>
             <form action="/api/auth/logout" method="post">
               <button type="submit" className="text-button">
                 Salir

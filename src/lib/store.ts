@@ -28,6 +28,8 @@ const STATE_FILE = join(DATA_DIR, "runtime-state.json");
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
 const STATE_CACHE_TTL_MS = 20_000;
+const PAGE_ROUTE_CACHE_TTL_MS = 1000 * 60 * 2;
+const MOVIE_DETAIL_CACHE_TTL_MS = 1000 * 60 * 2;
 const UPCOMING_RELEASES_CACHE_TTL_MS = 1000 * 60 * 15;
 const APP_REGISTRATION_FALLBACK_DATE = "2026-03-14T17:09:52.000Z";
 
@@ -187,6 +189,13 @@ function writeTimedCache<T>(value: T): TimedCache<T> {
   return {
     value: cloneState(value),
     expiresAt: Date.now() + STATE_CACHE_TTL_MS
+  };
+}
+
+function writeTimedCacheWithTtl<T>(value: T, ttlMs: number): TimedCache<T> {
+  return {
+    value: cloneState(value),
+    expiresAt: Date.now() + ttlMs
   };
 }
 
@@ -977,7 +986,7 @@ async function loadDatabaseStateUncached() {
 }
 
 async function loadDatabaseState() {
-  const snapshotState = await loadSnapshotStateCached();
+  const snapshotState = await loadSnapshotStateForRequest();
   if (!snapshotState) {
     return null;
   }
@@ -1355,7 +1364,7 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | 
     }
   } satisfies DashboardOverviewData;
 
-  dashboardDataMemoryCache = writeTimedCache(dashboardData);
+  dashboardDataMemoryCache = writeTimedCacheWithTtl(dashboardData, PAGE_ROUTE_CACHE_TTL_MS);
   return cloneState(dashboardData);
 }
 
@@ -1561,7 +1570,7 @@ export async function getProfileDataHydrated(userId: string) {
     if (snapshotState) {
       const user = findUserById(snapshotState, userId);
       if (!user) {
-        profilePageDataMemoryCache.set(userId, writeTimedCache<ProfileData | null>(null));
+        profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl<ProfileData | null>(null, PAGE_ROUTE_CACHE_TTL_MS));
         return null;
       }
 
@@ -1620,7 +1629,7 @@ export async function getProfileDataHydrated(userId: string) {
         }))
       } satisfies ProfileData;
 
-      profilePageDataMemoryCache.set(userId, writeTimedCache(profile));
+      profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl(profile, PAGE_ROUTE_CACHE_TTL_MS));
       return cloneState(profile);
     }
   }
@@ -1628,7 +1637,7 @@ export async function getProfileDataHydrated(userId: string) {
   const state = await loadAppState();
   const profile = buildProfileFromState(state, userId);
   if (!profile) {
-    profilePageDataMemoryCache.set(userId, writeTimedCache<ProfileData | null>(null));
+    profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl<ProfileData | null>(null, PAGE_ROUTE_CACHE_TTL_MS));
     return null;
   }
 
@@ -1639,7 +1648,7 @@ export async function getProfileDataHydrated(userId: string) {
   await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
 
   const hydratedProfile = buildProfileFromState(state, userId);
-  profilePageDataMemoryCache.set(userId, writeTimedCache(hydratedProfile));
+  profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl(hydratedProfile, PAGE_ROUTE_CACHE_TTL_MS));
   return hydratedProfile;
 }
 
@@ -1676,16 +1685,16 @@ export async function getMovieDetailDataHydrated(slug: string, currentUserId?: s
     return cached;
   }
 
-  if (shouldUseDatabase()) {
-    const snapshotState = await loadSnapshotStateCached();
+    if (shouldUseDatabase()) {
+      const snapshotState = await loadSnapshotStateForRequest();
     if (!snapshotState) {
-      movieDetailDataMemoryCache.set(cacheKey, writeTimedCache(null));
+        movieDetailDataMemoryCache.set(cacheKey, writeTimedCacheWithTtl(null, MOVIE_DETAIL_CACHE_TTL_MS));
       return null;
     }
 
     const movie = getMovieBySlug(snapshotState, slug);
     if (!movie) {
-      movieDetailDataMemoryCache.set(cacheKey, writeTimedCache(null));
+        movieDetailDataMemoryCache.set(cacheKey, writeTimedCacheWithTtl(null, MOVIE_DETAIL_CACHE_TTL_MS));
       return null;
     }
 
@@ -1716,14 +1725,14 @@ export async function getMovieDetailDataHydrated(slug: string, currentUserId?: s
       myRating
     };
 
-    movieDetailDataMemoryCache.set(cacheKey, writeTimedCache(detailData));
+      movieDetailDataMemoryCache.set(cacheKey, writeTimedCacheWithTtl(detailData, MOVIE_DETAIL_CACHE_TTL_MS));
     return cloneState(detailData);
   }
 
   const state = await loadAppState();
   const movie = getMovieBySlug(state, slug);
   if (!movie) {
-    movieDetailDataMemoryCache.set(cacheKey, writeTimedCache(null));
+      movieDetailDataMemoryCache.set(cacheKey, writeTimedCacheWithTtl(null, MOVIE_DETAIL_CACHE_TTL_MS));
     return null;
   }
 
@@ -1738,7 +1747,7 @@ export async function getMovieDetailDataHydrated(slug: string, currentUserId?: s
     average: getMovieAverageFromState(state, movie.id),
     myRating: currentUserId ? getStateIndexes(state).ratingByUserMovie.get(`${currentUserId}:${movie.id}`) ?? null : null
   };
-  movieDetailDataMemoryCache.set(cacheKey, writeTimedCache(detailData));
+    movieDetailDataMemoryCache.set(cacheKey, writeTimedCacheWithTtl(detailData, MOVIE_DETAIL_CACHE_TTL_MS));
   return detailData;
 }
 
