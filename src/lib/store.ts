@@ -25,6 +25,7 @@ import {
 import { average, safeId, slugify } from "@/lib/utils";
 const DATA_DIR = join(process.cwd(), "data");
 const STATE_FILE = join(DATA_DIR, "runtime-state.json");
+const WRITE_QUEUE_FILE = join(DATA_DIR, "runtime-write-queue.json");
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
 const STATE_CACHE_TTL_MS = 20_000;
@@ -33,7 +34,10 @@ const MOVIE_DETAIL_CACHE_TTL_MS = 1000 * 60 * 2;
 const UPCOMING_RELEASES_CACHE_TTL_MS = 1000 * 60 * 15;
 const DATABASE_READ_BACKOFF_MS = 1000 * 60;
 const DATABASE_WRITE_BACKOFF_MS = 1000 * 60;
+const DATABASE_QUOTA_BACKOFF_MS = 1000 * 60 * 30;
 const LIVE_STATE_CACHE_TTL_MS = 1000 * 60 * 10;
+const DEFERRED_WRITE_FLUSH_TTL_MS = 1000 * 60;
+const SNAPSHOT_BACKUP_INTERVAL_MS = 1000 * 60 * 5;
 const APP_REGISTRATION_FALLBACK_DATE = "2026-03-14T17:09:52.000Z";
 
 const INITIAL_PASSWORDS = {
@@ -162,6 +166,49 @@ type TimedCache<T> = {
   expiresAt: number;
 };
 
+type DeferredDatabaseWrite =
+  | {
+      type: "pending-upsert";
+      groupId: string;
+      movieId: string;
+      addedAt: string;
+    }
+  | {
+      type: "pending-remove";
+      groupId: string;
+      movieId: string;
+    }
+  | {
+      type: "watch-upsert";
+      entry: WatchEntry;
+    }
+  | {
+      type: "rating-upsert";
+      rating: UserRating;
+    }
+  | {
+      type: "weekly-batch-upsert";
+      batch: WeeklyRecommendationBatch;
+    }
+  | {
+      type: "weekly-batch-selection";
+      batchId: string;
+      selectedMovieId?: string;
+    }
+  | {
+      type: "snapshot-backup";
+      state: AppState;
+    };
+
+type DatabaseWriteOperation = {
+  run: () => Promise<unknown>;
+  deferred: DeferredDatabaseWrite;
+};
+
+type PersistStateChangeOptions = {
+  snapshotStrategy?: "eager" | "deferred" | "skip";
+};
+
 const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
 const profileDataCache = new WeakMap<AppState, Map<string, ProfileData | null>>();
 const profileSummaryCache = new WeakMap<AppState, Map<string, ProfileSummary>>();
@@ -174,6 +221,8 @@ let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null 
 let databaseReadBackoffUntil = 0;
 let databaseWriteBackoffUntil = 0;
 let liveStateMemoryCache: TimedCache<AppState> | null = null;
+let lastSnapshotBackupAt = 0;
+let lastDeferredWriteFlushAt = 0;
 let groupPageDataMemoryCache: TimedCache<{
   group: AppState["group"];
   members: Array<{
@@ -588,6 +637,28 @@ function shouldUseDatabase() {
   return Boolean(process.env.DATABASE_URL);
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`.toLowerCase();
+  }
+
+  return String(error).toLowerCase();
+}
+
+function isDatabaseQuotaExceededError(error: unknown) {
+  const message = getErrorMessage(error);
+  return (
+    message.includes("exceeded the data transfer quota") ||
+    message.includes("exceeded your free plan quota") ||
+    message.includes("quota") ||
+    message.includes("billing cycle")
+  );
+}
+
+function getBackoffDuration(error: unknown, fallbackMs: number) {
+  return isDatabaseQuotaExceededError(error) ? Math.max(fallbackMs, DATABASE_QUOTA_BACKOFF_MS) : fallbackMs;
+}
+
 function shouldAttemptDatabaseRead() {
   return shouldUseDatabase() && Date.now() >= databaseReadBackoffUntil;
 }
@@ -605,12 +676,20 @@ function markDatabaseWriteHealthy() {
 }
 
 function markDatabaseReadFailure(scope: string, error: unknown) {
-  databaseReadBackoffUntil = Date.now() + DATABASE_READ_BACKOFF_MS;
+  const backoffMs = getBackoffDuration(error, DATABASE_READ_BACKOFF_MS);
+  databaseReadBackoffUntil = Date.now() + backoffMs;
+  if (isDatabaseQuotaExceededError(error)) {
+    databaseWriteBackoffUntil = Math.max(databaseWriteBackoffUntil, Date.now() + backoffMs);
+  }
   console.error(`[store] Database read failed in ${scope}. Falling back to local state for reads.`, error);
 }
 
 function markDatabaseWriteFailure(scope: string, error: unknown) {
-  databaseWriteBackoffUntil = Date.now() + DATABASE_WRITE_BACKOFF_MS;
+  const backoffMs = getBackoffDuration(error, DATABASE_WRITE_BACKOFF_MS);
+  databaseWriteBackoffUntil = Date.now() + backoffMs;
+  if (isDatabaseQuotaExceededError(error)) {
+    databaseReadBackoffUntil = Math.max(databaseReadBackoffUntil, Date.now() + backoffMs);
+  }
   console.error(`[store] Database write failed in ${scope}. Keeping local fallback state alive.`, error);
 }
 
@@ -645,6 +724,72 @@ function saveLocalStateToDisk(state: AppState) {
   } catch {
     // Persistencia local best-effort.
   }
+}
+
+function isDeferredDatabaseWrite(value: unknown): value is DeferredDatabaseWrite {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as { type?: string };
+  return (
+    candidate.type === "pending-upsert" ||
+    candidate.type === "pending-remove" ||
+    candidate.type === "watch-upsert" ||
+    candidate.type === "rating-upsert" ||
+    candidate.type === "weekly-batch-upsert" ||
+    candidate.type === "weekly-batch-selection" ||
+    candidate.type === "snapshot-backup"
+  );
+}
+
+function loadDeferredWriteQueue() {
+  try {
+    if (!existsSync(WRITE_QUEUE_FILE)) {
+      return [];
+    }
+
+    const raw = readFileSync(WRITE_QUEUE_FILE, "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(isDeferredDatabaseWrite);
+  } catch {
+    return [];
+  }
+}
+
+function compactDeferredWriteQueue(queue: DeferredDatabaseWrite[]) {
+  const latestSnapshotIndex = [...queue]
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => entry.type === "snapshot-backup")
+    .map(({ index }) => index)
+    .pop();
+
+  return queue.filter((entry, index) => entry.type !== "snapshot-backup" || index === latestSnapshotIndex);
+}
+
+function saveDeferredWriteQueue(queue: DeferredDatabaseWrite[]) {
+  try {
+    if (!existsSync(DATA_DIR)) {
+      mkdirSync(DATA_DIR, { recursive: true });
+    }
+
+    writeFileSync(WRITE_QUEUE_FILE, JSON.stringify(compactDeferredWriteQueue(queue), null, 2), "utf8");
+  } catch {
+    // Persistencia local best-effort.
+  }
+}
+
+function enqueueDeferredWrites(writes: DeferredDatabaseWrite[]) {
+  if (writes.length === 0) {
+    return;
+  }
+
+  const currentQueue = loadDeferredWriteQueue();
+  saveDeferredWriteQueue([...currentQueue, ...writes]);
 }
 
 function rememberLiveState(state: AppState) {
@@ -1136,6 +1281,65 @@ async function updateWeeklyBatchSelectionInDatabase(batchId: string, selectedMov
   });
 }
 
+async function applyDeferredDatabaseWrite(write: DeferredDatabaseWrite) {
+  switch (write.type) {
+    case "pending-upsert":
+      await upsertPendingMovieToDatabase(write.groupId, write.movieId, new Date(write.addedAt));
+      return;
+    case "pending-remove":
+      await removePendingMovieFromDatabase(write.groupId, write.movieId);
+      return;
+    case "watch-upsert":
+      await upsertWatchEntryToDatabase(write.entry);
+      return;
+    case "rating-upsert":
+      await upsertRatingToDatabase(write.rating);
+      return;
+    case "weekly-batch-upsert":
+      await insertWeeklyBatchToDatabase(write.batch);
+      return;
+    case "weekly-batch-selection":
+      await updateWeeklyBatchSelectionInDatabase(write.batchId, write.selectedMovieId);
+      return;
+    case "snapshot-backup":
+      await saveDatabaseState(write.state);
+      lastSnapshotBackupAt = Date.now();
+      return;
+  }
+}
+
+async function flushDeferredDatabaseWrites() {
+  if (!shouldAttemptDatabaseWrite()) {
+    return false;
+  }
+
+  if (Date.now() - lastDeferredWriteFlushAt < DEFERRED_WRITE_FLUSH_TTL_MS) {
+    return true;
+  }
+
+  const queue = loadDeferredWriteQueue();
+  if (queue.length === 0) {
+    lastDeferredWriteFlushAt = Date.now();
+    return true;
+  }
+
+  lastDeferredWriteFlushAt = Date.now();
+
+  for (let index = 0; index < queue.length; index += 1) {
+    try {
+      await applyDeferredDatabaseWrite(queue[index]);
+    } catch (error) {
+      saveDeferredWriteQueue(queue.slice(index));
+      markDatabaseWriteFailure("deferred write flush", error);
+      return false;
+    }
+  }
+
+  saveDeferredWriteQueue([]);
+  markDatabaseWriteHealthy();
+  return true;
+}
+
 async function loadSnapshotStateUncached() {
   if (!shouldAttemptDatabaseRead()) {
     return null;
@@ -1309,6 +1513,7 @@ async function loadAppStateUncached() {
         syncWeeklyBatchesToDatabase(initial.group.id, initial.weeklyBatches)
       ]);
       await saveDatabaseState(initial);
+      lastSnapshotBackupAt = Date.now();
       invalidatePersistentStateCache();
       markDatabaseReadHealthy();
       markDatabaseWriteHealthy();
@@ -1338,6 +1543,10 @@ async function loadAppStateForRead() {
     return liveState;
   }
 
+  if (shouldAttemptDatabaseWrite()) {
+    await flushDeferredDatabaseWrites();
+  }
+
   if (shouldUseDatabase()) {
     const databaseState = await loadDatabaseState();
     if (databaseState) {
@@ -1355,36 +1564,54 @@ async function loadAppStateForRead() {
 
 const loadAppState = cache(loadAppStateForRead);
 
-async function saveAppState(state: AppState) {
+function createSnapshotBackupWrite(state: AppState): DeferredDatabaseWrite {
+  return {
+    type: "snapshot-backup",
+    state: toCompactSnapshotState(state)
+  };
+}
+
+async function persistStateChange(
+  state: AppState,
+  operations: DatabaseWriteOperation[] = [],
+  options: PersistStateChangeOptions = {}
+) {
+  const snapshotStrategy = options.snapshotStrategy ?? (operations.length > 0 ? "deferred" : "eager");
+  const snapshotEnabled = snapshotStrategy !== "skip";
+  const shouldSnapshotNow =
+    snapshotStrategy === "eager" ||
+    (snapshotStrategy === "deferred" && Date.now() - lastSnapshotBackupAt >= SNAPSHOT_BACKUP_INTERVAL_MS);
+  const deferredWrites = [
+    ...operations.map((operation) => operation.deferred),
+    ...(snapshotEnabled && shouldSnapshotNow ? [createSnapshotBackupWrite(state)] : [])
+  ];
+
   rememberLiveState(state);
   saveLocalStateToDisk(state);
+  invalidatePersistentStateCache();
 
   if (!shouldAttemptDatabaseWrite()) {
+    enqueueDeferredWrites(deferredWrites);
+    return;
+  }
+
+  const flushed = await flushDeferredDatabaseWrites();
+  if (!flushed) {
+    enqueueDeferredWrites(deferredWrites);
     return;
   }
 
   try {
-    await saveDatabaseState(state);
+    await Promise.all(operations.map((operation) => operation.run()));
+    if (snapshotEnabled && shouldSnapshotNow) {
+      await saveDatabaseState(state);
+      lastSnapshotBackupAt = Date.now();
+    }
     markDatabaseWriteHealthy();
   } catch (error) {
-    markDatabaseWriteFailure("snapshot backup", error);
+    enqueueDeferredWrites(deferredWrites);
+    markDatabaseWriteFailure("state mutation", error);
   }
-}
-
-async function persistStateChange(state: AppState, operations: Array<() => Promise<unknown>> = []) {
-  rememberLiveState(state);
-  saveLocalStateToDisk(state);
-
-  if (shouldAttemptDatabaseWrite()) {
-    try {
-      await Promise.all([...operations.map((operation) => operation()), saveAppState(state)]);
-      markDatabaseWriteHealthy();
-    } catch (error) {
-      markDatabaseWriteFailure("state mutation", error);
-    }
-  }
-
-  invalidatePersistentStateCache();
 }
 
 function findUserById(state: AppState, userId?: string | null) {
@@ -2064,7 +2291,15 @@ export async function getCurrentBatch() {
   const state = await loadAppState();
   const { batch, changed } = await ensureDashboardBatch(state);
   if (changed && batch) {
-    await persistStateChange(state, [() => insertWeeklyBatchToDatabase(batch)]);
+    await persistStateChange(state, [
+      {
+        run: () => insertWeeklyBatchToDatabase(batch),
+        deferred: {
+          type: "weekly-batch-upsert",
+          batch
+        }
+      }
+    ]);
   }
   return batch;
 }
@@ -2118,14 +2353,21 @@ export async function getMovieDetailDataHydrated(slug: string, currentUserId?: s
 export async function getDashboardData() {
   const state = await loadAppState();
   return {
-    ...buildDashboardDataFromState(state),
+    ...(await getDashboardOverviewHydrated()),
     upcomingReleases: await buildUpcomingDashboardReleases(state)
   };
 }
 
 export async function getDashboardOverviewHydrated() {
+  const cached = readTimedCache(dashboardDataMemoryCache);
+  if (cached) {
+    return cached;
+  }
+
   const state = await loadAppState();
-  return buildDashboardDataFromState(state);
+  const dashboardData = buildDashboardDataFromState(state);
+  dashboardDataMemoryCache = writeTimedCacheWithTtl(dashboardData, PAGE_ROUTE_CACHE_TTL_MS);
+  return dashboardData;
 }
 
 export async function getUpcomingDashboardReleasesHydrated() {
@@ -2154,7 +2396,7 @@ export async function getGroupPageData() {
       profileSummary: getProfileSummaryFromState(state, member.id)
     }))
   };
-  groupPageDataMemoryCache = writeTimedCache(groupData);
+  groupPageDataMemoryCache = writeTimedCacheWithTtl(groupData, PAGE_ROUTE_CACHE_TTL_MS);
   return groupData;
 }
 
@@ -2353,7 +2595,7 @@ export async function updateUserProfile(
   });
 
   invalidateDerivedCaches(state);
-  await persistStateChange(state);
+  await persistStateChange(state, [], { snapshotStrategy: "eager" });
   return user;
 }
 
@@ -2410,7 +2652,7 @@ export async function updateUserCredentialsByAdmin(
   });
 
   invalidateDerivedCaches(state);
-  await persistStateChange(state);
+  await persistStateChange(state, [], { snapshotStrategy: "eager" });
 
   return {
     id: targetUser.id,
@@ -2470,7 +2712,7 @@ export async function resetUserCredentials(input: {
   });
 
   invalidateDerivedCaches(state);
-  await persistStateChange(state);
+  await persistStateChange(state, [], { snapshotStrategy: "eager" });
 
   return {
     id: user.id,
@@ -2523,7 +2765,15 @@ export async function upsertRating(input: { movieId: string; userId: string; sco
 
   invalidateDerivedCaches(state);
   const nextRating = getStateIndexes(state).ratingByUserMovie.get(ratingKey) as UserRating;
-  await persistStateChange(state, [() => upsertRatingToDatabase(nextRating)]);
+  await persistStateChange(state, [
+    {
+      run: () => upsertRatingToDatabase(nextRating),
+      deferred: {
+        type: "rating-upsert",
+        rating: nextRating
+      }
+    }
+  ]);
   return nextRating;
 }
 
@@ -2541,7 +2791,15 @@ export async function generateBatch() {
     date: batch.createdAt
   });
   invalidateDerivedCaches(state);
-  await persistStateChange(state, [() => insertWeeklyBatchToDatabase(batch)]);
+  await persistStateChange(state, [
+    {
+      run: () => insertWeeklyBatchToDatabase(batch),
+      deferred: {
+        type: "weekly-batch-upsert",
+        batch
+      }
+    }
+  ]);
   return batch;
 }
 
@@ -2564,7 +2822,16 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
   }
 
   invalidateDerivedCaches(state);
-  await persistStateChange(state, [() => updateWeeklyBatchSelectionInDatabase(batch.id, batch.selectedMovieId)]);
+  await persistStateChange(state, [
+    {
+      run: () => updateWeeklyBatchSelectionInDatabase(batch.id, batch.selectedMovieId),
+      deferred: {
+        type: "weekly-batch-selection",
+        batchId: batch.id,
+        selectedMovieId: batch.selectedMovieId
+      }
+    }
+  ]);
   return batch;
 }
 
@@ -2580,7 +2847,15 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
     if (!existingEntry.watchedOn) {
       existingEntry.watchedOn = watchedOn;
       invalidateDerivedCaches(state);
-      await persistStateChange(state, [() => upsertWatchEntryToDatabase(existingEntry)]);
+      await persistStateChange(state, [
+        {
+          run: () => upsertWatchEntryToDatabase(existingEntry),
+          deferred: {
+            type: "watch-upsert",
+            entry: existingEntry
+          }
+        }
+      ]);
     }
     return existingEntry;
   }
@@ -2605,8 +2880,21 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
 
   invalidateDerivedCaches(state);
   await persistStateChange(state, [
-    () => upsertWatchEntryToDatabase(watchEntry),
-    () => removePendingMovieFromDatabase(state.group.id, movieId)
+    {
+      run: () => upsertWatchEntryToDatabase(watchEntry),
+      deferred: {
+        type: "watch-upsert",
+        entry: watchEntry
+      }
+    },
+    {
+      run: () => removePendingMovieFromDatabase(state.group.id, movieId),
+      deferred: {
+        type: "pending-remove",
+        groupId: state.group.id,
+        movieId
+      }
+    }
   ]);
   return watchEntry;
 }
@@ -2659,7 +2947,17 @@ export async function addPendingMovie(movieInput: Movie) {
   });
 
   invalidateDerivedCaches(state);
-  await persistStateChange(state, [() => upsertPendingMovieToDatabase(state.group.id, movie.id)]);
+  await persistStateChange(state, [
+    {
+      run: () => upsertPendingMovieToDatabase(state.group.id, movie.id),
+      deferred: {
+        type: "pending-upsert",
+        groupId: state.group.id,
+        movieId: movie.id,
+        addedAt: new Date().toISOString()
+      }
+    }
+  ]);
   return {
     status: "added" as const,
     movie,
@@ -2690,7 +2988,16 @@ export async function removePendingMovie(movieId: string) {
     date: new Date().toISOString()
   });
   invalidateDerivedCaches(state);
-  await persistStateChange(state, [() => removePendingMovieFromDatabase(state.group.id, movieId)]);
+  await persistStateChange(state, [
+    {
+      run: () => removePendingMovieFromDatabase(state.group.id, movieId),
+      deferred: {
+        type: "pending-remove",
+        groupId: state.group.id,
+        movieId
+      }
+    }
+  ]);
 
   return {
     status: "removed" as const,
