@@ -209,16 +209,20 @@ type CachedPayload<T> = {
   data: T | null;
 };
 
-function shouldUsePersistentCache() {
-  return Boolean(process.env.DATABASE_URL);
-}
-
 function buildCacheKey(kind: string, rawKey: string) {
   return `${kind}:${encodeURIComponent(rawKey)}`;
 }
 
 function getCacheTtl(kind: string) {
-  return kind === "movie-details" ? TMDB_DETAILS_CACHE_TTL_MS : TMDB_SEARCH_CACHE_TTL_MS;
+  if (kind === "movie-details") {
+    return TMDB_DETAILS_CACHE_TTL_MS;
+  }
+
+  if (kind === "movie-upcoming") {
+    return TMDB_UPCOMING_CACHE_TTL_MS;
+  }
+
+  return TMDB_SEARCH_CACHE_TTL_MS;
 }
 
 function getMemoryCache<T>(kind: string, rawKey: string) {
@@ -243,81 +247,17 @@ function setMemoryCache<T>(kind: string, rawKey: string, payload: CachedPayload<
   });
 }
 
-async function readPersistentCache<T>(kind: string, rawKey: string) {
-  if (!shouldUsePersistentCache()) {
-    return null;
-  }
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    const entry = await prisma.tmdbCacheEntry.findUnique({
-      where: {
-        key: buildCacheKey(kind, rawKey)
-      }
-    });
-
-    if (!entry) {
-      return null;
-    }
-
-    if (entry.expiresAt.getTime() <= Date.now()) {
-      return null;
-    }
-
-    return entry.payload as CachedPayload<T>;
-  } catch {
-    return null;
-  }
-}
-
-async function writePersistentCache<T>(kind: string, rawKey: string, payload: CachedPayload<T>, ttlMs: number) {
-  if (!shouldUsePersistentCache()) {
-    return;
-  }
-
-  const jsonPayload = JSON.parse(JSON.stringify(payload));
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    await prisma.tmdbCacheEntry.upsert({
-      where: {
-        key: buildCacheKey(kind, rawKey)
-      },
-      create: {
-        key: buildCacheKey(kind, rawKey),
-        kind,
-        payload: jsonPayload,
-        expiresAt: new Date(Date.now() + ttlMs)
-      },
-      update: {
-        kind,
-        payload: jsonPayload,
-        fetchedAt: new Date(),
-        expiresAt: new Date(Date.now() + ttlMs)
-      }
-    });
-  } catch {
-    // Fallback silencioso: si la cache persistente falla, la app sigue funcionando.
-  }
-}
-
 async function readCachedPayload<T>(kind: string, rawKey: string) {
   const memoryPayload = getMemoryCache<T>(kind, rawKey);
   if (memoryPayload) {
     return memoryPayload;
   }
 
-  const persistentPayload = await readPersistentCache<T>(kind, rawKey);
-  if (persistentPayload) {
-    setMemoryCache(kind, rawKey, persistentPayload, getCacheTtl(kind));
-  }
-
-  return persistentPayload;
+  return null;
 }
 
 async function writeCachedPayload<T>(kind: string, rawKey: string, payload: CachedPayload<T>, ttlMs: number) {
   setMemoryCache(kind, rawKey, payload, ttlMs);
-  await writePersistentCache(kind, rawKey, payload, ttlMs);
 }
 
 function buildImageUrl(path?: string | null, size = "w780") {
