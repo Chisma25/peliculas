@@ -27,7 +27,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Usuario o contraseña incorrectos." }, { status: 401 });
   }
 
-  const sessionToken = await createSessionToken(user.id);
+  let sessionToken: string;
+  try {
+    sessionToken = await createSessionToken(user.id);
+  } catch {
+    return NextResponse.json(
+      {
+        error: "El acceso no está disponible temporalmente. Falta revisar la configuración de sesión."
+      },
+      { status: 503 }
+    );
+  }
+
   const response = NextResponse.json({
     message: "Sesión iniciada.",
     userId: user.id,

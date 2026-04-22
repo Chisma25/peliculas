@@ -5,18 +5,26 @@ const MINIMUM_PRODUCTION_SECRET_LENGTH = 32;
 
 const textEncoder = new TextEncoder();
 
-function getSessionSecret() {
+function getSessionSecret(options?: { requireConfiguredSecret?: boolean }) {
   const configuredSecret = process.env.SESSION_SECRET?.trim();
   if (configuredSecret) {
     if (process.env.NODE_ENV === "production" && configuredSecret.length < MINIMUM_PRODUCTION_SECRET_LENGTH) {
-      throw new Error("SESSION_SECRET debe tener al menos 32 caracteres en producción.");
+      if (options?.requireConfiguredSecret) {
+        throw new Error("SESSION_SECRET debe tener al menos 32 caracteres en producción.");
+      }
+
+      return null;
     }
 
     return configuredSecret;
   }
 
   if (process.env.NODE_ENV === "production") {
-    throw new Error("SESSION_SECRET es obligatorio en producción.");
+    if (options?.requireConfiguredSecret) {
+      throw new Error("SESSION_SECRET es obligatorio en producción.");
+    }
+
+    return null;
   }
 
   return DEV_SESSION_SECRET;
@@ -39,10 +47,15 @@ function constantTimeEqual(left: string, right: string) {
   return result === 0;
 }
 
-async function signValue(value: string) {
+async function signValue(value: string, options?: { requireConfiguredSecret?: boolean }) {
+  const secret = getSessionSecret(options);
+  if (!secret) {
+    return null;
+  }
+
   const key = await crypto.subtle.importKey(
     "raw",
-    textEncoder.encode(getSessionSecret()),
+    textEncoder.encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
@@ -74,7 +87,11 @@ export async function createSessionToken(userId: string) {
   const expiresAt = Date.now() + SESSION_TTL_SECONDS * 1000;
   const encodedUserId = encodeURIComponent(userId);
   const payload = `${encodedUserId}.${expiresAt}`;
-  const signature = await signValue(payload);
+  const signature = await signValue(payload, { requireConfiguredSecret: true });
+  if (!signature) {
+    throw new Error("No se pudo firmar la sesión.");
+  }
+
   return `${payload}.${signature}`;
 }
 
@@ -90,6 +107,10 @@ export async function verifySessionToken(token?: string | null) {
 
   const payload = `${encodedUserId}.${expiresAtRaw}`;
   const expected = await signValue(payload);
+  if (!expected) {
+    return null;
+  }
+
   if (!constantTimeEqual(signature, expected)) {
     return null;
   }
