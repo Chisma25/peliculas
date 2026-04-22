@@ -1,11 +1,25 @@
 const SESSION_COOKIE = "cine.session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const DEV_SESSION_SECRET = "cine-semanal-dev-session-secret";
+const MINIMUM_PRODUCTION_SECRET_LENGTH = 32;
 
 const textEncoder = new TextEncoder();
 
 function getSessionSecret() {
-  return process.env.SESSION_SECRET?.trim() || process.env.ADMIN_RESET_CODE?.trim() || DEV_SESSION_SECRET;
+  const configuredSecret = process.env.SESSION_SECRET?.trim();
+  if (configuredSecret) {
+    if (process.env.NODE_ENV === "production" && configuredSecret.length < MINIMUM_PRODUCTION_SECRET_LENGTH) {
+      throw new Error("SESSION_SECRET debe tener al menos 32 caracteres en producción.");
+    }
+
+    return configuredSecret;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET es obligatorio en producción.");
+  }
+
+  return DEV_SESSION_SECRET;
 }
 
 function bytesToHex(bytes: Uint8Array) {

@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
 
-import { ensureSameOrigin } from "@/lib/request-security";
+import { enforceRateLimit, ensureSameOrigin } from "@/lib/request-security";
 import { getSessionUser, updateUserCredentialsByAdmin } from "@/lib/store";
 
 export async function POST(request: Request) {
   const originError = ensureSameOrigin(request);
   if (originError) {
     return originError;
+  }
+
+  const rateLimitError = enforceRateLimit(request, {
+    bucket: "admin-users-update",
+    limit: 20,
+    windowMs: 10 * 60 * 1000
+  });
+  if (rateLimitError) {
+    return rateLimitError;
   }
 
   const sessionUser = await getSessionUser();

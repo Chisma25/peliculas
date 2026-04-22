@@ -33,14 +33,10 @@ App web privada para reemplazar un Excel compartido de peliculas vistas, notas i
 
 Si no rellenas `DATABASE_URL`, la app funciona en local con `data/runtime-state.json`.
 
-## Cuentas iniciales del grupo
+## Accesos del grupo
 
-- `Isma` / `Roca7!Marea`
-- `Vargues` / `Niebla4!Faro`
-- `Meneses` / `Tinta9!Clave`
-- `Jose` / `Atlas6!Cobre`
-- `Javi` / `Bruma8!Lince`
-- `Huguito` / `Trama5!Sable`
+- Las cuentas del grupo ya no dependen de credenciales semilla dentro del código.
+- Si una cuenta pierde acceso, usa el reset de emergencia o la gestión de acceso desde una cuenta administradora.
 
 ## Preparar despliegue en Vercel + Supabase
 

@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
 
-import { ensureSameOrigin } from "@/lib/request-security";
+import { enforceRateLimit, ensureSameOrigin } from "@/lib/request-security";
 import { resetUserCredentials } from "@/lib/store";
 
 export async function POST(request: Request) {
   const originError = ensureSameOrigin(request);
   if (originError) {
     return originError;
+  }
+
+  const rateLimitError = enforceRateLimit(request, {
+    bucket: "auth-reset-credentials",
+    limit: 5,
+    windowMs: 15 * 60 * 1000
+  });
+  if (rateLimitError) {
+    return rateLimitError;
   }
 
   const formData = await request.formData();
@@ -26,10 +35,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message: `Acceso restablecido para ${user.name}. Ahora entra con @${user.username}.`
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "No se pudo restablecer el acceso."
+        error: "No se pudo restablecer el acceso con los datos facilitados."
       },
       { status: 400 }
     );

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { ensureSameOrigin } from "@/lib/request-security";
+import { enforceRateLimit, ensureSameOrigin } from "@/lib/request-security";
 import { authenticateUser } from "@/lib/store";
 import { createSessionToken, getSessionCookieName, getSessionCookieOptions } from "@/lib/session";
 
@@ -8,6 +8,15 @@ export async function POST(request: Request) {
   const originError = ensureSameOrigin(request);
   if (originError) {
     return originError;
+  }
+
+  const rateLimitError = enforceRateLimit(request, {
+    bucket: "auth-login",
+    limit: 8,
+    windowMs: 10 * 60 * 1000
+  });
+  if (rateLimitError) {
+    return rateLimitError;
   }
 
   const formData = await request.formData();

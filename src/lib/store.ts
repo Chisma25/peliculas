@@ -40,15 +40,6 @@ const DEFERRED_WRITE_FLUSH_TTL_MS = 1000 * 60;
 const SNAPSHOT_BACKUP_INTERVAL_MS = 1000 * 60 * 5;
 const APP_REGISTRATION_FALLBACK_DATE = "2026-03-14T17:09:52.000Z";
 
-const INITIAL_PASSWORDS = {
-  Isma: "Roca7!Marea",
-  Vargues: "Niebla4!Faro",
-  Meneses: "Tinta9!Clave",
-  Jose: "Atlas6!Cobre",
-  Javi: "Bruma8!Lince",
-  Huguito: "Trama5!Sable"
-} satisfies Record<string, string>;
-
 const REMOVED_TEST_USER_IDS = new Set(["user_xisma25"]);
 const DEFAULT_ADMIN_IDS = new Set(["user_isma"]);
 const DEFAULT_ADMIN_IDENTITIES = new Set(["isma"]);
@@ -327,10 +318,6 @@ function verifyPassword(password: string, passwordHash: string) {
   return computed.length === stored.length && timingSafeEqual(computed, stored);
 }
 
-function getInitialPasswordForUser(name: string) {
-  return INITIAL_PASSWORDS[name as keyof typeof INITIAL_PASSWORDS] ?? "Clave9!Cine";
-}
-
 function validateUsername(value: string) {
   if (value.length < 3 || value.length > 32) {
     throw new Error("El usuario debe tener entre 3 y 32 caracteres.");
@@ -382,11 +369,13 @@ function sanitizeAvatarDataUrl(value?: string) {
 
 function ensureUserCredentials(user: User) {
   const username = user.username?.trim() || user.name || user.email.split("@")[0] || user.id;
+  const passwordHash = typeof user.passwordHash === "string" ? user.passwordHash.trim() : "";
   return {
     ...user,
     username,
     avatarSeed: user.avatarSeed || slugify(user.name || username),
-    passwordHash: user.passwordHash || hashPassword(getInitialPasswordForUser(user.name)),
+    // Legacy accounts without password hash stay blocked until an admin or emergency reset assigns one.
+    passwordHash,
     isAdmin:
       Boolean(user.isAdmin) ||
       DEFAULT_ADMIN_IDS.has(user.id) ||
@@ -2719,17 +2708,6 @@ export async function resetUserCredentials(input: {
     name: user.name,
     username: user.username
   };
-}
-
-export async function getSeededCredentials() {
-  const state = await loadAppState();
-  return state.users
-    .filter((user) => user.name in INITIAL_PASSWORDS)
-    .map((user) => ({
-      name: user.name,
-      username: user.username,
-      password: getInitialPasswordForUser(user.name)
-    }));
 }
 
 export async function upsertRating(input: { movieId: string; userId: string; score: number; comment?: string }) {
