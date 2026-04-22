@@ -1,34 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" fill="none">
   <defs>
-    <linearGradient id="brandGold" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffd29c" />
-      <stop offset="45%" stop-color="#f0a44f" />
-      <stop offset="100%" stop-color="#b95a1f" />
+    <linearGradient id="brandGlow" x1="14%" y1="14%" x2="88%" y2="92%">
+      <stop offset="0%" stop-color="#ffe0b4" />
+      <stop offset="38%" stop-color="#f4b15f" />
+      <stop offset="72%" stop-color="#d86f33" />
+      <stop offset="100%" stop-color="#8d3718" />
     </linearGradient>
-    <linearGradient id="brandDark" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3a1c1f" />
-      <stop offset="100%" stop-color="#140e1b" />
+    <linearGradient id="brandFrame" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2b1320" />
+      <stop offset="55%" stop-color="#151828" />
+      <stop offset="100%" stop-color="#0c1220" />
     </linearGradient>
+    <radialGradient id="brandAura" cx="50%" cy="18%" r="85%">
+      <stop offset="0%" stop-color="#3a2418" stop-opacity="0.72" />
+      <stop offset="44%" stop-color="#d66535" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#0c1220" stop-opacity="0" />
+    </radialGradient>
   </defs>
-  <rect width="72" height="72" rx="18" fill="#130f1d" />
+  <rect x="4" y="4" width="64" height="64" rx="20" fill="url(#brandFrame)" />
+  <rect x="8" y="8" width="56" height="56" rx="17" fill="url(#brandAura)" />
   <path
-    d="M36 8 57 15.5v18.7c0 13-8.1 22.4-21 28.9C23.1 56.6 15 47.2 15 34.2V15.5L36 8Z"
-    fill="url(#brandDark)"
-    stroke="url(#brandGold)"
+    d="M22 22.5c0-6.3 5.1-11.5 11.5-11.5h5c6.4 0 11.5 5.2 11.5 11.5V45c0 8.3-6.7 15-15 15s-15-6.7-15-15V22.5Z"
+    fill="none"
+    stroke="url(#brandGlow)"
     stroke-width="2.8"
     stroke-linejoin="round"
   />
   <path
-    d="M23 25h21a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5H23a2.5 2.5 0 0 1-2.5-2.5v-10A2.5 2.5 0 0 1 23 25Z"
-    stroke="url(#brandGold)"
+    d="M28 27.5h16c2.5 0 4.5 2 4.5 4.5v11.5H23.5V32c0-2.5 2-4.5 4.5-4.5Z"
+    fill="rgba(255,255,255,0.02)"
+    stroke="url(#brandGlow)"
     stroke-width="2.3"
   />
-  <circle cx="27" cy="19" r="4.3" stroke="url(#brandGold)" stroke-width="2.2" />
-  <circle cx="37.5" cy="19.5" r="5.3" stroke="url(#brandGold)" stroke-width="2.2" />
-  <circle cx="27" cy="19" r="1.2" fill="url(#brandGold)" />
-  <circle cx="37.5" cy="19.5" r="1.3" fill="url(#brandGold)" />
-  <path d="m44.2 29.2 7.6 3.8-7.6 3.8Z" fill="url(#brandGold)" />
-  <path d="M18.2 29.5 13 33l5.2 3.5Z" fill="url(#brandGold)" />
-  <path d="M23 44.5h26" stroke="url(#brandGold)" stroke-width="2.2" stroke-linecap="round" />
-  <path d="M25 50.3c2.8 2 6.5 3.2 11 3.2 4.5 0 8.2-1.2 11-3.2" stroke="url(#brandGold)" stroke-width="2" stroke-linecap="round" />
+  <path d="M29 24.2h14" stroke="url(#brandGlow)" stroke-width="2.2" stroke-linecap="round" />
+  <path d="m33.7 33.2 7.8 4.3-7.8 4.2Z" fill="url(#brandGlow)" />
+  <circle cx="28" cy="18.7" r="2.2" fill="none" stroke="url(#brandGlow)" stroke-width="2" />
+  <circle cx="35.8" cy="16.5" r="2.9" fill="none" stroke="url(#brandGlow)" stroke-width="2" />
+  <circle cx="43.8" cy="18.7" r="2.2" fill="none" stroke="url(#brandGlow)" stroke-width="2" />
+  <path d="M26 49.5h20" stroke="url(#brandGlow)" stroke-width="2.3" stroke-linecap="round" />
+  <path d="M29 54.2c2.1 1.6 4.4 2.3 7 2.3s4.9-.7 7-2.3" stroke="url(#brandGlow)" stroke-width="2.1" stroke-linecap="round" />
+  <path d="M18.5 27v14.5M53.5 27v14.5" stroke="url(#brandGlow)" stroke-width="1.7" stroke-linecap="round" opacity="0.9" />
+  <circle cx="18.5" cy="23" r="1.4" fill="url(#brandGlow)" />
+  <circle cx="18.5" cy="45.5" r="1.4" fill="url(#brandGlow)" />
+  <circle cx="53.5" cy="23" r="1.4" fill="url(#brandGlow)" />
+  <circle cx="53.5" cy="45.5" r="1.4" fill="url(#brandGlow)" />
 </svg>
