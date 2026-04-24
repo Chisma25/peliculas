@@ -6,7 +6,7 @@ import { getSessionCookieName, verifySessionToken } from "@/lib/session";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const isPublicPage = pathname === "/login";
+  const isPublicPage = pathname === "/login" || pathname === "/reset-credenciales";
   const isApiRoute = pathname.startsWith("/api");
   const isAuthApi = pathname.startsWith("/api/auth");
   const isNextAsset = pathname.startsWith("/_next");

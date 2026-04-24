@@ -67,15 +67,22 @@ SESSION_SECRET=...
 
 7. Despliega.
 
-`npm run db:seed` vuelca vuestro estado actual de `data/runtime-state.json` a la tabla `AppSnapshot`, para que el grupo arranque en producción con las mismas peliculas, notas, pendientes y usuarios.
+`npm run db:seed` vuelca vuestro estado actual de `data/runtime-state.json` a `AppSnapshot` y a las tablas normalizadas de usuarios, películas, notas, vistas, pendientes y recomendaciones, para que producción pueda navegar con lecturas pequeñas sin depender del snapshot completo en cada request.
+
+Cuando cambie el esquema de Prisma, aplica primero la estructura en la base y después siembra los datos:
+
+```bash
+npx prisma db push
+npm run db:seed
+```
 
 Para Supabase + Prisma, la recomendacion oficial es usar runtime con pooler y CLI con conexion directa. Prisma documenta esta separacion con `DATABASE_URL` y `DIRECT_URL`, y Supabase documenta sus variantes `direct`, `session` y `transaction` desde el panel `Connect`.
 
 ## Notas de implementacion
 
 - La importacion desde Excel ya no forma parte de la interfaz: el historico del grupo esta cargado manualmente en el estado inicial.
-- La persistencia remota actual usa un snapshot JSON completo del estado de la app en PostgreSQL.
-- Esto simplifica el despliegue inmediato y deja margen para normalizar tablas mas adelante.
+- La persistencia remota conserva un snapshot JSON como respaldo, pero las lecturas frecuentes usan tablas normalizadas para reducir consumo de transferencia en Neon.
+- Esto mantiene el despliegue sencillo sin cargar el snapshot completo para flujos habituales como login, cabecera, dashboard, perfiles, detalle de película, pendientes y vistas.
 - Si no existe `TMDB_API_KEY`, la app sigue funcionando, pero no podra enriquecer peliculas ni mostrar caratulas reales.
 - En produccion deberias configurar siempre `SESSION_SECRET` con una cadena larga, aleatoria y privada.
 - La nota externa muestra la fuente real disponible; Rotten Tomatoes se trata como preferencia, no como dependencia obligatoria.

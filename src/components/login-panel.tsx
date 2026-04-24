@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { type FormEvent, useState, useTransition } from "react";
 
 type LoginPanelProps = {
   nextPath?: string;
@@ -11,20 +11,40 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  function getSafeDestination(apiDestination?: string) {
+    const destination = nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : apiDestination;
+
+    return destination && destination.startsWith("/") && !destination.startsWith("//") ? destination : "/";
+  }
+
   async function login(formData: FormData) {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      body: formData
-    });
+    setMessage("");
 
-    const payload = (await response.json()) as { error?: string; redirectTo?: string };
-    if (!response.ok) {
-      setMessage(payload.error ?? "No se pudo iniciar sesión.");
-      return;
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        body: formData
+      });
+
+      const payload = (await response.json()) as { error?: string; redirectTo?: string };
+      if (!response.ok) {
+        setMessage(payload.error ?? "No se pudo iniciar sesión.");
+        return;
+      }
+
+      window.location.assign(getSafeDestination(payload.redirectTo));
+    } catch {
+      setMessage("No se pudo contactar con el servidor. Prueba otra vez en unos segundos.");
     }
+  }
 
-    const destination = payload.redirectTo && payload.redirectTo.startsWith("/") ? payload.redirectTo : "/";
-    window.location.assign(destination);
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    startTransition(() => {
+      void login(formData);
+    });
   }
 
   return (
@@ -38,14 +58,7 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
         </p>
       </div>
 
-      <form
-        className="stack-form"
-        action={(formData) =>
-          startTransition(() => {
-            void login(formData);
-          })
-        }
-      >
+      <form className="stack-form" method="post" onSubmit={handleSubmit}>
         {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
         <label>
           Usuario
@@ -61,7 +74,7 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
       </form>
 
       {message ? (
-        <div className="inline-card error-card">
+        <div className="inline-card error-card" role="alert" aria-live="polite">
           <strong>{message}</strong>
         </div>
       ) : null}

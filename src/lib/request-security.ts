@@ -40,6 +40,35 @@ function getClientAddress(request: Request) {
   return "unknown-client";
 }
 
+function isLoopbackHostname(hostname: string) {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    hostname === "[::1]" ||
+    hostname === "::1"
+  );
+}
+
+function isAllowedLocalDevelopmentOrigin(origin: string, requestUrl: URL) {
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
+  try {
+    const originUrl = new URL(origin);
+
+    return (
+      originUrl.protocol === requestUrl.protocol &&
+      originUrl.port === requestUrl.port &&
+      isLoopbackHostname(originUrl.hostname) &&
+      isLoopbackHostname(requestUrl.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 function pruneRateLimitStore(now: number) {
   for (const [key, value] of rateLimitStore) {
     if (value.resetAt <= now) {
@@ -68,8 +97,9 @@ export function ensureSameOrigin(request: Request) {
   }
 
   try {
-    const requestOrigin = new URL(request.url).origin;
-    if (origin !== requestOrigin) {
+    const requestUrl = new URL(request.url);
+    const requestOrigin = requestUrl.origin;
+    if (origin !== requestOrigin && !isAllowedLocalDevelopmentOrigin(origin, requestUrl)) {
       return NextResponse.json({ error: "Origen no permitido." }, { status: 403 });
     }
   } catch {

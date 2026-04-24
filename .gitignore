@@ -12,7 +12,10 @@ pnpm-lock.yaml
 yarn.lock
 prisma/dev.db
 data/runtime-state.json
+data/*.json
 tsconfig.tsbuildinfo
 tmp_xlsx_inspect/
 tmp_notas_peliculas.zip
 NOTAS PELICULAS - listo para importar.csv
+
+.vercel
