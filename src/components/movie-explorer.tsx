@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useState, useTransition } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 
 type SearchMovie = {
   id: string;
@@ -47,18 +47,31 @@ function getButtonLabel(status: PendingResultStatus) {
     case "error":
       return "Reintentar";
     default:
-      return "Añadir a pendientes";
+      return "Añadir";
   }
+}
+
+function formatSynopsis(synopsis: string, maxLength = 145) {
+  const fallback = "La sinopsis todavía no está disponible para esta película.";
+  const cleanSynopsis = (synopsis || fallback).replace(/\s+/g, " ").trim();
+
+  if (cleanSynopsis.length <= maxLength) {
+    return cleanSynopsis;
+  }
+
+  const trimmed = cleanSynopsis.slice(0, maxLength).replace(/[\s,.;:!?-]+$/u, "");
+  return `${trimmed}...`;
 }
 
 export function MovieExplorer() {
   const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const deferredQuery = useDeferredValue(debouncedQuery);
   const [results, setResults] = useState<SearchMovie[]>([]);
   const [status, setStatus] = useState("Busca una película para consultar TMDb.");
   const [toast, setToast] = useState<ToastState>(null);
   const [movieStates, setMovieStates] = useState<Record<string, PendingResultStatus>>({});
-  const [isPending, startTransition] = useTransition();
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     if (!toast) {
@@ -70,31 +83,51 @@ export function MovieExplorer() {
   }, [toast]);
 
   useEffect(() => {
-    if (!deferredQuery.trim()) {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(query.trim());
+    }, 320);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [query]);
+
+  useEffect(() => {
+    if (!deferredQuery) {
       setResults([]);
+      setIsSearching(false);
       setStatus("Busca una película para consultar TMDb.");
       return;
     }
 
-    const controller = new AbortController();
+    if (deferredQuery.length < 2) {
+      setResults([]);
+      setIsSearching(false);
+      setStatus("Escribe al menos 2 caracteres para buscar.");
+      return;
+    }
 
-    startTransition(() => {
-      void fetch(`/api/movies/search?q=${encodeURIComponent(deferredQuery)}`, {
-        signal: controller.signal
+    const controller = new AbortController();
+    setIsSearching(true);
+
+    void fetch(`/api/movies/search?q=${encodeURIComponent(deferredQuery)}`, {
+      signal: controller.signal
+    })
+      .then((response) => response.json())
+      .then((payload: { results?: SearchMovie[] }) => {
+        const nextResults = payload.results ?? [];
+        setResults(nextResults);
+        setStatus(nextResults.length > 0 ? `${nextResults.length} resultados encontrados.` : "No se han encontrado coincidencias.");
       })
-        .then((response) => response.json())
-        .then((payload: { results?: SearchMovie[] }) => {
-          const nextResults = payload.results ?? [];
-          setResults(nextResults);
-          setStatus(nextResults.length > 0 ? `${nextResults.length} resultados encontrados.` : "No se han encontrado coincidencias.");
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) {
-            setResults([]);
-            setStatus("No se pudo consultar TMDb en este momento.");
-          }
-        });
-    });
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setResults([]);
+          setStatus("No se pudo consultar TMDb en este momento.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsSearching(false);
+        }
+      });
 
     return () => controller.abort();
   }, [deferredQuery]);
@@ -146,31 +179,30 @@ export function MovieExplorer() {
   }
 
   return (
-    <section className="panel">
-      <div className="panel-header">
-        <p className="eyebrow">Búsqueda libre</p>
-        <h1>Explorar películas en TMDb</h1>
-        <p className="body-copy">
-          Busca cualquier película fuera de la lista del grupo para consultar su sinopsis, la nota externa y la carátula, y añadirla a
-          pendientes si os encaja.
-        </p>
-      </div>
-
-      <div className="stack-form">
-        <label>
+    <section className="explore-page">
+      <form className="explore-search-panel" role="search" onSubmit={(event) => event.preventDefault()}>
+        <label className="explore-search-field">
           Buscar por título
           <input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Interstellar, Whiplash, La Haine..."
+            autoComplete="off"
           />
         </label>
+        {query ? (
+          <button type="button" className="ghost-button explore-clear-button" onClick={() => setQuery("")}>
+            Limpiar
+          </button>
+        ) : null}
+      </form>
+
+      <div className="explore-results-strip">
+        <p className="status-text">{isSearching ? "Buscando..." : status}</p>
       </div>
 
-      <p className="status-text">{isPending ? "Buscando..." : status}</p>
-
-      <div className="catalog-grid">
+      <div className={`explore-grid ${results.length > 0 && results.length < 5 ? "explore-grid-tight" : ""}`}>
         {results.map((movie) => {
           const pendingState = movieStates[movie.id] ?? "idle";
           const isActionDisabled =
@@ -181,13 +213,13 @@ export function MovieExplorer() {
             .slice(0, 2);
 
           return (
-            <article key={movie.id} className="catalog-card explorer-card">
+            <article key={movie.id} className="explorer-card">
               <div
                 className="search-poster"
                 style={
                   movie.posterUrl
                     ? {
-                        backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.08), rgba(10, 15, 24, 0.72)), url(${movie.posterUrl})`,
+                        backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.04), rgba(10, 15, 24, 0.62)), url(${movie.posterUrl})`,
                         backgroundSize: "cover",
                         backgroundPosition: "center"
                       }
@@ -196,8 +228,8 @@ export function MovieExplorer() {
               />
 
               <div className="explorer-card-copy">
-                <div className="stat-row explorer-card-meta">
-                  <p className="eyebrow">{movie.year > 0 ? movie.year : "Año pendiente"}</p>
+                <div className="explorer-card-meta">
+                  <p>{movie.year > 0 ? movie.year : "Año pendiente"}</p>
                   <span>
                     {movie.externalRating.source}: {movie.externalRating.value}
                   </span>
@@ -213,12 +245,10 @@ export function MovieExplorer() {
                   )}
                 </div>
 
-                <p className="body-copy explorer-card-synopsis">
-                  {movie.synopsis || "La sinopsis todavía no está disponible para esta película."}
-                </p>
+                <p className="body-copy explorer-card-synopsis">{formatSynopsis(movie.synopsis)}</p>
               </div>
 
-              <div className="recommendation-actions explorer-card-actions">
+              <div className="explorer-card-actions">
                 <button
                   type="button"
                   className="primary-button"
@@ -236,7 +266,7 @@ export function MovieExplorer() {
                     rel="noreferrer"
                     className="secondary-button"
                   >
-                    Abrir en TMDb
+                    TMDb
                   </a>
                 ) : (
                   <span className="secondary-button secondary-button-placeholder">Sin enlace</span>
@@ -246,6 +276,13 @@ export function MovieExplorer() {
           );
         })}
       </div>
+
+      {deferredQuery.length >= 2 && !isSearching && results.length === 0 ? (
+        <div className="explore-empty-state">
+          <h2>No aparece esa película</h2>
+          <p className="body-copy">Prueba con el título original, elimina artículos o busca solo una palabra clave.</p>
+        </div>
+      ) : null}
 
       {toast ? (
         <div className={`explorer-toast explorer-toast-${toast.tone}`} role="status" aria-live="polite">

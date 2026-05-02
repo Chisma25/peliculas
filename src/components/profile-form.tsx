@@ -75,18 +75,17 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
   }
 
   return (
-    <section className="panel">
-      <div className="panel-header">
-        <p className="eyebrow">Tu perfil</p>
-        <h1>Actualiza tu cuenta</h1>
+    <section className="profile-settings-panel" aria-labelledby="profile-settings-title">
+      <div className="profile-section-heading">
+        <div>
+          <p className="eyebrow">Tu perfil</p>
+          <h2 id="profile-settings-title">Cuenta y avatar</h2>
+        </div>
+        <p>Actualiza como apareces en el grupo sin tocar tus notas antiguas.</p>
       </div>
-      <p className="body-copy">
-        Si cambias tu nombre visible, las valoraciones antiguas seguirán siendo tuyas y se actualizarán en todas las
-        fichas automáticamente.
-      </p>
 
       <form
-        className="stack-form"
+        className="profile-settings-form"
         action={(formData) =>
           startTransition(() => {
             void submitProfile(formData);
@@ -95,6 +94,7 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
       >
         <input type="hidden" name="avatarAction" value={avatarAction} />
         <input type="hidden" name="avatarDataUrl" value={avatarDataUrl} />
+
         <div className="profile-avatar-editor">
           <div className="profile-avatar-preview">
             <UserAvatar user={{ name: draftName, avatarUrl: avatarPreview || undefined }} size="lg" />
@@ -104,7 +104,7 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
               Imagen de avatar
               <input type="file" accept="image/*" onChange={handleAvatarChange} />
             </label>
-            <p className="muted-copy">Se guarda dentro de la app, así que mejor una imagen pequeña.</p>
+            <p className="muted-copy">Usa una imagen pequena para que cargue rapido.</p>
             {avatarPreview ? (
               <button type="button" className="ghost-button" onClick={removeAvatar}>
                 Quitar avatar
@@ -112,31 +112,37 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
             ) : null}
           </div>
         </div>
-        <label>
-          Nombre visible
-          <input
-            type="text"
-            name="name"
-            value={draftName}
-            onChange={(event) => setDraftName(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Usuario
-          <input type="text" name="username" defaultValue={initialUsername} required autoComplete="username" />
-        </label>
-        <label>
-          Nueva contraseña
-          <input type="password" name="password" placeholder="Solo si quieres cambiarla" autoComplete="new-password" />
-        </label>
-        <button type="submit" className="primary-button" disabled={isPending}>
-          {isPending ? "Guardando..." : "Guardar cambios"}
-        </button>
+
+        <div className="profile-form-grid">
+          <label>
+            Nombre visible
+            <input
+              type="text"
+              name="name"
+              value={draftName}
+              onChange={(event) => setDraftName(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Usuario
+            <input type="text" name="username" defaultValue={initialUsername} required autoComplete="username" />
+          </label>
+          <label className="profile-form-wide">
+            Nueva contrasena
+            <input type="password" name="password" placeholder="Solo si quieres cambiarla" autoComplete="new-password" />
+          </label>
+        </div>
+
+        <div className="profile-form-actions">
+          <button type="submit" className="primary-button" disabled={isPending}>
+            {isPending ? "Guardando..." : "Guardar cambios"}
+          </button>
+        </div>
       </form>
 
       {message ? (
-        <div className={`inline-card ${isError ? "error-card" : "success-card"}`}>
+        <div className={`profile-form-message ${isError ? "error-card" : "success-card"}`}>
           <strong>{message}</strong>
         </div>
       ) : null}

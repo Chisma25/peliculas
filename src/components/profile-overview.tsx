@@ -30,106 +30,69 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
   const averageMarker = Math.max(0, Math.min(100, (profile.averageScore / 10) * 100));
   const dominantBand = [...profile.distribution].sort((left, right) => right.count - left.count || right.value - left.value)[0];
   const occupiedBands = profile.distribution.filter((item) => item.count > 0).length;
+  const title = isSelf ? "Tu perfil" : profile.user.name;
+  const subtitle = isSelf
+    ? "Lectura personal de tus notas, tus extremos y tu forma de valorar dentro del grupo."
+    : `Lectura de como puntua ${profile.user.name} dentro del grupo.`;
 
   return (
-    <div className="profile-grid">
-      <section className="panel">
-        <div className="panel-header">
+    <div className="profile-overview">
+      <section className="profile-command-panel" aria-labelledby="profile-title">
+        <div className="profile-command-copy">
           <p className="eyebrow">{isSelf ? "Resumen personal" : "Perfil del grupo"}</p>
-          <h1>{isSelf ? "Tu perfil cinéfilo" : profile.user.name}</h1>
+          <h1 id="profile-title">{title}</h1>
+          <p>{subtitle}</p>
         </div>
 
-        <div className="stat-grid profile-stat-grid">
-          <article className="stat-card">
-            <p className="eyebrow">Valoración media</p>
+        <div className="profile-command-ledger" aria-label="Resumen de puntuaciones">
+          <article>
+            <span>Media</span>
             <strong>{profile.ratingsCount > 0 ? formatScore(profile.averageScore) : "-"}</strong>
-            <p className="body-copy">{isSelf ? "La nota media que sueles poner." : "La nota media que suele poner."}</p>
+            <small>{profile.ratingsCount} notas</small>
           </article>
-
-          <article className="stat-card">
-            <p className="eyebrow">{isSelf ? "Tu mejor nota" : "Su mejor nota"}</p>
+          <article>
+            <span>Techo</span>
             <strong>{profile.ratingsCount > 0 ? formatScore(profile.bestScore) : "-"}</strong>
-            <p className="body-copy">
-              {isSelf ? "La puntuación más alta que has puesto." : "La puntuación más alta que ha puesto."}
-            </p>
+            <small>mejor nota</small>
           </article>
-
-          <article className="stat-card">
-            <p className="eyebrow">Notas registradas</p>
-            <strong>{profile.ratingsCount}</strong>
-            <p className="body-copy">
-              {isSelf ? "Películas que ya has puntuado dentro del grupo." : "Películas que ya ha puntuado dentro del grupo."}
-            </p>
+          <article>
+            <span>Tramos</span>
+            <strong>{occupiedBands}</strong>
+            <small>activos</small>
           </article>
         </div>
       </section>
 
-      <section className="panel">
-        <div className="top-picks-layout">
-          <div className="top-picks-column">
-            <div className="panel-header">
-              <p className="eyebrow">{isSelf ? "Tu top 3" : "Su top 3"}</p>
-              <h2>{isSelf ? "Tus mejor valoradas" : "Sus mejor valoradas"}</h2>
-            </div>
-
-            {profile.topThree.length > 0 ? (
-              <div className="top-three-grid">
-                {profile.topThree.map((item, index) => (
-                  <Link key={item.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
-                    <article className="top-poster-card">
-                      <MoviePoster movie={item.movie} compact showDetails={false} showDuration={false} />
-                      <div className="top-poster-rank">#{index + 1}</div>
-                      <div className="top-poster-score">{formatScore(item.score)}</div>
-                    </article>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-state">
-                <p className="body-copy">{isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}</p>
-              </div>
-            )}
-          </div>
-
-          <div className="top-picks-column">
-            <div className="panel-header">
-              <p className="eyebrow">{isSelf ? "Tu bottom 3" : "Su bottom 3"}</p>
-              <h2>{isSelf ? "Tus peor valoradas" : "Sus peor valoradas"}</h2>
-            </div>
-
-            {profile.bottomThree.length > 0 ? (
-              <div className="top-three-grid">
-                {profile.bottomThree.map((item, index) => (
-                  <Link key={item.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
-                    <article className="top-poster-card">
-                      <MoviePoster movie={item.movie} compact showDetails={false} showDuration={false} />
-                      <div className="top-poster-rank">#{index + 1}</div>
-                      <div className="top-poster-score top-poster-score-muted">{formatScore(item.score)}</div>
-                    </article>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-state">
-                <p className="body-copy">{isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}</p>
-              </div>
-            )}
-          </div>
-        </div>
+      <section className="profile-picks-panel" aria-label="Peliculas destacadas del perfil">
+        <ProfilePickColumn
+          eyebrow={isSelf ? "Tu top 3" : "Top 3"}
+          title={isSelf ? "Mejor valoradas" : "Mejor valoradas"}
+          items={profile.topThree}
+          emptyText={isSelf ? "Todavia no has valorado peliculas." : "Todavia no ha valorado peliculas."}
+        />
+        <ProfilePickColumn
+          eyebrow={isSelf ? "Tu bottom 3" : "Bottom 3"}
+          title={isSelf ? "Peor valoradas" : "Peor valoradas"}
+          items={profile.bottomThree}
+          emptyText={isSelf ? "Todavia no has valorado peliculas." : "Todavia no ha valorado peliculas."}
+          muted
+        />
       </section>
 
-      <section className="panel">
-        <div className="panel-header">
-          <p className="eyebrow">Distribución de notas</p>
-          <h2>Cómo puntúas</h2>
+      <section className="profile-distribution-panel" aria-label="Distribucion de notas">
+        <div className="profile-section-heading">
+          <div>
+            <p className="eyebrow">Distribucion de notas</p>
+            <h2>Como puntuas</h2>
+          </div>
+          <p>
+            {isSelf
+              ? "Intervalos de 0,5 puntos para ver donde se concentra tu criterio."
+              : "Intervalos de 0,5 puntos para ver donde se concentra su criterio."}
+          </p>
         </div>
-        <p className="body-copy">
-          {isSelf
-            ? "Tu distribución real en intervalos de 0,5 puntos, con una lectura clara de dónde se concentra tu forma de valorar."
-            : "Su distribución real en intervalos de 0,5 puntos, con una lectura clara de dónde se concentra su forma de valorar."}
-        </p>
 
-        <div className="rating-distribution-shell">
+        <div className="rating-distribution-shell profile-distribution-shell">
           <div className="rating-distribution-summary">
             <article className="rating-distribution-stat">
               <small>Media</small>
@@ -182,6 +145,49 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function ProfilePickColumn({
+  eyebrow,
+  title,
+  items,
+  emptyText,
+  muted = false
+}: {
+  eyebrow: string;
+  title: string;
+  items: Array<UserRating & { movie: Movie }>;
+  emptyText: string;
+  muted?: boolean;
+}) {
+  return (
+    <div className="profile-pick-column">
+      <div className="profile-section-heading profile-pick-heading">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h2>{title}</h2>
+        </div>
+      </div>
+
+      {items.length > 0 ? (
+        <div className="profile-poster-grid">
+          {items.map((item, index) => (
+            <Link key={item.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
+              <article className="top-poster-card profile-poster-card">
+                <MoviePoster movie={item.movie} compact showDetails={false} showDuration={false} />
+                <div className="top-poster-rank">#{index + 1}</div>
+                <div className={`top-poster-score ${muted ? "top-poster-score-muted" : ""}`}>{formatScore(item.score)}</div>
+              </article>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="profile-empty-state">
+          <p>{emptyText}</p>
+        </div>
+      )}
     </div>
   );
 }

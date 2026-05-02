@@ -1,6 +1,6 @@
 import { MoviePoster } from "@/components/movie-poster";
 import { getUpcomingDashboardReleasesHydrated } from "@/lib/store";
-import { formatFitScore, formatLongDate, formatShortDate } from "@/lib/utils";
+import { formatLongDate, formatShortDate } from "@/lib/utils";
 
 function getTmdbMovieUrl(tmdbId?: string) {
   return tmdbId ? `https://www.themoviedb.org/movie/${tmdbId}` : undefined;
@@ -42,9 +42,6 @@ export async function UpcomingReleasesPanel() {
                 <div className="upcoming-release-copy">
                   <div className="recommendation-topline">
                     <p className="eyebrow">Estreno cercano</p>
-                    <span className="recommendation-fit-badge recommendation-fit-badge-compact">
-                      {formatFitScore(item.score)}/100
-                    </span>
                   </div>
 
                   <div className="upcoming-release-title-stack">
@@ -55,18 +52,6 @@ export async function UpcomingReleasesPanel() {
                   <div className="upcoming-release-meta">
                     <span>Estreno en España: {formatLongDate(item.releaseDate)}</span>
                     <span>{item.movie.genres.slice(0, 2).join(" / ") || "Próximo estreno"}</span>
-                  </div>
-
-                  <div className="recommendation-metrics recommendation-metrics-compact">
-                    {item.metrics.map((metric) => (
-                      <div
-                        key={`${item.movie.id}-${metric.label}`}
-                        className={`recommendation-metric recommendation-metric-${metric.tone ?? "neutral"}`}
-                      >
-                        <small>{metric.label}</small>
-                        <strong>{metric.value}</strong>
-                      </div>
-                    ))}
                   </div>
 
                   <div className="upcoming-release-actions">
@@ -112,12 +97,6 @@ export function UpcomingReleasesPanelFallback() {
             <div className="upcoming-release-copy">
               <div className="shimmer-line shimmer-line-wide" />
               <div className="shimmer-line shimmer-line-medium" />
-              <div className="recommendation-metrics recommendation-metrics-compact">
-                <div className="recommendation-metric shimmer-card" />
-                <div className="recommendation-metric shimmer-card" />
-                <div className="recommendation-metric shimmer-card" />
-                <div className="recommendation-metric shimmer-card" />
-              </div>
             </div>
           </article>
         ))}

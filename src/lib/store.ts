@@ -1882,6 +1882,32 @@ async function persistStateChange(
   }
 }
 
+async function persistPendingStateChangeStrict(state: AppState, operations: DatabaseWriteOperation[]) {
+  rememberLiveState(state);
+  saveLocalStateToDisk(state);
+  invalidatePersistentStateCache();
+
+  if (!shouldAttemptDatabaseWrite()) {
+    throw new Error("Database writes are temporarily unavailable.");
+  }
+
+  const flushed = await flushDeferredDatabaseWrites();
+  if (!flushed) {
+    throw new Error("Deferred database writes could not be flushed.");
+  }
+
+  try {
+    for (const operation of operations) {
+      await operation.run();
+    }
+    markDatabaseWriteHealthy();
+  } catch (error) {
+    enqueueDeferredWrites(operations.map((operation) => operation.deferred));
+    markDatabaseWriteFailure("pending movie mutation", error);
+    throw error;
+  }
+}
+
 function findUserById(state: AppState, userId?: string | null) {
   if (!userId) {
     return null;
@@ -3244,7 +3270,13 @@ export async function getViewedPageDataHydrated(input: {
 
 export async function authenticateUser(username: string, password: string) {
   const users = await loadSnapshotUsersCached();
-  const user = users.find((entry) => normalizeUsername(entry.username) === normalizeUsername(username)) ?? null;
+  const normalizedIdentifier = normalizeUsername(username);
+  const user =
+    users.find(
+      (entry) =>
+        normalizeUsername(entry.username) === normalizedIdentifier ||
+        normalizeIdentity(entry.name) === normalizedIdentifier
+    ) ?? null;
   if (!user) {
     return null;
   }
@@ -3676,16 +3708,18 @@ export async function addPendingMovie(movieInput: Movie) {
     };
   }
 
+  const addedAt = new Date();
+
   state.pendingMovieIds.unshift(movie.id);
   addActivity(state, {
     type: "queued",
     label: `${movie.title} se añadió a pendientes`,
     movieId: movie.id,
-    date: new Date().toISOString()
+    date: addedAt.toISOString()
   });
 
   invalidateDerivedCaches(state);
-  await persistStateChange(state, [
+  await persistPendingStateChangeStrict(state, [
     {
       run: () => upsertMovieToDatabase(movie),
       deferred: {
@@ -3694,12 +3728,12 @@ export async function addPendingMovie(movieInput: Movie) {
       }
     },
     {
-      run: () => upsertPendingMovieToDatabase(state.group.id, movie.id),
+      run: () => upsertPendingMovieToDatabase(state.group.id, movie.id, addedAt),
       deferred: {
         type: "pending-upsert",
         groupId: state.group.id,
         movieId: movie.id,
-        addedAt: new Date().toISOString()
+        addedAt: addedAt.toISOString()
       }
     }
   ]);

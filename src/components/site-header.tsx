@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import { PrefetchLink } from "@/components/prefetch-link";
 import { PrimaryNav } from "@/components/primary-nav";
 import { UserAvatar } from "@/components/user-avatar";
@@ -12,36 +10,14 @@ type SiteHeaderProps = {
 };
 
 export function SiteHeader({ user }: SiteHeaderProps) {
-  const [isScrolled, setIsScrolled] = useState(false);
-
-  useEffect(() => {
-    let frameId = 0;
-
-    const updateScrollState = () => {
-      cancelAnimationFrame(frameId);
-      frameId = requestAnimationFrame(() => {
-        setIsScrolled(window.scrollY > 28);
-      });
-    };
-
-    updateScrollState();
-    window.addEventListener("scroll", updateScrollState, { passive: true });
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      window.removeEventListener("scroll", updateScrollState);
-    };
-  }, []);
-
   return (
-    <header className={`site-header ${isScrolled ? "site-header-scrolled" : ""}`}>
+    <header className="site-header">
       <PrefetchLink href="/" className="brand-lockup" aria-label="Ir al dashboard de Cine Semanal">
         <span className="brand-mark" aria-hidden="true">
           <img src="/brand/cine-semanal-mark.svg" alt="" className="brand-mark-image" />
         </span>
         <div className="brand-copy">
           <p>Cine Semanal</p>
-          <span>Vuestras pelis, notas y planes de cada semana</span>
         </div>
       </PrefetchLink>
 

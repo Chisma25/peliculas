@@ -28,7 +28,7 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
 
       const payload = (await response.json()) as { error?: string; redirectTo?: string };
       if (!response.ok) {
-        setMessage(payload.error ?? "No se pudo iniciar sesión.");
+        setMessage(payload.error ?? "No se pudo iniciar sesion.");
         return;
       }
 
@@ -48,41 +48,44 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
   }
 
   return (
-    <section className="panel login-panel">
-      <div className="panel-header">
-        <p className="eyebrow">Acceso del grupo</p>
-        <h1>Entrad con usuario y contraseña</h1>
-        <p className="body-copy">
-          Cada uno tiene ya su cuenta creada. En cuanto entréis podéis cambiar el nombre visible, el usuario y la
-          contraseña desde vuestro perfil.
-        </p>
-      </div>
-
-      <form className="stack-form" method="post" onSubmit={handleSubmit}>
-        {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
-        <label>
-          Usuario
-          <input type="text" name="username" placeholder="Isma" required autoComplete="username" />
-        </label>
-        <label>
-          Contraseña
-          <input type="password" name="password" placeholder="Tu contraseña" required autoComplete="current-password" />
-        </label>
-        <button type="submit" className="primary-button" disabled={isPending}>
-          {isPending ? "Entrando..." : "Entrar"}
-        </button>
-      </form>
-
-      {message ? (
-        <div className="inline-card error-card" role="alert" aria-live="polite">
-          <strong>{message}</strong>
+    <section className="login-screen" aria-labelledby="login-title">
+      <div className="login-form-panel">
+        <div className="login-form-heading">
+          <span className="login-form-led" aria-hidden="true" />
+          <div>
+            <p className="eyebrow">Acceso del grupo</p>
+            <h1 id="login-title">Iniciar sesion</h1>
+          </div>
         </div>
-      ) : null}
 
-      <div className="inline-actions login-panel-reset">
-        <Link href="/reset-credenciales" className="secondary-button">
-          Reset de emergencia
-        </Link>
+        <form className="login-form" method="post" onSubmit={handleSubmit}>
+          {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
+          <label>
+            <span>Usuario</span>
+            <input type="text" name="username" required autoComplete="username" />
+            <small>Usa tu usuario asignado o tu nombre visible.</small>
+          </label>
+          <label>
+            <span>Contraseña</span>
+            <input type="password" name="password" required autoComplete="current-password" />
+            <small>Minimo 8 caracteres si la cambias desde perfil.</small>
+          </label>
+          <button type="submit" className="primary-button" disabled={isPending}>
+            {isPending ? "Entrando..." : "Entrar"}
+          </button>
+        </form>
+
+        {message ? (
+          <div className="login-message error-card" role="alert" aria-live="polite">
+            <strong>{message}</strong>
+          </div>
+        ) : null}
+
+        <div className="login-panel-reset">
+          <Link href="/reset-credenciales" className="ghost-button">
+            Reset de emergencia
+          </Link>
+        </div>
       </div>
     </section>
   );

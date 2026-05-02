@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 
 import { ensureSameOrigin } from "@/lib/request-security";
 import { getSessionUser, addPendingMovie } from "@/lib/store";
@@ -23,6 +24,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Película inválida." }, { status: 400 });
   }
 
-  const result = await addPendingMovie(movie);
-  return NextResponse.json(result);
+  try {
+    const result = await addPendingMovie(movie);
+    if (result.status === "added") {
+      revalidatePath("/");
+      revalidatePath("/pendientes");
+    }
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("[pending/add] Could not add pending movie.", error);
+    return NextResponse.json(
+      { status: "error", error: "No se pudo guardar la película en pendientes. Prueba otra vez." },
+      { status: 500 }
+    );
+  }
 }

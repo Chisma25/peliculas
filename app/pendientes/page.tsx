@@ -1,7 +1,10 @@
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { PrefetchLink } from "@/components/prefetch-link";
 import { getPendingPageDataHydrated } from "@/lib/store";
-import { buildPaginationItems, formatFitScore } from "@/lib/utils";
+import { buildPaginationItems } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const PAGE_SIZE = 15;
 
@@ -62,242 +65,224 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   const paginationItems = buildPaginationItems(safePage, totalPages);
 
   return (
-    <section className="panel">
-      <div className="panel-header">
-        <p className="eyebrow">Pendientes</p>
-        <h1>Películas pendientes de ver</h1>
-        <p className="body-copy">Aquí guardáis las pelis que queréis tener a mano antes de decidir qué cae esa semana.</p>
-      </div>
+    <section className="pending-page">
+      {batch && weeklyOptions.length > 0 ? (
+        <section className="pending-radar-panel" aria-label="Radar semanal de pendientes">
+          <p className="eyebrow pending-radar-eyebrow">Radar semanal</p>
 
-      {weeklyOptions.length > 0 ? (
-        <div className="pending-weekly-block">
-          <div className="panel-header">
-            <p className="eyebrow">5 posibles para esta semana</p>
-            <h2>Las más fuertes dentro de pendientes</h2>
-            <p className="body-copy">
-              Aquí el motor solo mira pelis que ya tenéis guardadas en pendientes y os ordena las cinco que mejor encajan ahora
-              mismo para plan de grupo.
-            </p>
-          </div>
-          <div className="pending-weekly-grid">
-            {weeklyOptions.map((item) =>
-              batch ? (
-                <article
-                  key={item.id}
-                  className={`history-card-compact pending-weekly-card ${batch.selectedMovieId === item.movie.id ? "selected-card" : ""}`}
-                >
-                  <PrefetchLink href={`/peliculas/${item.movie.slug}`} className="pending-card-linkblock">
-                    <div
-                      className="history-poster-compact"
-                      style={
-                        item.movie.posterUrl
-                          ? {
-                              backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.08), rgba(10, 15, 24, 0.55)), url(${item.movie.posterUrl})`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center"
-                            }
-                          : undefined
-                      }
-                    />
-                    <div className="history-card-copy">
-                      <p className="eyebrow">{batch.selectedMovieId === item.movie.id ? "Elegida" : "Desde pendientes"}</p>
-                      <strong className="history-card-title">{item.movie.title}</strong>
-                      <div className="stat-row">
-                        <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
-                        <span>{formatFitScore(item.score)}/100</span>
-                      </div>
-                      <div className="chips pending-card-genres">
-                        {item.movie.genres.slice(0, 2).map((genre) => (
-                          <span key={`${item.movie.id}-${genre}`}>{genre}</span>
-                        ))}
-                      </div>
-                      {item.metrics?.length ? (
-                        <div className="recommendation-metrics recommendation-metrics-compact recommendation-metrics-inline">
-                          {item.metrics.slice(0, 4).map((metric) => (
-                            <div
-                              key={`${item.id}-${metric.label}`}
-                              className={`recommendation-metric recommendation-metric-${metric.tone ?? "neutral"}`}
-                            >
-                              <small>{metric.label}</small>
-                              <strong>{metric.value}</strong>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </PrefetchLink>
-                  <div className="recommendation-actions recommendation-actions-compact-card">
-                    <form action="/api/weekly-recommendations/select" method="post">
-                      <input type="hidden" name="batchId" value={batch.id} />
-                      <input type="hidden" name="movieId" value={item.movie.id} />
-                      <button type="submit" className="primary-button">
-                        {batch.selectedMovieId === item.movie.id ? "Ya elegida" : "Elegir"}
-                      </button>
-                    </form>
-                  </div>
-                </article>
-              ) : null
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      <form action="/pendientes" method="get" className="pending-toolbar pending-toolbar-refined">
-        <div className="history-toolbar-fields pending-toolbar-fields-refined">
-          <label className="pending-search-field">
-            Buscar una peli concreta
-            <input type="search" name="search" defaultValue={search} placeholder="Interstellar, Toy Story, Whiplash..." />
-          </label>
-          <label className="pending-search-field pending-search-field-sm">
-            Género
-            <FilterDropdown
-              name="genre"
-              value={activeGenre}
-              placeholder="Todos los géneros"
-              ariaLabel="Filtrar pendientes por género"
-              options={[
-                { value: "", label: "Todos los géneros" },
-                ...genres.map((genre) => ({ value: genre, label: genre }))
-              ]}
-            />
-          </label>
-        </div>
-        <div className="pending-toolbar-actions">
-          <button type="submit" className="primary-button">
-            Aplicar
-          </button>
-          <PrefetchLink href="/pendientes" className="ghost-button">
-            Limpiar filtros
-          </PrefetchLink>
-        </div>
-      </form>
-
-      <div id="lista-pendientes" className="pending-list-anchor">
-      <div className="pending-summary-row">
-        <p className="status-text">
-          {filteredPendingCount === totalPendingCount
-            ? `${totalPendingCount} pendientes en lista.`
-            : `${filteredPendingCount} resultados de ${totalPendingCount} pendientes.`}
-        </p>
-        {filteredPendingCount > PAGE_SIZE ? (
-          <p className="muted-copy">
-            Página {safePage} de {totalPages}
-          </p>
-        ) : null}
-      </div>
-
-      {filteredPendingCount === 0 ? (
-        <div className="empty-state">
-          <p className="body-copy">
-            {totalPendingCount === 0
-              ? "Todavía no habéis añadido ninguna película a pendientes."
-              : "No hay ninguna pendiente que encaje con esos filtros."}
-          </p>
-          <div className="inline-actions">
-            <PrefetchLink href="/explorar" className="secondary-button">
-              Ir a explorar
-            </PrefetchLink>
-            {totalPendingCount > 0 ? (
-              <PrefetchLink href="/pendientes" className="ghost-button">
-                Ver todas
-              </PrefetchLink>
-            ) : null}
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className={`pending-grid ${pagedPending.length <= 2 ? "pending-grid-tight" : ""}`}>
-            {pagedPending.map((movie) => (
-              <article key={movie.id} className="history-card-compact history-card-pending">
-                <PrefetchLink href={`/peliculas/${movie.slug}`} className="pending-card-linkblock">
+          <div className="pending-radar-grid">
+            {weeklyOptions.map((item, index) => (
+              <article
+                key={item.id}
+                className={`pending-radar-card ${batch.selectedMovieId === item.movie.id ? "is-selected" : ""}`}
+              >
+                <PrefetchLink href={`/peliculas/${item.movie.slug}`} className="pending-radar-link">
                   <div
-                    className="history-poster-compact"
+                    className="pending-radar-poster"
                     style={
-                      movie.posterUrl
+                      item.movie.posterUrl
                         ? {
-                            backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.08), rgba(10, 15, 24, 0.55)), url(${movie.posterUrl})`,
+                            backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.06), rgba(10, 15, 24, 0.68)), url(${item.movie.posterUrl})`,
                             backgroundSize: "cover",
                             backgroundPosition: "center"
                           }
                         : undefined
                     }
-                  />
-                  <div className="history-card-copy">
-                    <strong className="history-card-title">{movie.title}</strong>
-                    <div className="stat-row">
-                      <span>{movie.year > 0 ? movie.year : "Año pendiente"}</span>
-                      <span>
-                        {movie.externalRating.source}: {movie.externalRating.value}
-                      </span>
-                    </div>
-                    <div className="chips pending-card-genres">
-                      {movie.genres.slice(0, 3).map((genre) => (
-                        <span key={`${movie.id}-${genre}`}>{genre}</span>
-                      ))}
-                    </div>
+                  >
+                    <span>{index + 1}</span>
+                  </div>
+
+                  <div className="pending-radar-copy">
+                    <strong className="pending-card-title">{item.movie.title}</strong>
+                    <p className="pending-card-meta">{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</p>
+                    {item.movie.genres.length > 0 ? (
+                      <div className="pending-card-chips">
+                        {item.movie.genres.slice(0, 2).map((genre) => (
+                          <span key={`${item.movie.id}-${genre}`}>{genre}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </PrefetchLink>
-                <div className="recommendation-actions">
-                  <form action="/api/pending/remove" method="post">
-                    <input type="hidden" name="movieId" value={movie.id} />
-                    <input type="hidden" name="redirectTo" value={buildPendingQuery({ search, genre: activeGenre, page: safePage })} />
-                    <button type="submit" className="ghost-button">
-                      Quitar de pendientes
-                    </button>
-                  </form>
-                  {batch ? (
-                    <form action="/api/weekly-recommendations/select" method="post">
-                      <input type="hidden" name="batchId" value={batch.id} />
-                      <input type="hidden" name="movieId" value={movie.id} />
-                      <button type="submit" className="primary-button">
-                        Elegir para esta semana
-                      </button>
-                    </form>
-                  ) : null}
-                </div>
+
+                <form action="/api/weekly-recommendations/select" method="post" className="pending-radar-action">
+                  <input type="hidden" name="batchId" value={batch.id} />
+                  <input type="hidden" name="movieId" value={item.movie.id} />
+                  <button type="submit" className="primary-button">
+                    {batch.selectedMovieId === item.movie.id ? "Ya elegida" : "Elegir"}
+                  </button>
+                </form>
               </article>
             ))}
           </div>
+        </section>
+      ) : null}
 
-          {totalPages > 1 ? (
-            <nav className="pagination-bar" aria-label="Paginación de pendientes">
-              <PrefetchLink
-                href={buildPendingPageHref({ search, genre: activeGenre, page: Math.max(1, safePage - 1) })}
-                className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}
-                aria-disabled={safePage === 1}
-              >
-                Anterior
-              </PrefetchLink>
-              <div className="pagination-pages">
-                {paginationItems.map((item, index) =>
-                  item === "ellipsis" ? (
-                    <span key={`ellipsis-${index}`} className="pagination-ellipsis" aria-hidden="true">
-                      …
-                    </span>
-                  ) : (
-                    <PrefetchLink
-                      key={item}
-                      href={buildPendingPageHref({ search, genre: activeGenre, page: item })}
-                      className={`pagination-page ${item === safePage ? "pagination-page-active" : ""}`}
-                      aria-current={item === safePage ? "page" : undefined}
-                    >
-                      {item}
-                    </PrefetchLink>
-                  )
-                )}
-              </div>
-              <PrefetchLink
-                href={buildPendingPageHref({ search, genre: activeGenre, page: Math.min(totalPages, safePage + 1) })}
-                className={`pagination-side ${safePage === totalPages ? "is-disabled" : ""}`}
-                aria-disabled={safePage === totalPages}
-              >
-                Siguiente
-              </PrefetchLink>
-            </nav>
+      <section id="lista-pendientes" className="pending-archive-panel" aria-label="Archivo de pendientes">
+        <form action="/pendientes" method="get" className="pending-filter-panel">
+          <div className="pending-filter-grid">
+            <label className="pending-filter-field pending-filter-field-wide">
+              Buscar por título
+              <input type="search" name="search" defaultValue={search} placeholder="Interstellar, Toy Story, Whiplash..." />
+            </label>
+
+            <label className="pending-filter-field">
+              Género
+              <FilterDropdown
+                name="genre"
+                value={activeGenre}
+                placeholder="Todos los géneros"
+                ariaLabel="Filtrar pendientes por género"
+                options={[
+                  { value: "", label: "Todos los géneros" },
+                  ...genres.map((genre) => ({ value: genre, label: genre }))
+                ]}
+              />
+            </label>
+          </div>
+
+          <div className="pending-filter-actions">
+            <button type="submit" className="primary-button">
+              Aplicar filtros
+            </button>
+            <PrefetchLink href="/pendientes" className="ghost-button">
+              Limpiar
+            </PrefetchLink>
+          </div>
+        </form>
+
+        <div className="pending-list-anchor">
+        <div className="pending-results-strip">
+          <p className="status-text">
+            {filteredPendingCount === totalPendingCount
+              ? `${totalPendingCount} pendientes en lista.`
+              : `${filteredPendingCount} resultados de ${totalPendingCount} pendientes.`}
+          </p>
+          {filteredPendingCount > PAGE_SIZE ? (
+            <p className="muted-copy">
+              Página {safePage} de {totalPages}
+            </p>
           ) : null}
-        </>
-      )}
-      </div>
+        </div>
+
+        {filteredPendingCount === 0 ? (
+          <div className="pending-empty-state">
+            <p className="eyebrow">Sin resultados</p>
+            <h2>{totalPendingCount === 0 ? "Aún no hay películas pendientes." : "No hay pendientes con esos filtros."}</h2>
+            <p className="body-copy">
+              {totalPendingCount === 0
+                ? "Explorad el catálogo y guardad candidatas para tenerlas preparadas antes del próximo plan."
+                : "Prueba con otro género o limpia los filtros para volver a la lista completa."}
+            </p>
+            <div className="inline-actions">
+              <PrefetchLink href="/explorar" className="secondary-button">
+                Ir a explorar
+              </PrefetchLink>
+              {totalPendingCount > 0 ? (
+                <PrefetchLink href="/pendientes" className="ghost-button">
+                  Ver todas
+                </PrefetchLink>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className={`pending-movie-grid ${pagedPending.length <= 2 ? "pending-movie-grid-tight" : ""}`}>
+              {pagedPending.map((movie) => (
+                <article key={movie.id} className="pending-movie-card">
+                  <PrefetchLink href={`/peliculas/${movie.slug}`} className="pending-movie-link">
+                    <div
+                      className="pending-movie-poster"
+                      style={
+                        movie.posterUrl
+                          ? {
+                              backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.06), rgba(10, 15, 24, 0.72)), url(${movie.posterUrl})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center"
+                            }
+                          : undefined
+                      }
+                    >
+                      <span>{movie.externalRating.source} {movie.externalRating.value}</span>
+                    </div>
+
+                    <div className="pending-movie-copy">
+                      <div>
+                        <strong className="pending-card-title">{movie.title}</strong>
+                        <p className="pending-card-meta">{movie.year > 0 ? movie.year : "Año pendiente"}</p>
+                      </div>
+                      {movie.genres.length > 0 ? (
+                        <div className="pending-card-chips">
+                          {movie.genres.slice(0, 2).map((genre) => (
+                            <span key={`${movie.id}-${genre}`}>{genre}</span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </PrefetchLink>
+
+                  <div className="pending-movie-actions">
+                    <form action="/api/pending/remove" method="post">
+                      <input type="hidden" name="movieId" value={movie.id} />
+                      <input type="hidden" name="redirectTo" value={buildPendingQuery({ search, genre: activeGenre, page: safePage })} />
+                      <button type="submit" className="ghost-button">
+                        Quitar
+                      </button>
+                    </form>
+                    {batch ? (
+                      <form action="/api/weekly-recommendations/select" method="post">
+                        <input type="hidden" name="batchId" value={batch.id} />
+                        <input type="hidden" name="movieId" value={movie.id} />
+                        <button type="submit" className="primary-button">
+                          Elegir
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {totalPages > 1 ? (
+              <nav className="pagination-bar pending-pagination" aria-label="Paginación de pendientes">
+                <PrefetchLink
+                  href={buildPendingPageHref({ search, genre: activeGenre, page: Math.max(1, safePage - 1) })}
+                  className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}
+                  aria-disabled={safePage === 1}
+                >
+                  Anterior
+                </PrefetchLink>
+                <div className="pagination-pages">
+                  {paginationItems.map((item, index) =>
+                    item === "ellipsis" ? (
+                      <span key={`ellipsis-${index}`} className="pagination-ellipsis" aria-hidden="true">
+                        ...
+                      </span>
+                    ) : (
+                      <PrefetchLink
+                        key={item}
+                        href={buildPendingPageHref({ search, genre: activeGenre, page: item })}
+                        className={`pagination-page ${item === safePage ? "pagination-page-active" : ""}`}
+                        aria-current={item === safePage ? "page" : undefined}
+                      >
+                        {item}
+                      </PrefetchLink>
+                    )
+                  )}
+                </div>
+                <PrefetchLink
+                  href={buildPendingPageHref({ search, genre: activeGenre, page: Math.min(totalPages, safePage + 1) })}
+                  className={`pagination-side ${safePage === totalPages ? "is-disabled" : ""}`}
+                  aria-disabled={safePage === totalPages}
+                >
+                  Siguiente
+                </PrefetchLink>
+              </nav>
+            ) : null}
+          </>
+        )}
+        </div>
+      </section>
     </section>
   );
 }
