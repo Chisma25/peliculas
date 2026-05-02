@@ -2707,7 +2707,7 @@ async function getPendingPageDataFromDatabase(input: { search?: string; genre?: 
     const [users, movies, normalizedCollections] = await Promise.all([
       loadUsersForRead(),
       loadMovieCatalogForRead(),
-      loadNormalizedCollectionsCached(group.id)
+      loadNormalizedCollections(group.id)
     ]);
     const state = ensureStateIntegrity({
       users,
@@ -2719,6 +2719,7 @@ async function getPendingPageDataFromDatabase(input: { search?: string; genre?: 
       weeklyBatches: normalizedCollections.weeklyBatches,
       activity: []
     });
+    pendingListMemoryCache.clear();
     const { batch, genres, totalPendingCount, filteredPendingIds, weeklyOptions } = getPendingListBaseFromState(
       state,
       search,
@@ -3150,6 +3151,8 @@ export async function getPendingWeeklySuggestionsHydrated() {
 }
 
 export async function getPendingPageDataHydrated(input: { search?: string; genre?: string; page?: number; pageSize?: number }) {
+  pendingListMemoryCache.clear();
+
   if (shouldUseDatabase()) {
     const databasePendingData = await getPendingPageDataFromDatabase(input);
     if (databasePendingData) {
