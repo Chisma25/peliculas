@@ -3747,9 +3747,6 @@ export async function addPendingMovie(movieInput: Movie) {
 export async function removePendingMovie(movieId: string) {
   const state = await loadAppStateUncached();
   const movie = getMovieById(state, movieId);
-  if (!movie) {
-    throw new Error("No se encontró la película.");
-  }
 
   if (!state.pendingMovieIds.includes(movieId)) {
     return {
@@ -3760,12 +3757,14 @@ export async function removePendingMovie(movieId: string) {
   }
 
   state.pendingMovieIds = state.pendingMovieIds.filter((pendingMovieId) => pendingMovieId !== movieId);
-  addActivity(state, {
-    type: "queued",
-    label: `${movie.title} se quitó de pendientes`,
-    movieId: movie.id,
-    date: new Date().toISOString()
-  });
+  if (movie) {
+    addActivity(state, {
+      type: "queued",
+      label: `${movie.title} se quitó de pendientes`,
+      movieId: movie.id,
+      date: new Date().toISOString()
+    });
+  }
   invalidateDerivedCaches(state);
   await persistStateChange(state, [
     {
