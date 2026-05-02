@@ -2706,9 +2706,12 @@ async function getPendingPageDataFromDatabase(input: { search?: string; genre?: 
     const itemsPerPage = input.pageSize && input.pageSize > 0 ? input.pageSize : 15;
     const [users, movies, normalizedCollections] = await Promise.all([
       loadUsersForRead(),
-      loadMovieCatalogForRead(),
+      loadMovieCatalogFromDatabaseUncached(),
       loadNormalizedCollections(group.id)
     ]);
+    if (!movies) {
+      return null;
+    }
     const state = ensureStateIntegrity({
       users,
       group,
