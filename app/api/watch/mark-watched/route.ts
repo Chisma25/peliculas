@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 
 import { ensureSameOrigin, sanitizeInternalRedirect } from "@/lib/request-security";
 import { getSessionUser, markMovieAsWatched } from "@/lib/store";
@@ -24,6 +25,9 @@ export async function POST(request: Request) {
 
   try {
     await markMovieAsWatched(movieId);
+    revalidatePath("/");
+    revalidatePath("/vistas");
+    revalidatePath("/pendientes");
     return NextResponse.redirect(new URL(redirectTo, request.url), 303);
   } catch (error) {
     return NextResponse.json(

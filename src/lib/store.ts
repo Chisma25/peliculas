@@ -3613,7 +3613,14 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
 
 export async function markMovieAsWatched(movieId: string, watchedOn = new Date().toISOString()) {
   const state = await loadAppStateUncached();
-  const movie = getMovieById(state, movieId);
+  let movie = getMovieById(state, movieId);
+  if (!movie && shouldUseDatabase()) {
+    movie = (await loadMoviesByIdsFromDatabase([movieId])).get(movieId) ?? null;
+    if (movie) {
+      state.movies.push(movie);
+      invalidateDerivedCaches(state);
+    }
+  }
   if (!movie) {
     throw new Error("No se encontró la película.");
   }
