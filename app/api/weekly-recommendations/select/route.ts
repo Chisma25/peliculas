@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 
 import { ensureSameOrigin } from "@/lib/request-security";
 import { getSessionUser, selectWeeklyMovie } from "@/lib/store";
@@ -22,6 +23,8 @@ export async function POST(request: Request) {
 
   try {
     await selectWeeklyMovie(batchId, movieId);
+    revalidatePath("/");
+    revalidatePath("/pendientes");
     return NextResponse.redirect(new URL("/", request.url), 303);
   } catch (error) {
     return NextResponse.json(

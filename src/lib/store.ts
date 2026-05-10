@@ -1882,7 +1882,7 @@ async function persistStateChange(
   }
 }
 
-async function persistPendingStateChangeStrict(state: AppState, operations: DatabaseWriteOperation[]) {
+async function persistStateChangeStrict(state: AppState, operations: DatabaseWriteOperation[]) {
   rememberLiveState(state);
   saveLocalStateToDisk(state);
   invalidatePersistentStateCache();
@@ -1903,7 +1903,7 @@ async function persistPendingStateChangeStrict(state: AppState, operations: Data
     markDatabaseWriteHealthy();
   } catch (error) {
     enqueueDeferredWrites(operations.map((operation) => operation.deferred));
-    markDatabaseWriteFailure("pending movie mutation", error);
+    markDatabaseWriteFailure("strict state mutation", error);
     throw error;
   }
 }
@@ -2194,11 +2194,6 @@ async function buildUpcomingDashboardReleases(state: AppState) {
 }
 
 async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | null> {
-  const cached = readTimedCache(dashboardDataMemoryCache);
-  if (cached) {
-    return cached;
-  }
-
   if (!shouldAttemptDatabaseRead()) {
     return null;
   }
@@ -2257,7 +2252,6 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | 
     } satisfies DashboardOverviewData;
 
     markDatabaseReadHealthy();
-    dashboardDataMemoryCache = writeTimedCacheWithTtl(dashboardData, PAGE_ROUTE_CACHE_TTL_MS);
     return cloneState(dashboardData);
   } catch (error) {
     markDatabaseReadFailure("dashboard aggregate", error);
@@ -3074,11 +3068,6 @@ export async function getDashboardData() {
 }
 
 export async function getDashboardOverviewHydrated() {
-  const cached = readTimedCache(dashboardDataMemoryCache);
-  if (cached) {
-    return cached;
-  }
-
   if (shouldUseDatabase()) {
     const databaseDashboard = await loadDashboardDataFromDatabase();
     if (databaseDashboard) {
@@ -3088,7 +3077,6 @@ export async function getDashboardOverviewHydrated() {
 
   const state = await loadAppState();
   const dashboardData = buildDashboardDataFromState(state);
-  dashboardDataMemoryCache = writeTimedCacheWithTtl(dashboardData, PAGE_ROUTE_CACHE_TTL_MS);
   return dashboardData;
 }
 
@@ -3587,7 +3575,14 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
   }
 
   batch.selectedMovieId = movieId;
-  const movie = getMovieById(state, movieId);
+  let movie = getMovieById(state, movieId);
+  if (!movie && shouldUseDatabase()) {
+    movie = (await loadMoviesByIdsFromDatabase([movieId])).get(movieId) ?? null;
+    if (movie) {
+      state.movies.push(movie);
+      invalidateDerivedCaches(state);
+    }
+  }
   if (movie) {
     addActivity(state, {
       type: "recommended",
@@ -3598,7 +3593,7 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
   }
 
   invalidateDerivedCaches(state);
-  await persistStateChange(state, [
+  await persistStateChangeStrict(state, [
     {
       run: () => updateWeeklyBatchSelectionInDatabase(batch.id, batch.selectedMovieId),
       deferred: {
@@ -3630,7 +3625,7 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
     if (!existingEntry.watchedOn) {
       existingEntry.watchedOn = watchedOn;
       invalidateDerivedCaches(state);
-      await persistStateChange(state, [
+      await persistStateChangeStrict(state, [
         {
           run: () => upsertWatchEntryToDatabase(existingEntry),
           deferred: {
@@ -3662,7 +3657,7 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
   });
 
   invalidateDerivedCaches(state);
-  await persistStateChange(state, [
+  await persistStateChangeStrict(state, [
     {
       run: () => upsertWatchEntryToDatabase(watchEntry),
       deferred: {
@@ -3732,7 +3727,7 @@ export async function addPendingMovie(movieInput: Movie) {
   });
 
   invalidateDerivedCaches(state);
-  await persistPendingStateChangeStrict(state, [
+  await persistStateChangeStrict(state, [
     {
       run: () => upsertMovieToDatabase(movie),
       deferred: {
