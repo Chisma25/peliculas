@@ -55,13 +55,14 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
                 }
               >
                 <label>
-                  Nota (0-10)
+                  Nota (0-10, en incrementos de 0,25)
                   <input
                     type="number"
                     name="score"
-                    step="0.01"
+                    step="0.25"
                     min="0"
                     max="10"
+                    inputMode="decimal"
                     defaultValue={initialScore?.toString() ?? ""}
                     required
                   />

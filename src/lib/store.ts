@@ -22,7 +22,7 @@ import {
   WeeklyRecommendationBatch,
   WeeklyRecommendationItem
 } from "@/lib/types";
-import { average, safeId, slugify } from "@/lib/utils";
+import { average, formatScore, isQuarterPointScore, safeId, slugify } from "@/lib/utils";
 const DATA_DIR = join(process.cwd(), "data");
 const STATE_FILE = join(DATA_DIR, "runtime-state.json");
 const WRITE_QUEUE_FILE = join(DATA_DIR, "runtime-write-queue.json");
@@ -3497,6 +3497,10 @@ export async function resetUserCredentials(input: {
 }
 
 export async function upsertRating(input: { movieId: string; userId: string; score: number; comment?: string }) {
+  if (!isQuarterPointScore(input.score)) {
+    throw new Error("La nota debe estar entre 0 y 10 y avanzar en incrementos de 0,25.");
+  }
+
   const state = await loadAppStateUncached();
   const comment = sanitizeComment(input.comment);
   const ratingKey = `${input.userId}:${input.movieId}`;
@@ -3520,7 +3524,7 @@ export async function upsertRating(input: { movieId: string; userId: string; sco
   if (user && movie) {
     addActivity(state, {
       type: "rated",
-      label: `${user.name} puntuó ${movie.title} con un ${input.score.toFixed(1)}`,
+      label: `${user.name} puntuó ${movie.title} con un ${formatScore(input.score)}`,
       movieId: movie.id,
       userId: user.id,
       date: new Date().toISOString()

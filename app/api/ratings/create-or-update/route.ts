@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { ensureSameOrigin } from "@/lib/request-security";
 import { getSessionUser, upsertRating } from "@/lib/store";
+import { isQuarterPointScore } from "@/lib/utils";
 
 export async function POST(request: Request) {
   const originError = ensureSameOrigin(request);
@@ -19,8 +20,14 @@ export async function POST(request: Request) {
   const score = Number.parseFloat(String(formData.get("score") ?? ""));
   const comment = String(formData.get("comment") ?? "");
 
-  if (!movieId || !Number.isFinite(score) || score < 0 || score > 10) {
-    return NextResponse.json({ error: "Datos de valoraci\u00f3n inv\u00e1lidos." }, { status: 400 });
+  if (
+    !movieId ||
+    !isQuarterPointScore(score)
+  ) {
+    return NextResponse.json(
+      { error: "La nota debe estar entre 0 y 10 y avanzar en incrementos de 0,25." },
+      { status: 400 }
+    );
   }
 
   await upsertRating({

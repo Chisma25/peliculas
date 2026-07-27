@@ -17,6 +17,15 @@ export function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+export function isQuarterPointScore(value: number) {
+  return (
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 10 &&
+    Math.abs(value * 4 - Math.round(value * 4)) < Number.EPSILON * 16
+  );
+}
+
 export function formatScore(
   value: number,
   options: Intl.NumberFormatOptions = {
