@@ -162,3 +162,38 @@ export function sanitizeInternalRedirect(redirectTo: string | null | undefined, 
 
   return redirectTo;
 }
+
+export async function readJsonBody<T>(request: Request, options: { maxBytes?: number } = {}) {
+  const maxBytes = options.maxBytes ?? 256_000;
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.includes("application/json")) {
+    return {
+      response: NextResponse.json({ error: "El contenido debe enviarse como JSON." }, { status: 415 })
+    } as const;
+  }
+
+  let rawBody: string;
+  try {
+    rawBody = await request.text();
+  } catch {
+    return {
+      response: NextResponse.json({ error: "No se pudo leer la petición." }, { status: 400 })
+    } as const;
+  }
+
+  if (Buffer.byteLength(rawBody, "utf8") > maxBytes) {
+    return {
+      response: NextResponse.json({ error: "La petición es demasiado grande." }, { status: 413 })
+    } as const;
+  }
+
+  try {
+    return {
+      data: JSON.parse(rawBody) as T
+    } as const;
+  } catch {
+    return {
+      response: NextResponse.json({ error: "El JSON enviado no es válido." }, { status: 400 })
+    } as const;
+  }
+}

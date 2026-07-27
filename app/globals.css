@@ -4691,6 +4691,105 @@ code {
   }
 }
 
+/* Navigation and authenticated-shell refinements */
+.site-header-public {
+  grid-template-columns: 1fr;
+}
+
+.site-header-public .brand-lockup {
+  justify-self: center;
+}
+
+.dashboard-bottom-grid .upcoming-panel .panel-header {
+  padding-right: min(290px, 28vw);
+}
+
+@media (max-width: 960px) {
+  .dashboard-bottom-grid .upcoming-panel .panel-header {
+    padding-right: 0;
+  }
+
+  .dashboard-history-drawer:not([open]) {
+    position: static;
+    justify-self: end;
+    margin-top: -0.35rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .site-header:not(.site-header-public) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 4.65rem;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .site-header:not(.site-header-public) .brand-lockup {
+    justify-self: start;
+    padding: 0.2rem;
+  }
+
+  .site-header:not(.site-header-public) .brand-mark {
+    width: 2.45rem;
+    height: 2.45rem;
+  }
+
+  .site-header:not(.site-header-public) .brand-copy p {
+    font-size: 1.08rem;
+  }
+
+  .site-header:not(.site-header-public) .user-chip {
+    width: 3.1rem;
+    height: 3.1rem;
+  }
+
+  .site-header:not(.site-header-public) .nav-links {
+    position: fixed;
+    right: 0.7rem;
+    bottom: calc(0.65rem + env(safe-area-inset-bottom));
+    left: 0.7rem;
+    z-index: 75;
+    grid-column: auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: auto;
+    padding: 0.34rem;
+    overflow: hidden;
+    border-color: rgba(255, 255, 255, 0.13);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+      rgba(10, 15, 24, 0.94);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      0 18px 42px rgba(2, 6, 14, 0.46);
+    backdrop-filter: blur(22px);
+  }
+
+  .site-header:not(.site-header-public) .nav-link-pill {
+    min-height: 2.7rem;
+    padding: 0.55rem 0.28rem;
+    font-size: 0.78rem;
+  }
+
+  .site-header:not(.site-header-public) + .page-shell {
+    padding-top: 5.6rem;
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+  }
+
+  .site-header-public {
+    min-height: 4.65rem;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .site-header-public + .page-shell {
+    padding-top: 5.6rem;
+  }
+
+  .dashboard-history-drawer:not([open]) {
+    justify-self: stretch;
+    width: 100%;
+  }
+}
+
 .seen-page {
   gap: 0.95rem;
 }

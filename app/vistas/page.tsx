@@ -1,7 +1,7 @@
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { PrefetchLink } from "@/components/prefetch-link";
 import { getSessionUser, getViewedPageDataHydrated } from "@/lib/store";
-import { buildPaginationItems, formatScore, formatShortDate } from "@/lib/utils";
+import { buildPaginationItems, formatCount, formatScore, formatShortDate } from "@/lib/utils";
 
 const PAGE_SIZE = 15;
 
@@ -10,7 +10,7 @@ type SeenPageProps = {
 };
 
 const SORT_OPTIONS = [
-  { value: "watched-desc", label: "Ultima registrada primero" },
+  { value: "watched-desc", label: "Última registrada primero" },
   { value: "group-desc", label: "Grupo: mayor a menor" },
   { value: "group-asc", label: "Grupo: menor a mayor" },
   { value: "mine-desc", label: "Mi nota: mayor a menor" },
@@ -88,22 +88,22 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
         <form action="/vistas" method="get" className="seen-toolbar">
           <div className="seen-filter-grid">
             <label className="seen-field seen-field-wide">
-              Buscar por titulo
+              Buscar por título
               <input type="search" name="search" defaultValue={search} placeholder="Pulp Fiction, Soul, Interstellar..." />
             </label>
             <label className="seen-field">
-              Ano
+              Año
               <input type="text" name="year" defaultValue={year} placeholder="2022" inputMode="numeric" />
             </label>
             <label className="seen-field">
-              Genero
+              Género
               <FilterDropdown
                 name="genre"
                 value={genre}
-                placeholder="Todos los generos"
-                ariaLabel="Filtrar vistas por genero"
+                placeholder="Todos los géneros"
+                ariaLabel="Filtrar vistas por género"
                 options={[
-                  { value: "", label: "Todos los generos" },
+                  { value: "", label: "Todos los géneros" },
                   ...genres.map((item) => ({ value: item, label: item }))
                 ]}
               />
@@ -114,7 +114,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                 name="sort"
                 value={activeSort}
                 placeholder="Ordenar"
-                ariaLabel="Ordenar peliculas vistas"
+                ariaLabel="Ordenar películas vistas"
                 options={SORT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
               />
             </label>
@@ -134,12 +134,16 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
           <div className="seen-results-strip">
             <p className="status-text">
               {filteredHistoryCount === totalHistoryCount
-                ? `${totalHistoryCount} peliculas vistas en total.`
-                : `${filteredHistoryCount} resultados de ${totalHistoryCount} peliculas vistas.`}
+                ? `${formatCount(totalHistoryCount, "película vista", "películas vistas")} en total.`
+                : `${filteredHistoryCount} resultados de ${formatCount(
+                    totalHistoryCount,
+                    "película vista",
+                    "películas vistas"
+                  )}.`}
             </p>
             {filteredHistoryCount > PAGE_SIZE ? (
               <p className="muted-copy">
-                Pagina {safePage} de {totalPages}
+                Página {safePage} de {totalPages}
               </p>
             ) : null}
           </div>
@@ -147,8 +151,8 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
           {filteredHistoryCount === 0 ? (
             <div className="seen-empty-state">
               <p className="eyebrow">Sin resultados</p>
-              <h2>No hay peliculas vistas que encajen con esos filtros.</h2>
-              <p className="body-copy">Prueba a quitar el ano, el genero o parte del titulo para volver al archivo completo.</p>
+              <h2>No hay películas vistas que encajen con esos filtros.</h2>
+              <p className="body-copy">Prueba a quitar el año, el género o parte del título para volver al archivo completo.</p>
               <div className="inline-actions">
                 <PrefetchLink href="/vistas" className="ghost-button">
                   Ver todas
@@ -182,7 +186,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                         <div className="seen-card-copy">
                           <div>
                             <strong className="seen-card-title">{item.movie.title}</strong>
-                            <p className="seen-card-subline">{item.movie.year > 0 ? item.movie.year : "Ano pendiente"}</p>
+                            <p className="seen-card-subline">{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</p>
                           </div>
 
                           <div className="seen-card-score-grid">
@@ -203,7 +207,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
               </div>
 
               {totalPages > 1 ? (
-                <nav className="pagination-bar seen-pagination" aria-label="Paginacion de vistas">
+                <nav className="pagination-bar seen-pagination" aria-label="Paginación de vistas">
                   <PrefetchLink
                     href={buildSeenQuery({ search, year, genre, sort: activeSort, page: Math.max(1, safePage - 1) })}
                     className={`pagination-side ${safePage === 1 ? "is-disabled" : ""}`}

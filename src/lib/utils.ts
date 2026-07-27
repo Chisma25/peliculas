@@ -40,6 +40,10 @@ export function formatScore(
   return new Intl.NumberFormat("es-ES", options).format(value);
 }
 
+export function formatCount(value: number, singular: string, plural = `${singular}s`) {
+  return `${value} ${value === 1 ? singular : plural}`;
+}
+
 export function formatFitScore(value: number) {
   if (!Number.isFinite(value)) {
     return "-";

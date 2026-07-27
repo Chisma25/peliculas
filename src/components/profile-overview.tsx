@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { MoviePoster } from "@/components/movie-poster";
 import { Movie, User, UserRating } from "@/lib/types";
-import { formatScore } from "@/lib/utils";
+import { formatCount, formatScore } from "@/lib/utils";
 
 type HydratedProfile = {
   user: User;
@@ -33,7 +33,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
   const title = isSelf ? "Tu perfil" : profile.user.name;
   const subtitle = isSelf
     ? "Lectura personal de tus notas, tus extremos y tu forma de valorar dentro del grupo."
-    : `Lectura de como puntua ${profile.user.name} dentro del grupo.`;
+    : `Lectura de cómo puntúa ${profile.user.name} dentro del grupo.`;
 
   return (
     <div className="profile-overview">
@@ -48,7 +48,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
           <article>
             <span>Media</span>
             <strong>{profile.ratingsCount > 0 ? formatScore(profile.averageScore) : "-"}</strong>
-            <small>{profile.ratingsCount} notas</small>
+            <small>{formatCount(profile.ratingsCount, "nota")}</small>
           </article>
           <article>
             <span>Techo</span>
@@ -63,27 +63,27 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
         </div>
       </section>
 
-      <section className="profile-picks-panel" aria-label="Peliculas destacadas del perfil">
+      <section className="profile-picks-panel" aria-label="Películas destacadas del perfil">
         <ProfilePickColumn
           eyebrow={isSelf ? "Tu top 3" : "Top 3"}
           title={isSelf ? "Mejor valoradas" : "Mejor valoradas"}
           items={profile.topThree}
-          emptyText={isSelf ? "Todavia no has valorado peliculas." : "Todavia no ha valorado peliculas."}
+          emptyText={isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}
         />
         <ProfilePickColumn
           eyebrow={isSelf ? "Tu bottom 3" : "Bottom 3"}
           title={isSelf ? "Peor valoradas" : "Peor valoradas"}
           items={profile.bottomThree}
-          emptyText={isSelf ? "Todavia no has valorado peliculas." : "Todavia no ha valorado peliculas."}
+          emptyText={isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}
           muted
         />
       </section>
 
-      <section className="profile-distribution-panel" aria-label="Distribucion de notas">
+      <section className="profile-distribution-panel" aria-label="Distribución de notas">
         <div className="profile-section-heading">
           <div>
-            <p className="eyebrow">Distribucion de notas</p>
-            <h2>Como puntuas</h2>
+            <p className="eyebrow">Distribución de notas</p>
+            <h2>Cómo puntúas</h2>
           </div>
           <p>
             {isSelf
@@ -118,7 +118,11 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
 
             <div className="rating-distribution-columns">
               {profile.distribution.map((item) => (
-                <div key={item.label} className="rating-distribution-column" title={`${item.label}: ${item.count} notas`}>
+                <div
+                  key={item.label}
+                  className="rating-distribution-column"
+                  title={`${item.label}: ${formatCount(item.count, "nota")}`}
+                >
                   <div className="rating-distribution-count">{item.count > 0 ? item.count : ""}</div>
                   <div className="rating-distribution-track">
                     <div

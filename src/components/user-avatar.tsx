@@ -23,7 +23,11 @@ export function UserAvatar({ user, size = "md", className = "" }: UserAvatarProp
   const classes = ["user-avatar", `user-avatar-${size}`, className].filter(Boolean).join(" ");
 
   if (user.avatarUrl) {
-    return <img src={user.avatarUrl} alt={`Avatar de ${user.name}`} className={classes} />;
+    return (
+      // The authenticated avatar endpoint is intentionally loaded by the browser rather than Next's server-side image optimizer.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={user.avatarUrl} alt={`Avatar de ${user.name}`} className={classes} width={86} height={86} loading="lazy" />
+    );
   }
 
   return <span className={classes}>{getInitials(user.name)}</span>;

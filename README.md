@@ -22,50 +22,96 @@ App web privada para reemplazar un Excel compartido de peliculas vistas, notas i
 - PostgreSQL via Prisma
 - TMDb como fuente externa para busquedas, posters y enriquecimiento de metadatos
 - Vitest para pruebas de reglas
+- Playwright para pruebas E2E en escritorio y móvil
 
 ## Desarrollo local
 
 1. Instala Node.js 20 o superior.
 2. Copia `.env.example` a `.env.local`.
 3. Rellena `TMDB_API_KEY`.
-4. Instala dependencias con `npm install`.
+4. Instala dependencias con `npm ci`.
 5. Arranca con `npm run dev`.
 
-Si no rellenas `DATABASE_URL`, la app funciona en local con `data/runtime-state.json`.
+Por defecto, `DATABASE_URL` queda vacío y la app funciona con `data/runtime-state.json`. Puedes definir
+`APP_DATA_DIR` para guardar el estado local en otro directorio, algo especialmente útil para pruebas aisladas.
+El desarrollo bloquea cualquier base remota. Si necesitas una base remota exclusiva de desarrollo, debes indicar
+simultáneamente `DATABASE_ENVIRONMENT=development` y `ALLOW_REMOTE_DATABASE_IN_DEVELOPMENT=true`.
+
+Las mutaciones se confirman de forma atómica: con PostgreSQL, las escrituras relacionadas y el snapshot se
+ejecutan en una única transacción; sin base de datos, el archivo local se reemplaza atómicamente. La caché solo
+se publica después de que la persistencia durable haya terminado correctamente.
+
+## Pruebas
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+Los E2E se pueden ejecutar contra una Preview ya desplegada sin guardar credenciales en el repositorio:
+
+```powershell
+$env:E2E_BASE_URL="https://tu-preview.vercel.app"
+$env:E2E_USERNAME="usuario_de_pruebas"
+$env:E2E_PASSWORD="contrasena_de_pruebas"
+$env:VERCEL_AUTOMATION_BYPASS_SECRET="bypass_de_automatizacion"
+npm run test:e2e
+```
+
+La suite comprueba login público, sesión autenticada, peso del HTML de Grupo, ausencia de avatares base64,
+deduplicación de TMDb y navegación móvil. Si no se define `E2E_BASE_URL`, Playwright intenta arrancar la app
+localmente en `127.0.0.1:3000`.
 
 ## Accesos del grupo
 
 - Las cuentas del grupo ya no dependen de credenciales semilla dentro del código.
 - Si una cuenta pierde acceso, usa el reset de emergencia o la gestión de acceso desde una cuenta administradora.
 
-## Preparar despliegue en Vercel + Supabase
+## Preparar despliegue en Vercel + PostgreSQL
 
-1. Crea un proyecto de Postgres en Supabase.
-2. En Supabase abre `Connect` y copia:
-   - `DATABASE_URL`: la cadena pooler para runtime con `?pgbouncer=true`
-   - `DIRECT_URL`: la conexion directa para Prisma CLI
-3. Ejecuta:
+Usa bases físicamente independientes para Preview y Producción. No basta con cambiar `APP_SNAPSHOT_ID`: las
+tablas normalizadas también contienen datos compartidos.
+
+1. Crea una base PostgreSQL exclusiva para Preview y otra exclusiva para Producción.
+2. Obtén para cada una:
+   - `DATABASE_URL`: conexión pooler de runtime.
+   - `DIRECT_URL`: conexión directa para Prisma CLI.
+3. Anota únicamente el hostname de `DATABASE_URL` de Producción, sin usuario, contraseña ni puerto. Ese valor
+   será `PRODUCTION_DATABASE_HOST` en ambos entornos desplegados.
+4. En Vercel configura las variables por ámbito, nunca para todos los entornos a la vez:
+
+| Variable | Preview | Production |
+| --- | --- | --- |
+| `APP_ENV` | `preview` | `production` |
+| `DATABASE_ENVIRONMENT` | `preview` | `production` |
+| `DATABASE_URL` | URL de Preview | URL de Producción |
+| `DIRECT_URL` | URL directa de Preview | URL directa de Producción |
+| `PRODUCTION_DATABASE_HOST` | Host de Producción | Host de Producción |
+| `APP_SNAPSHOT_ID` | `main` | `main` |
+| `SESSION_SECRET` | secreto exclusivo de Preview | secreto exclusivo de Producción |
+| `ADMIN_RESET_CODE` | código exclusivo de Preview | código exclusivo de Producción |
+| `TMDB_API_KEY` | clave correspondiente | clave correspondiente |
+
+La aplicación se niega a usar una base `production` desde Preview, exige que Producción coincida con el host
+declarado y rechaza configuraciones contradictorias entre `APP_ENV` y `VERCEL_ENV`.
+
+5. Aplica el esquema y el seed primero en Preview. El seed exige una confirmación explícita:
 
 ```bash
-npm install
-npm run db:push
+CONFIRM_DATABASE_SEED=preview npm run db:seed
+```
+
+En PowerShell:
+
+```powershell
+$env:CONFIRM_DATABASE_SEED="preview"
 npm run db:seed
 ```
 
-4. Sube el repo a GitHub.
-5. Importa el proyecto en Vercel.
-6. En Vercel configura estas variables:
-
-```env
-DATABASE_URL=...
-DIRECT_URL=...
-APP_SNAPSHOT_ID=main
-TMDB_API_KEY=...
-ADMIN_RESET_CODE=...
-SESSION_SECRET=...
-```
-
-7. Despliega.
+6. Valida Preview y solo entonces repite migración/seed para Producción, usando
+   `CONFIRM_DATABASE_SEED=production`.
+7. Sube el repo a GitHub y despliega.
 
 `npm run db:seed` vuelca vuestro estado actual de `data/runtime-state.json` a `AppSnapshot` y a las tablas normalizadas de usuarios, películas, notas, vistas, pendientes y recomendaciones, para que producción pueda navegar con lecturas pequeñas sin depender del snapshot completo en cada request.
 
@@ -76,7 +122,9 @@ npx prisma db push
 npm run db:seed
 ```
 
-Para Supabase + Prisma, la recomendacion oficial es usar runtime con pooler y CLI con conexion directa. Prisma documenta esta separacion con `DATABASE_URL` y `DIRECT_URL`, y Supabase documenta sus variantes `direct`, `session` y `transaction` desde el panel `Connect`.
+Con Prisma, usa `DATABASE_URL` para runtime con pooler y `DIRECT_URL` para operaciones de esquema mediante
+conexión directa. Las plantillas completas están en `.env.example`, `.env.preview.example` y
+`.env.production.example`.
 
 ## Notas de implementacion
 

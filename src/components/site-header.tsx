@@ -11,40 +11,41 @@ type SiteHeaderProps = {
 
 export function SiteHeader({ user }: SiteHeaderProps) {
   return (
-    <header className="site-header">
+    <header className={`site-header ${user ? "" : "site-header-public"}`}>
       <PrefetchLink href="/" className="brand-lockup" aria-label="Ir al dashboard de Cine Semanal">
         <span className="brand-mark" aria-hidden="true">
-          <img src="/brand/cine-semanal-mark.svg" alt="" className="brand-mark-image" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/cine-semanal-mark.svg" alt="" className="brand-mark-image" width={50} height={50} />
         </span>
         <div className="brand-copy">
           <p>Cine Semanal</p>
         </div>
       </PrefetchLink>
 
-      <PrimaryNav />
+      {user ? (
+        <>
+          <PrimaryNav />
 
-      <details className="user-chip user-menu">
-        <summary className="user-menu-summary" aria-label="Abrir menú de usuario">
-          <UserAvatar
-            user={{ name: user?.name ?? "Invitado", avatarUrl: user?.avatarUrl }}
-            size="sm"
-            className="user-chip-avatar"
-          />
-          <span className="user-menu-status" aria-hidden="true" />
-        </summary>
-        <div className="user-chip-actions">
-          <div className="user-menu-card-copy">
-            <strong>{user?.name ?? "Invitado"}</strong>
-            {user?.isAdmin ? <span className="user-chip-role">Administrador</span> : null}
-          </div>
-          <PrefetchLink href="/perfil">Perfil</PrefetchLink>
-          <form action="/api/auth/logout" method="post">
-            <button type="submit" className="text-button">
-              Salir
-            </button>
-          </form>
-        </div>
-      </details>
+          <details className="user-chip user-menu">
+            <summary className="user-menu-summary" aria-label="Abrir menú de usuario">
+              <UserAvatar user={{ name: user.name, avatarUrl: user.avatarUrl }} size="sm" className="user-chip-avatar" />
+              <span className="user-menu-status" aria-hidden="true" />
+            </summary>
+            <div className="user-chip-actions">
+              <div className="user-menu-card-copy">
+                <strong>{user.name}</strong>
+                {user.isAdmin ? <span className="user-chip-role">Administrador</span> : null}
+              </div>
+              <PrefetchLink href="/perfil">Perfil</PrefetchLink>
+              <form action="/api/auth/logout" method="post">
+                <button type="submit" className="text-button">
+                  Salir
+                </button>
+              </form>
+            </div>
+          </details>
+        </>
+      ) : null}
     </header>
   );
 }

@@ -28,7 +28,7 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
 
       const payload = (await response.json()) as { error?: string; redirectTo?: string };
       if (!response.ok) {
-        setMessage(payload.error ?? "No se pudo iniciar sesion.");
+        setMessage(payload.error ?? "No se pudo iniciar sesión.");
         return;
       }
 
@@ -54,7 +54,7 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
           <span className="login-form-led" aria-hidden="true" />
           <div>
             <p className="eyebrow">Acceso del grupo</p>
-            <h1 id="login-title">Iniciar sesion</h1>
+            <h1 id="login-title">Iniciar sesión</h1>
           </div>
         </div>
 
@@ -68,7 +68,7 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
           <label>
             <span>Contraseña</span>
             <input type="password" name="password" required autoComplete="current-password" />
-            <small>Minimo 8 caracteres si la cambias desde perfil.</small>
+            <small>Mínimo 8 caracteres si la cambias desde el perfil.</small>
           </label>
           <button type="submit" className="primary-button" disabled={isPending}>
             {isPending ? "Entrando..." : "Entrar"}

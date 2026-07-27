@@ -4,10 +4,31 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
-const STATE_FILE = join(process.cwd(), "data", "runtime-state.json");
+const DATA_DIR = process.env.APP_DATA_DIR?.trim() || join(process.cwd(), "data");
+const STATE_FILE = join(DATA_DIR, "runtime-state.json");
+const APP_ENV = process.env.APP_ENV?.trim().toLowerCase();
+const DATABASE_ENVIRONMENT = process.env.DATABASE_ENVIRONMENT?.trim().toLowerCase();
+const CONFIRMED_ENVIRONMENT = process.env.CONFIRM_DATABASE_SEED?.trim().toLowerCase();
 
 if (!process.env.DATABASE_URL) {
   console.error("Falta DATABASE_URL. Configura la conexion antes de lanzar el bootstrap.");
+  process.exit(1);
+}
+
+if (!["development", "preview", "production"].includes(DATABASE_ENVIRONMENT)) {
+  console.error("DATABASE_ENVIRONMENT debe ser development, preview o production antes de sembrar la base.");
+  process.exit(1);
+}
+
+if (APP_ENV && APP_ENV !== DATABASE_ENVIRONMENT) {
+  console.error(`APP_ENV=${APP_ENV} no coincide con DATABASE_ENVIRONMENT=${DATABASE_ENVIRONMENT}.`);
+  process.exit(1);
+}
+
+if (CONFIRMED_ENVIRONMENT !== DATABASE_ENVIRONMENT) {
+  console.error(
+    `Seed bloqueado. Define CONFIRM_DATABASE_SEED=${DATABASE_ENVIRONMENT} para confirmar explícitamente el destino.`
+  );
   process.exit(1);
 }
 

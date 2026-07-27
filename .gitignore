@@ -7,7 +7,6 @@ coverage
 .env.local
 .env.*.local
 *.log
-package-lock.json
 pnpm-lock.yaml
 yarn.lock
 prisma/dev.db
@@ -19,3 +18,5 @@ tmp_notas_peliculas.zip
 NOTAS PELICULAS - listo para importar.csv
 
 .vercel
+playwright-report/
+test-results/

@@ -1,6 +1,6 @@
 import { GroupMemberCard } from "@/components/group-member-card";
 import { getGroupPageData, getSessionUser } from "@/lib/store";
-import { formatScore, slugify } from "@/lib/utils";
+import { formatCount, formatScore, slugify } from "@/lib/utils";
 
 export default async function GroupPage() {
   const [groupData, sessionUser] = await Promise.all([getGroupPageData(), getSessionUser()]);
@@ -27,20 +27,20 @@ export default async function GroupPage() {
   return (
     <section className="group-page-stack group-redesign" aria-labelledby="group-title">
       <div className="group-roster-layout">
-        <aside className="group-side-panel" aria-label="Lectura rapida del grupo">
+        <aside className="group-side-panel" aria-label="Lectura rápida del grupo">
           <div>
-            <p className="eyebrow">Lectura rapida</p>
+            <p className="eyebrow">Lectura rápida</p>
             <h1 id="group-title">{groupData.group.name}</h1>
           </div>
 
           <div className="group-side-list">
             <article>
-              <span>Mas activo</span>
+              <span>Más activo</span>
               <strong>{mostActiveMember?.member.name ?? "Sin datos"}</strong>
               <small>
                 {mostActiveMember?.profileSummary.ratingsCount
-                  ? `${mostActiveMember.profileSummary.ratingsCount} notas`
-                  : "Todavia no hay notas"}
+                  ? formatCount(mostActiveMember.profileSummary.ratingsCount, "nota")
+                  : "Todavía no hay notas"}
               </small>
             </article>
             <article>
@@ -48,8 +48,11 @@ export default async function GroupPage() {
               <strong>{highestAverageMember?.member.name ?? "Sin datos"}</strong>
               <small>
                 {highestAverageMember
-                  ? `${formatScore(highestAverageMember.profileSummary.averageScore)} con ${highestAverageMember.profileSummary.ratingsCount} notas`
-                  : "Nadie supera las 10 notas todavia"}
+                  ? `${formatScore(highestAverageMember.profileSummary.averageScore)} con ${formatCount(
+                      highestAverageMember.profileSummary.ratingsCount,
+                      "nota"
+                    )}`
+                  : "Nadie supera las 10 notas todavía"}
               </small>
             </article>
             <article>
@@ -57,15 +60,19 @@ export default async function GroupPage() {
               <strong>{lowestAverageMember?.member.name ?? "Sin datos"}</strong>
               <small>
                 {lowestAverageMember
-                  ? `${formatScore(lowestAverageMember.profileSummary.averageScore)} con ${lowestAverageMember.profileSummary.ratingsCount} notas`
-                  : "Nadie supera las 10 notas todavia"}
+                  ? `${formatScore(lowestAverageMember.profileSummary.averageScore)} con ${formatCount(
+                      lowestAverageMember.profileSummary.ratingsCount,
+                      "nota"
+                    )}`
+                  : "Nadie supera las 10 notas todavía"}
               </small>
             </article>
             <article>
               <span>Grupo</span>
               <strong>{totalRatings ? formatScore(groupAverage) : "-"}</strong>
               <small>
-                {groupData.members.length} miembros - {totalRatings} notas - {adminCount} admin{adminCount === 1 ? "" : "s"}
+                {formatCount(groupData.members.length, "miembro")} · {formatCount(totalRatings, "nota")} ·{" "}
+                {formatCount(adminCount, "administrador", "administradores")}
               </small>
             </article>
           </div>
@@ -76,7 +83,7 @@ export default async function GroupPage() {
             <div>
               <p className="eyebrow">Perfiles</p>
             </div>
-            <span>{groupData.members.length} fichas</span>
+            <span>{formatCount(groupData.members.length, "ficha")}</span>
           </div>
 
           <div className={memberGridClassName}>

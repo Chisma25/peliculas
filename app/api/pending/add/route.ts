@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 
-import { ensureSameOrigin } from "@/lib/request-security";
+import { ensureSameOrigin, readJsonBody } from "@/lib/request-security";
 import { getSessionUser, addPendingMovie } from "@/lib/store";
 import { Movie } from "@/lib/types";
 
@@ -18,9 +18,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
   }
 
-  const movie = (await request.json()) as Movie;
+  const parsedBody = await readJsonBody<Movie>(request);
+  if ("response" in parsedBody) {
+    return parsedBody.response;
+  }
+  const movie = parsedBody.data;
 
-  if (!movie?.title || movie.title.length > 200) {
+  if (
+    !movie ||
+    typeof movie !== "object" ||
+    typeof movie.title !== "string" ||
+    !movie.title.trim() ||
+    movie.title.length > 200 ||
+    (movie.sourceIds?.tmdb !== undefined && typeof movie.sourceIds.tmdb !== "string")
+  ) {
     return NextResponse.json({ error: "Película inválida." }, { status: 400 });
   }
 

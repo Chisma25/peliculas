@@ -1,4 +1,5 @@
 import { Movie } from "@/lib/types";
+import { dedupeMovieSearchResults } from "@/lib/movie-search";
 import { slugify } from "@/lib/utils";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
@@ -211,18 +212,6 @@ type CachedPayload<T> = {
 
 function buildCacheKey(kind: string, rawKey: string) {
   return `${kind}:${encodeURIComponent(rawKey)}`;
-}
-
-function getCacheTtl(kind: string) {
-  if (kind === "movie-details") {
-    return TMDB_DETAILS_CACHE_TTL_MS;
-  }
-
-  if (kind === "movie-upcoming") {
-    return TMDB_UPCOMING_CACHE_TTL_MS;
-  }
-
-  return TMDB_SEARCH_CACHE_TTL_MS;
 }
 
 function getMemoryCache<T>(kind: string, rawKey: string) {
@@ -480,7 +469,7 @@ export async function searchMovies(query: string, fallbackMovies: Movie[]) {
 
   const localMatches = fallbackMovies.filter((movie) => movie.title.toLowerCase().includes(trimmed.toLowerCase()));
   const remoteMatches = (await fetchSearchResults(trimmed)).slice(0, 8);
-  return [...remoteMatches, ...localMatches].slice(0, 10);
+  return dedupeMovieSearchResults(remoteMatches, localMatches);
 }
 
 export async function findMovieCandidates(query: string, year: number | undefined, fallbackMovies: Movie[]) {

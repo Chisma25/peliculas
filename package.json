@@ -6,25 +6,28 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "node scripts/bootstrap-db.mjs"
   },
   "dependencies": {
-    "@prisma/client": "^6.5.0",
-    "next": "^15.1.0",
+    "@prisma/client": "^6.19.3",
+    "next": "^15.5.22",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "xlsx": "^0.18.5"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
-    "prisma": "^6.5.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.22",
+    "prisma": "^6.19.3",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.10"
   }
 }
