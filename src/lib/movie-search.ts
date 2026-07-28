@@ -81,3 +81,12 @@ export function rankMovieSearchResults(query: string, movies: Movie[]) {
     .sort((left, right) => right.relevance - left.relevance || left.index - right.index)
     .map(({ movie }) => movie);
 }
+
+export function findStoredMovieForSearchResult(searchResult: Movie, storedMovies: Movie[]) {
+  const tmdbId = searchResult.sourceIds?.tmdb?.trim();
+  if (tmdbId) {
+    return storedMovies.find((movie) => movie.sourceIds?.tmdb?.trim() === tmdbId);
+  }
+
+  return storedMovies.find((movie) => movie.slug === searchResult.slug && movie.year === searchResult.year);
+}

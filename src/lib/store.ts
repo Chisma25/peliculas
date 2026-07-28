@@ -9,6 +9,7 @@ import { cache } from "react";
 import { seedState } from "@/lib/demo-data";
 import { assertDatabaseEnvironmentSafety } from "@/lib/environment-safety";
 import { loadManualHistorySeed } from "@/lib/manual-history";
+import { findStoredMovieForSearchResult } from "@/lib/movie-search";
 import { fetchUpcomingMovies, resolveMovieMetadata, searchMovies } from "@/lib/movie-provider";
 import {
   hasNormalizedDatabaseState,
@@ -2077,7 +2078,7 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | 
 
     const pendingMovieIds = pendingRows.map((entry) => entry.movieId);
     const watchedMovieIds = watchedRows.map((entry) => entry.movieId);
-    const [selectedWatchRecord, movieAverageRows, watchedCount, pendingCount] = await Promise.all([
+    const [selectedWatchRecord, movieAverageRows, knownMoviesById] = await Promise.all([
       latestBatch?.selectedMovieId
         ? prisma.watchEntryRecord.findUnique({
             where: { movieId: latestBatch.selectedMovieId }
@@ -2090,13 +2091,10 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | 
             _avg: { score: true }
           })
         : Promise.resolve([]),
-      watchedMovieIds.length > 0
-        ? prisma.movieRecord.count({ where: { id: { in: watchedMovieIds } } })
-        : Promise.resolve(0),
-      pendingMovieIds.length > 0
-        ? prisma.movieRecord.count({ where: { id: { in: pendingMovieIds } } })
-        : Promise.resolve(0)
+      loadMoviesByIdsFromDatabase([...watchedMovieIds, ...pendingMovieIds])
     ]);
+    const watchedCount = watchedMovieIds.filter((movieId) => knownMoviesById.has(movieId)).length;
+    const pendingCount = pendingMovieIds.filter((movieId) => knownMoviesById.has(movieId)).length;
 
     const averageScore = average(
       movieAverageRows
@@ -2105,7 +2103,9 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | 
     );
 
     const selectedMovie = latestBatch?.selectedMovieId
-      ? (await loadMoviesByIdsFromDatabase([latestBatch.selectedMovieId])).get(latestBatch.selectedMovieId) ?? null
+      ? knownMoviesById.get(latestBatch.selectedMovieId) ??
+        (await loadMoviesByIdsFromDatabase([latestBatch.selectedMovieId])).get(latestBatch.selectedMovieId) ??
+        null
       : null;
     const dashboardData = {
       selectedMovie,
@@ -3540,9 +3540,7 @@ export async function movieSearch(query: string) {
   const indexes = getStateIndexes(state);
 
   return results.map((movie) => {
-    const storedMovie =
-      (movie.sourceIds?.tmdb ? indexes.moviesByTmdbId.get(movie.sourceIds.tmdb) : undefined) ??
-      indexes.moviesBySlug.get(movie.slug);
+    const storedMovie = findStoredMovieForSearchResult(movie, state.movies);
     const storedMovieId = storedMovie?.id ?? movie.id;
     const collectionStatus = indexes.watchedMovieIdSet.has(storedMovieId)
       ? ("already_watched" as const)
