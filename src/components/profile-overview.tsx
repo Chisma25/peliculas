@@ -229,7 +229,7 @@ function ProfilePosterGrid({
   muted?: boolean;
 }) {
   return (
-    <div className="profile-poster-grid">
+    <div className="profile-poster-grid" data-count={items.length}>
       {items.map((item, index) => (
         <Link key={item.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
           <article className="top-poster-card profile-poster-card">
