@@ -17,6 +17,7 @@ import {
   type NormalizedStateCollections
 } from "@/lib/normalized-state";
 import { generatePendingWeeklyOptions, generateWeeklyRecommendations, rankUpcomingReleasesForGroup } from "@/lib/recommendations";
+import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
 import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
 import { commitStateChangeAtomically } from "@/lib/state-persistence";
 import {
@@ -1016,21 +1017,21 @@ async function loadUsersFromDatabaseUncached(options: { includeAvatarUrls?: bool
 
 async function loadUsersForRead(options: { includeAvatarUrls?: boolean } = {}): Promise<User[]> {
   const includeAvatarUrls = Boolean(options.includeAvatarUrls);
+  const usesDatabase = shouldUseDatabase();
+  const shouldUseMemoryCache = shouldUseProcessLocalMutableCache(usesDatabase);
   const cacheRef = includeAvatarUrls ? snapshotUsersWithAvatarsMemoryCache : snapshotUsersMemoryCache;
-  const cached = readTimedCache(cacheRef);
-  if (cached) {
-    return cached;
-  }
 
-  if (shouldUseDatabase()) {
+  if (usesDatabase) {
     const databaseUsers = await loadUsersFromDatabaseUncached({ includeAvatarUrls });
     if (databaseUsers) {
-      if (includeAvatarUrls) {
-        snapshotUsersWithAvatarsMemoryCache = writeTimedCacheWithTtl(databaseUsers, PAGE_ROUTE_CACHE_TTL_MS);
-      } else {
-        snapshotUsersMemoryCache = writeTimedCacheWithTtl(databaseUsers, PAGE_ROUTE_CACHE_TTL_MS);
-      }
       return cloneState(databaseUsers);
+    }
+  }
+
+  if (shouldUseMemoryCache) {
+    const cached = readTimedCache(cacheRef);
+    if (cached) {
+      return cached;
     }
   }
 
@@ -1044,10 +1045,12 @@ async function loadUsersForRead(options: { includeAvatarUrls?: boolean } = {}): 
           avatarUrl: undefined
         }))
   );
-  if (includeAvatarUrls) {
-    snapshotUsersWithAvatarsMemoryCache = writeTimedCacheWithTtl(users, PAGE_ROUTE_CACHE_TTL_MS);
-  } else {
-    snapshotUsersMemoryCache = writeTimedCacheWithTtl(users, PAGE_ROUTE_CACHE_TTL_MS);
+  if (shouldUseMemoryCache) {
+    if (includeAvatarUrls) {
+      snapshotUsersWithAvatarsMemoryCache = writeTimedCacheWithTtl(users, PAGE_ROUTE_CACHE_TTL_MS);
+    } else {
+      snapshotUsersMemoryCache = writeTimedCacheWithTtl(users, PAGE_ROUTE_CACHE_TTL_MS);
+    }
   }
 
   if (shouldAttemptDatabaseWrite() && users.length > 0) {
@@ -2636,7 +2639,6 @@ async function getProfileDataFromDatabase(userId: string) {
     const profile = buildProfileFromRatings(user, ratings, moviesById);
     await hydrateMoviesForDatabaseRead([...profile.topThree, ...profile.bottomThree].map((item) => item.movie));
     markDatabaseReadHealthy();
-    profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl(profile, PAGE_ROUTE_CACHE_TTL_MS));
     return cloneState(profile);
   } catch (error) {
     markDatabaseReadFailure("profile page read", error);
@@ -2722,7 +2724,6 @@ async function getGroupPageDataFromDatabase() {
       }));
     const groupData = { group, members };
     markDatabaseReadHealthy();
-    groupPageDataMemoryCache = writeTimedCacheWithTtl(groupData, PAGE_ROUTE_CACHE_TTL_MS);
     return cloneState(groupData);
   } catch (error) {
     markDatabaseReadFailure("group page read", error);
@@ -2815,22 +2816,29 @@ export async function listHistoryHydrated(filters?: HistoryFilters, currentUserI
 }
 
 export async function getProfileDataHydrated(userId: string) {
-  const cached = readTimedCache(profilePageDataMemoryCache.get(userId));
-  if (cached !== null) {
-    return cached;
-  }
+  const usesDatabase = shouldUseDatabase();
+  const shouldUseMemoryCache = shouldUseProcessLocalMutableCache(usesDatabase);
 
-  if (shouldUseDatabase()) {
+  if (usesDatabase) {
     const databaseProfile = await getProfileDataFromDatabase(userId);
     if (databaseProfile) {
       return databaseProfile;
     }
   }
 
+  if (shouldUseMemoryCache) {
+    const cached = readTimedCache(profilePageDataMemoryCache.get(userId));
+    if (cached !== null) {
+      return cached;
+    }
+  }
+
   const state = await loadAppState();
   const profile = buildProfileFromState(state, userId);
   if (!profile) {
-    profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl<ProfileData | null>(null, PAGE_ROUTE_CACHE_TTL_MS));
+    if (shouldUseMemoryCache) {
+      profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl<ProfileData | null>(null, PAGE_ROUTE_CACHE_TTL_MS));
+    }
     return null;
   }
 
@@ -2841,7 +2849,9 @@ export async function getProfileDataHydrated(userId: string) {
   await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
 
   const hydratedProfile = buildProfileFromState(state, userId);
-  profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl(hydratedProfile, PAGE_ROUTE_CACHE_TTL_MS));
+  if (shouldUseMemoryCache) {
+    profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl(hydratedProfile, PAGE_ROUTE_CACHE_TTL_MS));
+  }
   return hydratedProfile;
 }
 
@@ -2877,23 +2887,29 @@ export async function getMovieBySlugHydrated(slug: string) {
 
 export async function getMovieDetailDataHydrated(slug: string, currentUserId?: string) {
   const cacheKey = `${slug}:${currentUserId ?? "anon"}`;
-  const cached = readTimedCache(movieDetailDataMemoryCache.get(cacheKey));
-  if (cached !== null) {
-    return cached;
-  }
+  const usesDatabase = shouldUseDatabase();
+  const shouldUseMemoryCache = shouldUseProcessLocalMutableCache(usesDatabase);
 
-  if (shouldUseDatabase()) {
+  if (usesDatabase) {
     const databaseDetail = await getMovieDetailDataFromDatabase(slug, currentUserId);
     if (databaseDetail) {
-      movieDetailDataMemoryCache.set(cacheKey, writeTimedCacheWithTtl(databaseDetail, MOVIE_DETAIL_CACHE_TTL_MS));
       return databaseDetail;
+    }
+  }
+
+  if (shouldUseMemoryCache) {
+    const cached = readTimedCache(movieDetailDataMemoryCache.get(cacheKey));
+    if (cached !== null) {
+      return cached;
     }
   }
 
   const state = await loadAppState();
   const movie = getMovieBySlug(state, slug);
   if (!movie) {
+    if (shouldUseMemoryCache) {
       movieDetailDataMemoryCache.set(cacheKey, writeTimedCacheWithTtl(null, MOVIE_DETAIL_CACHE_TTL_MS));
+    }
     return null;
   }
 
@@ -2908,7 +2924,9 @@ export async function getMovieDetailDataHydrated(slug: string, currentUserId?: s
     average: getMovieAverageFromState(state, movie.id),
     myRating: currentUserId ? getStateIndexes(state).ratingByUserMovie.get(`${currentUserId}:${movie.id}`) ?? null : null
   };
+  if (shouldUseMemoryCache) {
     movieDetailDataMemoryCache.set(cacheKey, writeTimedCacheWithTtl(detailData, MOVIE_DETAIL_CACHE_TTL_MS));
+  }
   return detailData;
 }
 
@@ -2946,15 +2964,20 @@ export async function getDashboardDataHydrated() {
 }
 
 export async function getGroupPageData() {
-  const cached = readTimedCache(groupPageDataMemoryCache);
-  if (cached) {
-    return cached;
-  }
+  const usesDatabase = shouldUseDatabase();
+  const shouldUseMemoryCache = shouldUseProcessLocalMutableCache(usesDatabase);
 
-  if (shouldUseDatabase()) {
+  if (usesDatabase) {
     const databaseGroupData = await getGroupPageDataFromDatabase();
     if (databaseGroupData) {
       return databaseGroupData;
+    }
+  }
+
+  if (shouldUseMemoryCache) {
+    const cached = readTimedCache(groupPageDataMemoryCache);
+    if (cached) {
+      return cached;
     }
   }
 
@@ -2969,7 +2992,9 @@ export async function getGroupPageData() {
       profileSummary: getProfileSummaryFromState(state, member.id)
     }))
   };
-  groupPageDataMemoryCache = writeTimedCacheWithTtl(groupData, PAGE_ROUTE_CACHE_TTL_MS);
+  if (shouldUseMemoryCache) {
+    groupPageDataMemoryCache = writeTimedCacheWithTtl(groupData, PAGE_ROUTE_CACHE_TTL_MS);
+  }
   return groupData;
 }
 

@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 const username = process.env.E2E_USERNAME;
 const password = process.env.E2E_PASSWORD;
+const ratingMovieId = process.env.E2E_RATING_MOVIE_ID;
+const ratingMovieSlug = process.env.E2E_RATING_MOVIE_SLUG;
 
 test("login stays focused and hides authenticated navigation", async ({ page }) => {
   await page.goto("/login");
@@ -51,5 +53,39 @@ test.describe("authenticated Preview smoke tests", () => {
 
     expect(headerBox?.height ?? 999).toBeLessThan(100);
     expect(headingBox?.y ?? 0).toBeGreaterThan(headerBox?.y ? headerBox.y + headerBox.height : headerBox?.height ?? 0);
+  });
+
+  test("shows an updated rating immediately on the movie detail page", async ({ page }) => {
+    test.skip(!ratingMovieId || !ratingMovieSlug, "Set the dedicated E2E rating movie id and slug to run this mutation.");
+
+    await page.goto(`/peliculas/${ratingMovieSlug}`);
+    await page.getByRole("button", { name: "Editar mi valoraciÃ³n" }).click();
+
+    const scoreInput = page.getByRole("spinbutton", { name: /Nota/ });
+    const commentInput = page.getByRole("textbox", { name: "Comentario opcional" });
+    const initialScore = Number.parseFloat(await scoreInput.inputValue());
+    const initialComment = await commentInput.inputValue();
+    const nextScore = initialScore >= 9.75 ? initialScore - 0.25 : initialScore + 0.25;
+    const expectedLabel = new Intl.NumberFormat("es-ES", {
+      minimumFractionDigits: nextScore % 1 === 0 ? 0 : 1,
+      maximumFractionDigits: 2
+    }).format(nextScore);
+
+    try {
+      await scoreInput.fill(String(nextScore));
+      await page.getByRole("button", { name: "Actualizar valoraciÃ³n" }).click();
+
+      const ownRating = page.locator("article").filter({ hasText: `@${username}` });
+      await expect(ownRating.getByText(expectedLabel, { exact: true })).toBeVisible();
+    } finally {
+      const restoreResponse = await page.request.post("/api/ratings/create-or-update", {
+        multipart: {
+          movieId: ratingMovieId ?? "",
+          score: String(initialScore),
+          comment: initialComment
+        }
+      });
+      expect(restoreResponse.ok()).toBe(true);
+    }
   });
 });
