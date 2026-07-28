@@ -2059,8 +2059,11 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | 
     const { prisma } = await import("@/lib/prisma");
     const groupId = getDatabaseReadGroup().id;
 
-    const [pendingCount, watchedRows, latestBatch] = await Promise.all([
-      prisma.pendingMovie.count({ where: { groupId } }),
+    const [pendingRows, watchedRows, latestBatch] = await Promise.all([
+      prisma.pendingMovie.findMany({
+        where: { groupId },
+        select: { movieId: true }
+      }),
       prisma.watchEntryRecord.findMany({
         where: { groupId },
         select: { movieId: true }
@@ -2072,8 +2075,9 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | 
       })
     ]);
 
+    const pendingMovieIds = pendingRows.map((entry) => entry.movieId);
     const watchedMovieIds = watchedRows.map((entry) => entry.movieId);
-    const [selectedWatchRecord, movieAverageRows] = await Promise.all([
+    const [selectedWatchRecord, movieAverageRows, watchedCount, pendingCount] = await Promise.all([
       latestBatch?.selectedMovieId
         ? prisma.watchEntryRecord.findUnique({
             where: { movieId: latestBatch.selectedMovieId }
@@ -2085,7 +2089,13 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | 
             where: { movieId: { in: watchedMovieIds } },
             _avg: { score: true }
           })
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      watchedMovieIds.length > 0
+        ? prisma.movieRecord.count({ where: { id: { in: watchedMovieIds } } })
+        : Promise.resolve(0),
+      pendingMovieIds.length > 0
+        ? prisma.movieRecord.count({ where: { id: { in: pendingMovieIds } } })
+        : Promise.resolve(0)
     ]);
 
     const averageScore = average(
@@ -2102,7 +2112,7 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | 
       selectedWatchEntry: selectedWatchRecord ? mapWatchRecordsToStateEntries([selectedWatchRecord])[0] ?? null : null,
       recentActivity: getRecentActivityForDatabaseRead(),
       stats: {
-        watchedCount: watchedRows.length,
+        watchedCount,
         averageScore,
         pendingCount
       }
@@ -3526,7 +3536,25 @@ export async function markMovieAsWatched(movieId: string, watchedOn = new Date()
 
 export async function movieSearch(query: string) {
   const state = await loadAppState();
-  return searchMovies(query, state.movies);
+  const results = await searchMovies(query, state.movies);
+  const indexes = getStateIndexes(state);
+
+  return results.map((movie) => {
+    const storedMovie =
+      (movie.sourceIds?.tmdb ? indexes.moviesByTmdbId.get(movie.sourceIds.tmdb) : undefined) ??
+      indexes.moviesBySlug.get(movie.slug);
+    const storedMovieId = storedMovie?.id ?? movie.id;
+    const collectionStatus = indexes.watchedMovieIdSet.has(storedMovieId)
+      ? ("already_watched" as const)
+      : indexes.pendingMovieIdSet.has(storedMovieId)
+        ? ("already_pending" as const)
+        : undefined;
+
+    return {
+      ...movie,
+      collectionStatus
+    };
+  });
 }
 
 export async function addPendingMovie(movieInput: Movie) {

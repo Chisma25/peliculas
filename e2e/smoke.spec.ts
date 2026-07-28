@@ -162,6 +162,43 @@ test.describe("authenticated Preview smoke tests", () => {
     await expect(page).toHaveURL(/\/pendientes$/, { timeout: 5_000 });
   });
 
+  test("shows the existing collection state in explorer results", async ({ page }) => {
+    await page.route("**/api/movies/search?*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          results: [
+            {
+              id: "movie_matrix",
+              slug: "matrix",
+              title: "Matrix",
+              year: 1999,
+              synopsis: "Neo descubre que la realidad que conoce es una simulación.",
+              durationMinutes: 136,
+              genres: ["Acción", "Ciencia ficción"],
+              director: "Lana Wachowski",
+              cast: [],
+              language: "EN",
+              country: "Estados Unidos",
+              posterUrl: "/icon.svg",
+              externalRating: { source: "TMDb", value: "82%" },
+              sourceIds: { tmdb: "603" },
+              collectionStatus: "already_pending"
+            }
+          ]
+        })
+      });
+    });
+
+    await page.goto("/explorar");
+    await page.getByRole("searchbox", { name: "Buscar por título" }).fill("Matrix");
+
+    const existingButton = page.getByRole("button", { name: "Ya en pendientes" });
+    await expect(existingButton).toBeVisible();
+    await expect(existingButton).toBeDisabled();
+  });
+
   test("shows an updated rating immediately on the movie detail page", async ({ page }) => {
     test.skip(!ratingMovieId || !ratingMovieSlug, "Set the dedicated E2E rating movie id and slug to run this mutation.");
 

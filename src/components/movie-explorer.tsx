@@ -26,6 +26,7 @@ type SearchMovie = {
   sourceIds?: {
     tmdb?: string;
   };
+  collectionStatus?: "already_pending" | "already_watched";
 };
 
 type PendingResultStatus = "idle" | "confirming" | "loading" | "added" | "already_pending" | "already_watched" | "error";
@@ -261,7 +262,7 @@ export function MovieExplorer() {
       ) : (
         <div className={`explore-grid ${results.length > 0 && results.length < 5 ? "explore-grid-tight" : ""}`}>
           {results.map((movie) => {
-            const pendingState = movieStates[movie.id] ?? "idle";
+            const pendingState = movieStates[movie.id] ?? movie.collectionStatus ?? "idle";
             const limitedMetadata = hasLimitedMetadata(movie);
             const isActionDisabled =
               pendingState === "loading" ||
