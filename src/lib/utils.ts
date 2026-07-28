@@ -91,6 +91,60 @@ export function formatShortDate(value: string) {
   }).format(new Date(value));
 }
 
+const LANGUAGE_LABELS: Record<string, string> = {
+  en: "Inglés",
+  english: "Inglés",
+  es: "Español",
+  spanish: "Español",
+  fr: "Francés",
+  french: "Francés",
+  de: "Alemán",
+  german: "Alemán",
+  it: "Italiano",
+  italian: "Italiano",
+  ja: "Japonés",
+  japanese: "Japonés",
+  ko: "Coreano",
+  korean: "Coreano",
+  pt: "Portugués",
+  portuguese: "Portugués",
+  zh: "Chino",
+  chinese: "Chino"
+};
+
+const COUNTRY_LABELS: Record<string, string> = {
+  "united states": "Estados Unidos",
+  "united states of america": "Estados Unidos",
+  usa: "Estados Unidos",
+  "united kingdom": "Reino Unido",
+  uk: "Reino Unido",
+  spain: "España",
+  france: "Francia",
+  germany: "Alemania",
+  italy: "Italia",
+  japan: "Japón",
+  "south korea": "Corea del Sur",
+  canada: "Canadá",
+  mexico: "México"
+};
+
+function formatMetadataLabel(value: string, labels: Record<string, string>) {
+  const trimmed = value.trim();
+  if (!trimmed || ["desconocido", "unknown", "pendiente"].includes(trimmed.toLowerCase())) {
+    return "Pendiente";
+  }
+
+  return labels[trimmed.toLowerCase()] ?? trimmed;
+}
+
+export function formatMovieLanguage(value: string) {
+  return formatMetadataLabel(value, LANGUAGE_LABELS);
+}
+
+export function formatMovieCountry(value: string) {
+  return formatMetadataLabel(value, COUNTRY_LABELS);
+}
+
 export function safeId(prefix: string, seed: string) {
   return `${prefix}_${slugify(seed)}_${Math.random().toString(36).slice(2, 8)}`;
 }

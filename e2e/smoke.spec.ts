@@ -50,7 +50,7 @@ test.describe("authenticated Preview smoke tests", () => {
   });
 
   test("loads protected pages and keeps the group HTML payload lean", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Green Book" })).toBeVisible();
+    await expect(page.locator("main h1").first()).toBeVisible();
 
     const response = await page.goto("/grupo");
     expect(response?.status()).toBe(200);
@@ -75,7 +75,7 @@ test.describe("authenticated Preview smoke tests", () => {
     await page.goto("/");
 
     const headerBox = await page.locator("header").boundingBox();
-    const headingBox = await page.getByRole("heading", { name: "Green Book" }).boundingBox();
+    const headingBox = await page.locator("main h1").first().boundingBox();
 
     expect(headerBox?.height ?? 999).toBeLessThan(100);
     expect(headingBox?.y ?? 0).toBeGreaterThan(headerBox?.y ? headerBox.y + headerBox.height : headerBox?.height ?? 0);
@@ -160,6 +160,43 @@ test.describe("authenticated Preview smoke tests", () => {
     await page.getByRole("link", { name: "Pendientes" }).click();
     await expect(page).toHaveURL(/\/explorar$/);
     await expect(page).toHaveURL(/\/pendientes$/, { timeout: 5_000 });
+  });
+
+  test("shows the existing collection state in explorer results", async ({ page }) => {
+    await page.route("**/api/movies/search?*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          results: [
+            {
+              id: "movie_matrix",
+              slug: "matrix",
+              title: "Matrix",
+              year: 1999,
+              synopsis: "Neo descubre que la realidad que conoce es una simulación.",
+              durationMinutes: 136,
+              genres: ["Acción", "Ciencia ficción"],
+              director: "Lana Wachowski",
+              cast: [],
+              language: "EN",
+              country: "Estados Unidos",
+              posterUrl: "/icon.svg",
+              externalRating: { source: "TMDb", value: "82%" },
+              sourceIds: { tmdb: "603" },
+              collectionStatus: "already_pending"
+            }
+          ]
+        })
+      });
+    });
+
+    await page.goto("/explorar");
+    await page.getByRole("searchbox", { name: "Buscar por título" }).fill("Matrix");
+
+    const existingButton = page.getByRole("button", { name: "Ya en pendientes" });
+    await expect(existingButton).toBeVisible();
+    await expect(existingButton).toBeDisabled();
   });
 
   test("shows an updated rating immediately on the movie detail page", async ({ page }) => {

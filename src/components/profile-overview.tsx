@@ -27,6 +27,10 @@ type ProfileOverviewProps = {
 
 export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps) {
   const isSelf = mode === "self";
+  const hasEnoughForExtremes = profile.ratingsCount >= 6;
+  const earlyRatings = [...profile.topThree, ...profile.bottomThree]
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.movie.id === item.movie.id) === index)
+    .slice(0, 3);
   const averageMarker = Math.max(0, Math.min(100, (profile.averageScore / 10) * 100));
   const dominantBand = [...profile.distribution].sort((left, right) => right.count - left.count || right.value - left.value)[0];
   const occupiedBands = profile.distribution.filter((item) => item.count > 0).length;
@@ -63,21 +67,50 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
         </div>
       </section>
 
-      <section className="profile-picks-panel" aria-label="Películas destacadas del perfil">
-        <ProfilePickColumn
-          eyebrow={isSelf ? "Tu top 3" : "Top 3"}
-          title={isSelf ? "Mejor valoradas" : "Mejor valoradas"}
-          items={profile.topThree}
-          emptyText={isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}
-        />
-        <ProfilePickColumn
-          eyebrow={isSelf ? "Tu bottom 3" : "Bottom 3"}
-          title={isSelf ? "Peor valoradas" : "Peor valoradas"}
-          items={profile.bottomThree}
-          emptyText={isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}
-          muted
-        />
-      </section>
+      {hasEnoughForExtremes ? (
+        <section className="profile-picks-panel" aria-label="Películas destacadas del perfil">
+          <ProfilePickColumn
+            eyebrow={isSelf ? "Tu top 3" : "Top 3"}
+            title="Mejor valoradas"
+            items={profile.topThree}
+            emptyText={isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}
+          />
+          <ProfilePickColumn
+            eyebrow={isSelf ? "Tu bottom 3" : "Bottom 3"}
+            title="Peor valoradas"
+            items={profile.bottomThree}
+            emptyText={isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}
+            muted
+          />
+        </section>
+      ) : (
+        <section className="profile-early-panel" aria-label="Primeras valoraciones del perfil">
+          <div className="profile-section-heading">
+            <div>
+              <p className="eyebrow">{profile.ratingsCount > 0 ? "Primeras valoraciones" : "Perfil por estrenar"}</p>
+              <h2>{profile.ratingsCount > 0 ? "El criterio aún está tomando forma" : "Aún no hay notas"}</h2>
+            </div>
+            <p>
+              {profile.ratingsCount > 0
+                ? `${formatCount(profile.ratingsCount, "nota")} todavía es pronto para separar mejores y peores películas.`
+                : isSelf
+                  ? "Cuando valores tu primera película, este espacio empezará a dibujar tu perfil."
+                  : `${profile.user.name} todavía no ha dejado ninguna valoración.`}
+            </p>
+          </div>
+
+          {earlyRatings.length > 0 ? (
+            <ProfilePosterGrid items={earlyRatings} />
+          ) : isSelf ? (
+            <div className="profile-early-empty">
+              <p>Tu primera nota está a una película de distancia.</p>
+              <Link href="/explorar" className="primary-button">
+                Explorar películas
+              </Link>
+            </div>
+          ) : null}
+        </section>
+      )}
 
       <section className="profile-distribution-panel" aria-label="Distribución de notas">
         <div className="profile-section-heading">
@@ -142,10 +175,12 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               ))}
             </div>
 
-            <div className="rating-distribution-average-chip" style={{ left: `${averageMarker}%` }}>
-              <span className="rating-distribution-average-dot" aria-hidden="true" />
-              <strong>Media {formatScore(profile.averageScore)}</strong>
-            </div>
+            {profile.ratingsCount > 0 ? (
+              <div className="rating-distribution-average-chip" style={{ left: `${averageMarker}%` }}>
+                <span className="rating-distribution-average-dot" aria-hidden="true" />
+                <strong>Media {formatScore(profile.averageScore)}</strong>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
@@ -176,22 +211,34 @@ function ProfilePickColumn({
       </div>
 
       {items.length > 0 ? (
-        <div className="profile-poster-grid">
-          {items.map((item, index) => (
-            <Link key={item.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
-              <article className="top-poster-card profile-poster-card">
-                <MoviePoster movie={item.movie} compact showDetails={false} showDuration={false} />
-                <div className="top-poster-rank">#{index + 1}</div>
-                <div className={`top-poster-score ${muted ? "top-poster-score-muted" : ""}`}>{formatScore(item.score)}</div>
-              </article>
-            </Link>
-          ))}
-        </div>
+        <ProfilePosterGrid items={items} muted={muted} />
       ) : (
         <div className="profile-empty-state">
           <p>{emptyText}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function ProfilePosterGrid({
+  items,
+  muted = false
+}: {
+  items: Array<UserRating & { movie: Movie }>;
+  muted?: boolean;
+}) {
+  return (
+    <div className="profile-poster-grid" data-count={items.length}>
+      {items.map((item, index) => (
+        <Link key={item.id} href={`/peliculas/${item.movie.slug}`} className="history-card-link">
+          <article className="top-poster-card profile-poster-card">
+            <MoviePoster movie={item.movie} compact showDetails={false} showDuration={false} />
+            <div className="top-poster-rank">#{index + 1}</div>
+            <div className={`top-poster-score ${muted ? "top-poster-score-muted" : ""}`}>{formatScore(item.score)}</div>
+          </article>
+        </Link>
+      ))}
     </div>
   );
 }

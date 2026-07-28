@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dedupeMovieSearchResults, rankMovieSearchResults } from "@/lib/movie-search";
+import { dedupeMovieSearchResults, findStoredMovieForSearchResult, rankMovieSearchResults } from "@/lib/movie-search";
 import { Movie } from "@/lib/types";
 
 function movie(input: Partial<Movie> & Pick<Movie, "id" | "slug" | "title" | "year">): Movie {
@@ -83,5 +83,35 @@ describe("rankMovieSearchResults", () => {
     ]);
 
     expect(results[0].id).toBe("complete");
+  });
+});
+
+describe("findStoredMovieForSearchResult", () => {
+  it("does not confuse different TMDb movies that share a title and slug", () => {
+    const stored = movie({
+      id: "movie_tmdb_603",
+      slug: "matrix",
+      title: "Matrix",
+      year: 1999,
+      sourceIds: { tmdb: "603" }
+    });
+    const differentMovie = movie({
+      id: "tmdb_411948",
+      slug: "matrix",
+      title: "Matrix",
+      year: 1971,
+      sourceIds: { tmdb: "411948" }
+    });
+
+    expect(findStoredMovieForSearchResult(differentMovie, [stored])).toBeUndefined();
+  });
+
+  it("falls back to slug and year only when TMDb has no identifier", () => {
+    const stored = movie({ id: "local", slug: "arrival", title: "La llegada", year: 2016 });
+    const matchingResult = movie({ id: "remote", slug: "arrival", title: "Arrival", year: 2016 });
+    const otherYear = movie({ id: "other", slug: "arrival", title: "Arrival", year: 2028 });
+
+    expect(findStoredMovieForSearchResult(matchingResult, [stored])?.id).toBe("local");
+    expect(findStoredMovieForSearchResult(otherYear, [stored])).toBeUndefined();
   });
 });
