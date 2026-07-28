@@ -81,7 +81,7 @@ describe("database integrity audit", () => {
     expect(codes).toContain("RATING_SCORE_INVALID");
   });
 
-  it("detects pending/watched overlap and invalid weekly selections", () => {
+  it("detects pending/watched overlap and selections of missing movies", () => {
     const tables = healthyTables();
     tables.pendingMovies.push({
       groupId: "group-1",
@@ -94,7 +94,33 @@ describe("database integrity audit", () => {
 
     expect(codes).toContain("MOVIE_PENDING_AND_WATCHED");
     expect(codes).toContain("BATCH_SELECTION_MOVIE_ORPHAN");
-    expect(codes).toContain("BATCH_SELECTION_OUTSIDE_BATCH");
+  });
+
+  it("accepts a pending selection outside the recommendation batch", () => {
+    const tables = healthyTables();
+    tables.movies.push({
+      id: "movie-pending",
+      slug: "matrix",
+      data: {
+        title: "Matrix",
+        year: 1999,
+        genres: ["Ciencia ficción"],
+        externalRating: { source: "TMDb", value: "82%" }
+      }
+    });
+    tables.pendingMovies.push({
+      groupId: "group-1",
+      movieId: "movie-pending",
+      addedAt: "2026-07-27T20:00:00.000Z"
+    });
+    tables.weeklyBatches[0].selectedMovieId = "movie-pending";
+
+    const report = analyzeDatabaseIntegrity(tables);
+
+    expect(report.healthy).toBe(true);
+    expect(report.findings.map((finding) => finding.code)).not.toContain(
+      "BATCH_SELECTION_OUTSIDE_BATCH"
+    );
   });
 
   it("reports incomplete metadata without declaring structural corruption", () => {

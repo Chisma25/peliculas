@@ -17,10 +17,16 @@ import {
   toCompactSnapshotState,
   type NormalizedStateCollections
 } from "@/lib/normalized-state";
-import { generatePendingWeeklyOptions, generateWeeklyRecommendations, rankUpcomingReleasesForGroup } from "@/lib/recommendations";
+import {
+  generatePendingWeeklyOptions,
+  generateWeeklyRecommendations,
+  hasRecommendationMetadata,
+  rankUpcomingReleasesForGroup
+} from "@/lib/recommendations";
 import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
 import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
 import { commitStateChangeAtomically } from "@/lib/state-persistence";
+import { classifyWeeklySelection, shouldCarryWeeklySelection } from "@/lib/weekly-selection";
 import {
   ActivityItem,
   AppState,
@@ -1821,7 +1827,8 @@ function isDashboardBatchValid(state: AppState, batch: AppState["weeklyBatches"]
   return batch.items.every((item) => {
     const movie = getMovieById(state, item.movieId);
     return (
-      Boolean(movie) &&
+      movie !== null &&
+      hasRecommendationMetadata(movie) &&
       !watchedMovieIdSet.has(item.movieId) &&
       !pendingMovieIdSet.has(item.movieId) &&
       Array.isArray(item.metrics) &&
@@ -1840,7 +1847,10 @@ async function ensureDashboardBatch(state: AppState) {
   }
 
   const refreshedBatch = generateWeeklyRecommendations(state);
-  if (currentBatch?.selectedMovieId) {
+  if (
+    currentBatch?.selectedMovieId &&
+    shouldCarryWeeklySelection(currentBatch, getStateIndexes(state).watchedMovieIdSet)
+  ) {
     refreshedBatch.selectedMovieId = currentBatch.selectedMovieId;
   }
 
@@ -3417,7 +3427,10 @@ export async function generateBatch() {
   const state = await loadAppStateForMutation();
   const currentBatch = getCurrentBatchFromState(state);
   const batch = generateWeeklyRecommendations(state);
-  if (currentBatch?.selectedMovieId) {
+  if (
+    currentBatch?.selectedMovieId &&
+    shouldCarryWeeklySelection(currentBatch, getStateIndexes(state).watchedMovieIdSet)
+  ) {
     batch.selectedMovieId = currentBatch.selectedMovieId;
   }
   state.weeklyBatches.unshift(batch);
@@ -3442,7 +3455,11 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
     throw new Error("No se encontró la tanda semanal.");
   }
 
-  batch.selectedMovieId = movieId;
+  const currentBatch = getCurrentBatchFromState(state);
+  if (currentBatch?.id !== batch.id) {
+    throw new Error("La tanda semanal ya no es la actual. Recarga la página para continuar.");
+  }
+
   let movie = getMovieById(state, movieId);
   if (!movie && shouldUseDatabase()) {
     movie = (await loadMoviesByIdsFromDatabase([movieId])).get(movieId) ?? null;
@@ -3451,14 +3468,26 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
       invalidateDerivedCaches(state);
     }
   }
-  if (movie) {
-    addActivity(state, {
-      type: "recommended",
-      label: `La película de la semana pasó a ser ${movie.title}`,
-      movieId: movie.id,
-      date: new Date().toISOString()
-    });
+  if (!movie) {
+    throw new Error("No se encontró la película.");
   }
+
+  const selectionSource = classifyWeeklySelection(
+    batch,
+    getStateIndexes(state).pendingMovieIdSet,
+    movieId
+  );
+  if (!selectionSource) {
+    throw new Error("Solo puedes elegir una recomendación de la tanda o cualquier película de Pendientes.");
+  }
+
+  batch.selectedMovieId = movieId;
+  addActivity(state, {
+    type: "recommended",
+    label: `La película de la semana pasó a ser ${movie.title}`,
+    movieId: movie.id,
+    date: new Date().toISOString()
+  });
 
   invalidateDerivedCaches(state);
   await persistStateChangeStrict(state, [

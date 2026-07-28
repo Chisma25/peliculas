@@ -1331,12 +1331,27 @@ function buildCandidatePool(state: AppState, mode: CandidateMode) {
   const pendingIds = new Set(state.pendingMovieIds);
 
   return state.movies.filter((movie) => {
+    if (!hasRecommendationMetadata(movie)) {
+      return false;
+    }
+
     if (mode === "discovery") {
       return !seenIds.has(movie.id) && !pendingIds.has(movie.id);
     }
 
     return pendingIds.has(movie.id);
   });
+}
+
+export function hasRecommendationMetadata(movie: Movie) {
+  return (
+    movie.title.trim().length > 0 &&
+    Number.isInteger(movie.year) &&
+    movie.year > 0 &&
+    movie.genres.some(
+      (genre) => genre.trim().length > 0 && genre.trim().toLocaleLowerCase("es") !== "pendiente"
+    )
+  );
 }
 
 function createRecommendationItems(candidates: ScoredCandidate[]): WeeklyRecommendationItem[] {

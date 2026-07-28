@@ -65,16 +65,9 @@ export function analyzeDatabaseIntegrity(input) {
   const usersById = new Map(tables.users.map((entry) => [entry.id, entry]));
   const moviesById = new Map(tables.movies.map((entry) => [entry.id, entry]));
   const batchesById = new Map(tables.weeklyBatches.map((entry) => [entry.id, entry]));
-  const batchItemsByBatch = new Map();
   const watchedKeys = new Set(
     tables.watchEntries.map((entry) => `${entry.groupId}:${entry.movieId}`)
   );
-
-  for (const item of tables.weeklyBatchItems) {
-    const items = batchItemsByBatch.get(item.batchId) ?? [];
-    items.push(item);
-    batchItemsByBatch.set(item.batchId, items);
-  }
 
   const identityChecks = [
     ["USER_ID_DUPLICATE", "usuarios", tables.users.map((entry) => entry.id)],
@@ -181,15 +174,6 @@ export function analyzeDatabaseIntegrity(input) {
       });
     }
 
-    const itemIds = new Set((batchItemsByBatch.get(batch.id) ?? []).map((item) => item.movieId));
-    if (!itemIds.has(batch.selectedMovieId)) {
-      addFinding(
-        "warning",
-        "BATCH_SELECTION_OUTSIDE_BATCH",
-        "La película seleccionada no pertenece a las opciones de su tanda.",
-        { batchId: batch.id, movieId: batch.selectedMovieId }
-      );
-    }
   }
 
   const datedCollections = [

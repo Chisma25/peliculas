@@ -200,6 +200,32 @@ test.describe("authenticated Preview smoke tests", () => {
     await expect(existingButton).toBeDisabled();
   });
 
+  test("rejects a manipulated weekly selection without changing pending choices", async ({ page }) => {
+    await page.goto("/pendientes");
+
+    const batchInputs = page.locator(
+      'form[action="/api/weekly-recommendations/select"] input[name="batchId"]'
+    );
+    const batchCount = await batchInputs.count();
+    test.skip(batchCount === 0, "The current environment has no weekly batch.");
+
+    const batchId = await batchInputs.first().inputValue();
+    const response = await page.request.post("/api/weekly-recommendations/select", {
+      multipart: {
+        batchId,
+        movieId: "movie_not_in_batch_or_pending"
+      },
+      maxRedirects: 0
+    });
+
+    expect(response.status()).toBe(400);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        error: expect.stringContaining("Pendientes")
+      })
+    );
+  });
+
   test("shows an updated rating immediately on the movie detail page", async ({ page }) => {
     test.skip(!ratingMovieId || !ratingMovieSlug, "Set the dedicated E2E rating movie id and slug to run this mutation.");
 
