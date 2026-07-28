@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dedupeMovieSearchResults } from "@/lib/movie-search";
+import { dedupeMovieSearchResults, rankMovieSearchResults } from "@/lib/movie-search";
 import { Movie } from "@/lib/types";
 
 function movie(input: Partial<Movie> & Pick<Movie, "id" | "slug" | "title" | "year">): Movie {
@@ -55,5 +55,33 @@ describe("dedupeMovieSearchResults", () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].id).toBe("local");
+  });
+});
+
+describe("rankMovieSearchResults", () => {
+  it("prioritizes an exact title over noisier partial matches", () => {
+    const results = rankMovieSearchResults("Matrix", [
+      movie({ id: "extra", slug: "sexual-matrix", title: "Sexual Matrix", year: 2000, posterUrl: "poster.jpg" }),
+      movie({ id: "exact", slug: "matrix", title: "Matrix", year: 1999 }),
+      movie({ id: "other", slug: "dinosaur-matrix", title: "Dinosaur Matrix", year: 2024, posterUrl: "poster.jpg" })
+    ]);
+
+    expect(results.map((result) => result.id)).toEqual(["exact", "extra", "other"]);
+  });
+
+  it("uses metadata quality to order equally relevant results", () => {
+    const results = rankMovieSearchResults("Arrival", [
+      movie({ id: "limited", slug: "arrival-remake", title: "Arrival Remake", year: 0 }),
+      movie({
+        id: "complete",
+        slug: "arrival-return",
+        title: "Arrival Return",
+        year: 2027,
+        synopsis: "Una nueva historia.",
+        posterUrl: "poster.jpg"
+      })
+    ]);
+
+    expect(results[0].id).toBe("complete");
   });
 });

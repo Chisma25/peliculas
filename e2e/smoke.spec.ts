@@ -55,6 +55,39 @@ test.describe("authenticated Preview smoke tests", () => {
     expect(headingBox?.y ?? 0).toBeGreaterThan(headerBox?.y ? headerBox.y + headerBox.height : headerBox?.height ?? 0);
   });
 
+  test("keeps the main flows inside the viewport", async ({ page }) => {
+    for (const path of ["/", "/vistas", "/explorar", "/pendientes"]) {
+      await page.goto(path);
+      const dimensions = await page.evaluate(() => ({
+        viewportWidth: window.innerWidth,
+        contentWidth: document.documentElement.scrollWidth
+      }));
+
+      expect(dimensions.contentWidth, `${path} should not overflow horizontally`).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
+    }
+  });
+
+  test("keeps keyboard focus inside the rating dialog and restores it on close", async ({ page }) => {
+    await page.goto("/vistas");
+    await page.locator('a[href^="/peliculas/"]').first().click();
+
+    const trigger = page.getByRole("button", { name: /Editar mi valoración|Valorar película/ });
+    await trigger.click();
+
+    const dialog = page.getByRole("dialog");
+    const scoreInput = page.getByRole("spinbutton", { name: "Nota" });
+    await expect(dialog).toBeVisible();
+    await expect(scoreInput).toBeFocused();
+
+    await scoreInput.fill("7.3");
+    await page.getByRole("button", { name: /Actualizar valoración|Guardar valoración/ }).click();
+    await expect(page.getByRole("alert")).toContainText("0,25");
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
   test("shows an updated rating immediately on the movie detail page", async ({ page }) => {
     test.skip(!ratingMovieId || !ratingMovieSlug, "Set the dedicated E2E rating movie id and slug to run this mutation.");
 

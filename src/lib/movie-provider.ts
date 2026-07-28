@@ -1,5 +1,5 @@
 import { Movie } from "@/lib/types";
-import { dedupeMovieSearchResults } from "@/lib/movie-search";
+import { dedupeMovieSearchResults, rankMovieSearchResults } from "@/lib/movie-search";
 import { slugify } from "@/lib/utils";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
@@ -468,8 +468,9 @@ export async function searchMovies(query: string, fallbackMovies: Movie[]) {
   }
 
   const localMatches = fallbackMovies.filter((movie) => movie.title.toLowerCase().includes(trimmed.toLowerCase()));
-  const remoteMatches = (await fetchSearchResults(trimmed)).slice(0, 8);
-  return dedupeMovieSearchResults(remoteMatches, localMatches);
+  const remoteMatches = (await fetchSearchResults(trimmed)).slice(0, 16);
+  const deduplicatedMatches = dedupeMovieSearchResults(remoteMatches, localMatches, 16);
+  return rankMovieSearchResults(trimmed, deduplicatedMatches).slice(0, 10);
 }
 
 export async function findMovieCandidates(query: string, year: number | undefined, fallbackMovies: Movie[]) {

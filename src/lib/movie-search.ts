@@ -1,4 +1,5 @@
 import { Movie } from "@/lib/types";
+import { slugify } from "@/lib/utils";
 
 function canonicalMovieKey(movie: Movie) {
   const tmdbId = movie.sourceIds?.tmdb?.trim();
@@ -53,4 +54,30 @@ export function dedupeMovieSearchResults(remoteMatches: Movie[], localMatches: M
   }
 
   return results.slice(0, limit);
+}
+
+function getExternalRating(movie: Movie) {
+  const numericRating = Number.parseInt(movie.externalRating.value.replace(/\D/g, ""), 10);
+  return Number.isFinite(numericRating) ? numericRating : 0;
+}
+
+function getSearchRelevance(query: string, movie: Movie) {
+  const normalizedQuery = slugify(query);
+  const normalizedTitle = slugify(movie.title);
+  const exactTitle = normalizedTitle === normalizedQuery ? 1_000 : 0;
+  const startsWithTitle = normalizedTitle.startsWith(normalizedQuery) ? 240 : 0;
+  const containsTitle = normalizedTitle.includes(normalizedQuery) ? 100 : 0;
+  const posterQuality = movie.posterUrl ? 18 : 0;
+  const synopsisQuality = movie.synopsis && !movie.synopsis.toLowerCase().includes("pendiente") ? 12 : 0;
+  const yearQuality = movie.year > 0 ? 8 : 0;
+  const audienceSignal = Math.min(getExternalRating(movie), 100) / 20;
+
+  return exactTitle + startsWithTitle + containsTitle + posterQuality + synopsisQuality + yearQuality + audienceSignal;
+}
+
+export function rankMovieSearchResults(query: string, movies: Movie[]) {
+  return movies
+    .map((movie, index) => ({ movie, index, relevance: getSearchRelevance(query, movie) }))
+    .sort((left, right) => right.relevance - left.relevance || left.index - right.index)
+    .map(({ movie }) => movie);
 }
