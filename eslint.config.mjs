@@ -9,5 +9,12 @@ const compatibility = new FlatCompat({
 
 export default defineConfig([
   ...compatibility.extends("next/core-web-vitals", "next/typescript"),
-  globalIgnores([".next/**", "node_modules/**", "coverage/**", "next-env.d.ts"])
+  globalIgnores([
+    ".next/**",
+    "node_modules/**",
+    "coverage/**",
+    "playwright-report/**",
+    "test-results/**",
+    "next-env.d.ts"
+  ])
 ]);

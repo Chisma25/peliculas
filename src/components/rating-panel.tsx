@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 
 type RatingPanelProps = {
   movieId: string;
@@ -10,6 +11,7 @@ type RatingPanelProps = {
 };
 
 export function RatingPanel({ movieId, initialScore, initialComment }: RatingPanelProps) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   const [isOpen, setIsOpen] = useState(false);
@@ -20,13 +22,24 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
   }, []);
 
   async function submitRating(formData: FormData) {
-    const response = await fetch("/api/ratings/create-or-update", {
-      method: "POST",
-      body: formData
-    });
+    try {
+      const response = await fetch("/api/ratings/create-or-update", {
+        method: "POST",
+        body: formData
+      });
 
-    const payload = (await response.json()) as { message?: string; error?: string };
-    setMessage(payload.message ?? payload.error ?? "Puntuación actualizada.");
+      const payload = (await response.json()) as { message?: string; error?: string };
+      if (!response.ok) {
+        setMessage(payload.error ?? "No se pudo guardar la valoración.");
+        return;
+      }
+
+      setMessage(payload.message ?? "Valoración actualizada.");
+      setIsOpen(false);
+      router.refresh();
+    } catch {
+      setMessage("No se pudo conectar con el servidor. Inténtalo de nuevo.");
+    }
   }
 
   const editingExistingRating = typeof initialScore === "number";
@@ -94,9 +107,17 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
 
   return (
     <>
-      <button type="button" className="primary-button" onClick={() => setIsOpen(true)}>
+      <button
+        type="button"
+        className="primary-button"
+        onClick={() => {
+          setMessage("");
+          setIsOpen(true);
+        }}
+      >
         {editingExistingRating ? "Editar mi valoración" : "Valorar película"}
       </button>
+      {message && !isOpen ? <p className="status-text">{message}</p> : null}
       {modal}
     </>
   );
