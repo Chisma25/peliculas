@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+
+import { PENDING_WRITE_EVENT, type PendingWriteEventDetail } from "@/lib/pending-sync";
 
 const NAV_ITEMS = [
   { href: "/vistas", label: "Vistas" },
@@ -20,15 +22,33 @@ export function PrimaryNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const activePendingWrites = useRef(0);
+  const queuedPendingNavigation = useRef(false);
 
   useEffect(() => {
     setPendingHref(null);
   }, [pathname]);
 
   useEffect(() => {
+    function handlePendingWrite(event: Event) {
+      const detail = (event as CustomEvent<PendingWriteEventDetail>).detail;
+      activePendingWrites.current =
+        detail.phase === "start" ? activePendingWrites.current + 1 : Math.max(0, activePendingWrites.current - 1);
+
+      if (detail.phase === "finish" && activePendingWrites.current === 0 && queuedPendingNavigation.current) {
+        queuedPendingNavigation.current = false;
+        router.push("/pendientes");
+      }
+    }
+
+    window.addEventListener(PENDING_WRITE_EVENT, handlePendingWrite);
+    return () => window.removeEventListener(PENDING_WRITE_EVENT, handlePendingWrite);
+  }, [router]);
+
+  useEffect(() => {
     const prefetchAll = () => {
       for (const item of NAV_ITEMS) {
-        if (!isActivePath(pathname, item.href)) {
+        if (!isActivePath(pathname, item.href) && item.href !== "/pendientes") {
           router.prefetch(item.href);
         }
       }
@@ -53,12 +73,27 @@ export function PrimaryNav() {
           <Link
             key={item.href}
             href={item.href}
-            prefetch
+            prefetch={item.href === "/pendientes" ? false : undefined}
             className={`nav-link-pill ${isActive ? "nav-link-pill-active" : ""} ${isPending ? "nav-link-pill-pending" : ""}`}
             aria-current={isActive ? "page" : undefined}
-            onMouseEnter={() => router.prefetch(item.href)}
-            onFocus={() => router.prefetch(item.href)}
-            onClick={() => {
+            onMouseEnter={() => {
+              if (item.href !== "/pendientes") {
+                router.prefetch(item.href);
+              }
+            }}
+            onFocus={() => {
+              if (item.href !== "/pendientes") {
+                router.prefetch(item.href);
+              }
+            }}
+            onClick={(event) => {
+              if (item.href === "/pendientes" && activePendingWrites.current > 0) {
+                event.preventDefault();
+                queuedPendingNavigation.current = true;
+                setPendingHref(item.href);
+                return;
+              }
+
               if (!isActive) {
                 setPendingHref(item.href);
               }

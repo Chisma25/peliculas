@@ -1,4 +1,5 @@
 import { FilterDropdown } from "@/components/filter-dropdown";
+import { PendingFreshness } from "@/components/pending-freshness";
 import { PrefetchLink } from "@/components/prefetch-link";
 import { getPendingPageDataHydrated } from "@/lib/store";
 import { buildPaginationItems } from "@/lib/utils";
@@ -66,6 +67,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
 
   return (
     <section className="pending-page">
+      <PendingFreshness />
       {batch && weeklyOptions.length > 0 ? (
         <section className="pending-radar-panel" aria-label="Radar semanal de pendientes">
           <p className="eyebrow pending-radar-eyebrow">Radar semanal</p>

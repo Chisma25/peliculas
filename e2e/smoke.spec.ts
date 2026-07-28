@@ -114,6 +114,54 @@ test.describe("authenticated Preview smoke tests", () => {
     await expect(trigger).toBeFocused();
   });
 
+  test("waits for a pending write before opening the pending list", async ({ page }) => {
+    await page.route("**/api/movies/search?*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          results: [
+            {
+              id: "tmdb_157336",
+              slug: "interstellar",
+              title: "Interstellar",
+              year: 2014,
+              synopsis: "Un grupo de exploradores viaja más allá de nuestra galaxia.",
+              durationMinutes: 169,
+              genres: ["Ciencia ficción"],
+              director: "Christopher Nolan",
+              cast: [],
+              language: "EN",
+              country: "Estados Unidos",
+              posterUrl: "/icon.svg",
+              externalRating: { source: "TMDb", value: "84%" },
+              sourceIds: { tmdb: "157336" }
+            }
+          ]
+        })
+      });
+    });
+    await page.route("**/api/pending/add", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "added", message: "Película añadida a pendientes." })
+      });
+    });
+
+    await page.goto("/explorar");
+    await page.getByRole("searchbox", { name: "Buscar por título" }).fill("Interstellar");
+    const addButton = page.getByRole("button", { name: "Añadir", exact: true });
+    await expect(addButton).toBeVisible();
+    await addButton.click();
+    await expect(page.getByRole("button", { name: "Añadiendo..." })).toBeVisible();
+
+    await page.getByRole("link", { name: "Pendientes" }).click();
+    await expect(page).toHaveURL(/\/explorar$/);
+    await expect(page).toHaveURL(/\/pendientes$/, { timeout: 5_000 });
+  });
+
   test("shows an updated rating immediately on the movie detail page", async ({ page }) => {
     test.skip(!ratingMovieId || !ratingMovieSlug, "Set the dedicated E2E rating movie id and slug to run this mutation.");
 

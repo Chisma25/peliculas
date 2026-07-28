@@ -2,6 +2,8 @@
 
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 
+import { announcePendingUpdated, announcePendingWrite } from "@/lib/pending-sync";
+
 type SearchMovie = {
   id: string;
   slug: string;
@@ -157,6 +159,7 @@ export function MovieExplorer() {
 
   async function addToPending(movie: SearchMovie) {
     setMovieStates((current) => ({ ...current, [movie.id]: "loading" }));
+    announcePendingWrite("start");
 
     try {
       const response = await fetch("/api/pending/add", {
@@ -171,6 +174,9 @@ export function MovieExplorer() {
       const nextStatus = payload.status ?? (response.ok ? "added" : "error");
 
       setMovieStates((current) => ({ ...current, [movie.id]: nextStatus }));
+      if (nextStatus === "added") {
+        announcePendingUpdated();
+      }
       setToast({
         tone:
           nextStatus === "added"
@@ -198,6 +204,8 @@ export function MovieExplorer() {
         title: "No se pudo añadir la película",
         body: "Ha fallado la conexión justo al guardarla. Prueba otra vez."
       });
+    } finally {
+      announcePendingWrite("finish");
     }
   }
 

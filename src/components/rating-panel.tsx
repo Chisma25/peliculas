@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { AccessibleDialog } from "@/components/accessible-dialog";
-import { formatScore, isQuarterPointScore } from "@/lib/utils";
+import { isQuarterPointScore } from "@/lib/utils";
 
 type RatingPanelProps = {
   movieId: string;
@@ -154,9 +154,7 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
               </div>
               <div className="rating-score-guide" id="rating-score-help">
                 <span>0</span>
-                <strong>
-                  {score && isQuarterPointScore(Number.parseFloat(score)) ? formatScore(Number.parseFloat(score)) : "Pasos de 0,25"}
-                </strong>
+                <strong>Pasos de 0,25</strong>
                 <span>10</span>
               </div>
               {error ? (
