@@ -29,6 +29,13 @@ export default async function MoviePage({ params }: MoviePageProps) {
   return (
     <div className="detail-grid">
       <aside className="detail-sidebar">
+        <Link
+          href={watchEntry ? "/vistas" : "/pendientes"}
+          className="detail-back-link detail-back-link-mobile"
+        >
+          <span aria-hidden="true">←</span>
+          {watchEntry ? "Volver a vistas" : "Volver a pendientes"}
+        </Link>
         <MoviePoster movie={movie} />
         <section className="panel">
           <p className="eyebrow">Datos clave</p>
@@ -75,7 +82,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
       </aside>
 
       <section className="panel detail-main-panel">
-        <Link href={watchEntry ? "/vistas" : "/pendientes"} className="detail-back-link">
+        <Link href={watchEntry ? "/vistas" : "/pendientes"} className="detail-back-link detail-back-link-desktop">
           <span aria-hidden="true">←</span>
           {watchEntry ? "Volver a vistas" : "Volver a pendientes"}
         </Link>

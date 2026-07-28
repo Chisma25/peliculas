@@ -1817,6 +1817,10 @@ textarea {
   font-size: 1rem;
 }
 
+.detail-back-link-mobile {
+  display: none;
+}
+
 .detail-facts-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7272,6 +7276,23 @@ code {
     flex-direction: column;
   }
 
+  .profile-early-panel .profile-poster-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-early-panel .profile-poster-card .poster-card {
+    min-height: 260px;
+  }
+
+  .profile-early-panel .profile-poster-card .poster-bottom {
+    min-height: 8rem;
+    padding-right: 3.2rem;
+  }
+
+  .profile-early-panel .profile-poster-card .poster-bottom h3 {
+    font-size: 1.05rem;
+  }
+
   .profile-form-wide {
     grid-column: auto;
   }
@@ -7313,6 +7334,15 @@ code {
 }
 
 @media (max-width: 560px) {
+  .detail-back-link-desktop {
+    display: none;
+  }
+
+  .detail-back-link-mobile {
+    display: inline-flex;
+    margin: 0.15rem 0 0.1rem 0.35rem;
+  }
+
   .detail-unrated-summary {
     grid-template-columns: 1fr;
   }
