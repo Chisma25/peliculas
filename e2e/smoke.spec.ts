@@ -51,6 +51,7 @@ test.describe("authenticated Preview smoke tests", () => {
 
   test("loads protected pages and keeps the group HTML payload lean", async ({ page }) => {
     await expect(page.locator("main h1").first()).toBeVisible();
+    await expect(page.getByText("Últimos movimientos")).toHaveCount(0);
 
     const response = await page.goto("/grupo");
     expect(response?.status()).toBe(200);
