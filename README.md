@@ -63,6 +63,27 @@ La suite comprueba login público, sesión autenticada, peso del HTML de Grupo, 
 deduplicación de TMDb y navegación móvil. Si no se define `E2E_BASE_URL`, Playwright intenta arrancar la app
 localmente en `127.0.0.1:3000`.
 
+## Diagnóstico y copias de seguridad
+
+Las herramientas de base de datos exigen declarar el entorno de forma explícita. Se puede proporcionar un
+archivo aislado mediante `--env-file`; sus valores deben incluir como mínimo `DATABASE_URL` y, preferiblemente,
+`APP_ENV`, `DATABASE_ENVIRONMENT` y `PRODUCTION_DATABASE_HOST`.
+
+```powershell
+npm run db:health -- --environment=preview --env-file=.env.preview.local
+npm run db:export -- --environment=preview --env-file=.env.preview.local
+npm run db:verify-backup -- --file=data/database-export-preview-FECHA.json
+npm run db:restore -- --dry-run --environment=preview --env-file=.env.preview.local --file=data/database-export-preview-FECHA.json
+```
+
+- `db:health` solo lee y comprueba huérfanos, duplicados, notas inválidas, solapamientos, tandas incoherentes,
+  fechas y calidad mínima de metadatos. Devuelve código `2` cuando encuentra errores estructurales.
+- `db:export` solo lee y crea un JSON local con checksum SHA-256. Los exports dentro de `data` quedan ignorados
+  por Git. El archivo contiene hashes de credenciales y debe tratarse como información privada.
+- `db:verify-backup` comprueba formato, checksum e integridad interna sin conectarse a ninguna base.
+- `db:restore` únicamente admite `--dry-run`: compara el backup con su mismo entorno y host, muestra las
+  diferencias de volumen y nunca escribe filas. La restauración real permanece deshabilitada intencionadamente.
+
 ## Accesos del grupo
 
 - Las cuentas del grupo ya no dependen de credenciales semilla dentro del código.

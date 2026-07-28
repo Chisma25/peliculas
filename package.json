@@ -11,7 +11,11 @@
     "test:e2e": "playwright test",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "node scripts/bootstrap-db.mjs"
+    "db:seed": "node scripts/bootstrap-db.mjs",
+    "db:health": "node scripts/db-health.mjs",
+    "db:export": "node scripts/db-export.mjs",
+    "db:verify-backup": "node scripts/db-verify-backup.mjs",
+    "db:restore": "node scripts/db-restore.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

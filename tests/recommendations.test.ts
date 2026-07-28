@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { seedState } from "@/lib/demo-data";
-import { generatePendingWeeklyOptions, generateWeeklyRecommendations } from "@/lib/recommendations";
+import {
+  generatePendingWeeklyOptions,
+  generateWeeklyRecommendations,
+  hasRecommendationMetadata
+} from "@/lib/recommendations";
 
 describe("recommendations engine", () => {
   it("returns three discovery movies that are neither watched nor pending", () => {
@@ -52,5 +56,33 @@ describe("recommendations engine", () => {
       expect(item.reasons.length).toBeGreaterThan(0);
       expect(item.summary.length).toBeGreaterThan(12);
     }
+  });
+
+  it("keeps incomplete movies available in pending but out of the weekly radar", () => {
+    const state = structuredClone(seedState);
+    const incompleteMovie = {
+      ...state.movies[0],
+      id: "movie-incomplete",
+      slug: "f1-review-2006",
+      title: "F1 Review 2006",
+      year: 0,
+      genres: []
+    };
+    state.movies.push(incompleteMovie);
+    state.pendingMovieIds = [
+      incompleteMovie.id,
+      "movie_arrival",
+      "movie_drive_my_car",
+      "movie_memories_of_murder",
+      "movie_past_lives",
+      "movie_seven_samurai",
+      "movie_chungking_express"
+    ];
+
+    expect(hasRecommendationMetadata(incompleteMovie)).toBe(false);
+    expect(generatePendingWeeklyOptions(state).map((item) => item.movieId)).not.toContain(
+      incompleteMovie.id
+    );
+    expect(state.pendingMovieIds).toContain(incompleteMovie.id);
   });
 });
