@@ -10,6 +10,12 @@ import { seedState } from "@/lib/demo-data";
 import { assertDatabaseEnvironmentSafety } from "@/lib/environment-safety";
 import { loadManualHistorySeed } from "@/lib/manual-history";
 import { fetchUpcomingMovies, resolveMovieMetadata, searchMovies } from "@/lib/movie-provider";
+import {
+  hasNormalizedDatabaseState,
+  mergeNormalizedState,
+  toCompactSnapshotState,
+  type NormalizedStateCollections
+} from "@/lib/normalized-state";
 import { generatePendingWeeklyOptions, generateWeeklyRecommendations, rankUpcomingReleasesForGroup } from "@/lib/recommendations";
 import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
 import { commitStateChangeAtomically } from "@/lib/state-persistence";
@@ -127,13 +133,6 @@ type StateIndexes = {
   groupAverageScore: number;
 };
 
-type NormalizedCollections = {
-  pendingMovieIds: string[];
-  watchEntries: WatchEntry[];
-  ratings: UserRating[];
-  weeklyBatches: WeeklyRecommendationBatch[];
-};
-
 type PendingListBase = {
   batch: WeeklyRecommendationBatch | null;
   genres: string[];
@@ -217,7 +216,7 @@ const profileOverviewCache = new WeakMap<AppState, Map<string, ProfileOverview>>
 let snapshotMemoryCache: TimedCache<AppState | null> | null = null;
 let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 let snapshotUsersWithAvatarsMemoryCache: TimedCache<User[]> | null = null;
-const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedCollections>>();
+const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedStateCollections>>();
 let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null = null;
 let databaseReadBackoffUntil = 0;
 let databaseWriteBackoffUntil = 0;
@@ -811,16 +810,6 @@ function loadFallbackState() {
   return initial;
 }
 
-function toCompactSnapshotState(state: AppState): AppState {
-  return {
-    ...state,
-    ratings: [],
-    watchEntries: [],
-    pendingMovieIds: [],
-    weeklyBatches: []
-  };
-}
-
 function parseWatchDate(value?: string) {
   if (!value) {
     return null;
@@ -873,7 +862,8 @@ function mapUserRecordsToStateUsers(records: Array<{
   avatarUrl?: string | null;
   passwordHash: string;
   isAdmin: boolean;
-}>): User[] {
+}>, options: { useDeliveryUrls?: boolean } = {}): User[] {
+  const useDeliveryUrls = options.useDeliveryUrls ?? true;
   return records.map((entry) => {
     const user: User = {
       id: entry.id,
@@ -886,7 +876,7 @@ function mapUserRecordsToStateUsers(records: Array<{
     };
 
     if (entry.avatarUrl) {
-      user.avatarUrl = getAvatarDeliveryUrl(entry.id);
+      user.avatarUrl = useDeliveryUrls ? getAvatarDeliveryUrl(entry.id) : entry.avatarUrl;
     }
 
     return ensureUserCredentials(user);
@@ -951,110 +941,6 @@ function mapWeeklyBatchRecordsToStateEntries(
   }));
 }
 
-async function backfillNormalizedCollectionsFromSnapshot(state: AppState) {
-  const { prisma } = await import("@/lib/prisma");
-  const [userCount, movieCount, pendingCount, watchCount, ratingsCount, batchCount] = await Promise.all([
-    prisma.userRecord.count(),
-    prisma.movieRecord.count(),
-    prisma.pendingMovie.count({ where: { groupId: state.group.id } }),
-    prisma.watchEntryRecord.count({ where: { groupId: state.group.id } }),
-    prisma.ratingRecord.count(),
-    prisma.weeklyBatchRecord.count({ where: { groupId: state.group.id } })
-  ]);
-
-  const operations: Promise<unknown>[] = [];
-
-  if (userCount === 0 && state.users.length > 0) {
-    operations.push(syncUsersToDatabase(state.users));
-  }
-
-  if (movieCount === 0 && state.movies.length > 0) {
-    operations.push(syncMoviesToDatabase(state.movies));
-  }
-
-  if (pendingCount === 0 && state.pendingMovieIds.length > 0) {
-    operations.push(
-      prisma.pendingMovie.createMany({
-        data: state.pendingMovieIds.map((movieId, index) => ({
-          groupId: state.group.id,
-          movieId,
-          addedAt: new Date(Date.now() - index * 1000)
-        })),
-        skipDuplicates: true
-      })
-    );
-  }
-
-  if (watchCount === 0 && state.watchEntries.length > 0) {
-    operations.push(
-      prisma.watchEntryRecord.createMany({
-        data: state.watchEntries.map((entry, index) => ({
-          id: entry.id,
-          movieId: entry.movieId,
-          groupId: entry.groupId,
-          watchedOn: parseWatchDate(entry.watchedOn),
-          selectedForWeek: entry.selectedForWeek,
-          createdAt: parseWatchDate(entry.watchedOn) ?? new Date(Date.now() - index * 1000)
-        })),
-        skipDuplicates: true
-      })
-    );
-  }
-
-  if (ratingsCount === 0 && state.ratings.length > 0) {
-    operations.push(
-      prisma.ratingRecord.createMany({
-        data: state.ratings.map((rating, index) => ({
-          id: rating.id,
-          movieId: rating.movieId,
-          userId: rating.userId,
-          score: rating.score,
-          comment: rating.comment,
-          watchedOn: parseWatchDate(rating.watchedOn),
-          createdAt: parseWatchDate(rating.watchedOn) ?? new Date(Date.now() - index * 1000)
-        })),
-        skipDuplicates: true
-      })
-    );
-  }
-
-  if (batchCount === 0 && state.weeklyBatches.length > 0) {
-    operations.push(
-      prisma.$transaction([
-        prisma.weeklyBatchRecord.createMany({
-          data: state.weeklyBatches.map((batch) => ({
-            id: batch.id,
-            groupId: batch.groupId,
-            weekOf: new Date(batch.weekOf),
-            createdAt: new Date(batch.createdAt),
-            selectedMovieId: batch.selectedMovieId ?? null
-          })),
-          skipDuplicates: true
-        }),
-        prisma.weeklyBatchItemRecord.createMany({
-          data: state.weeklyBatches.flatMap((batch) =>
-            batch.items.map((item, index) => ({
-              id: item.id,
-              batchId: batch.id,
-              movieId: item.movieId,
-              position: index,
-              score: item.score,
-              summary: item.summary,
-              reasons: item.reasons,
-              metrics: item.metrics ?? []
-            }))
-          ),
-          skipDuplicates: true
-        })
-      ])
-    );
-  }
-
-  if (operations.length > 0) {
-    await Promise.all(operations);
-  }
-}
-
 async function loadNormalizedCollections(groupId: string) {
   const { prisma } = await import("@/lib/prisma");
   const [pendingRows, watchRows, ratingRows, batchRows] = await Promise.all([
@@ -1088,6 +974,27 @@ async function loadNormalizedCollections(groupId: string) {
   };
 }
 
+async function loadNormalizedStateCollections(groupId: string): Promise<NormalizedStateCollections> {
+  const { prisma } = await import("@/lib/prisma");
+  const [userRows, movieRows, collections] = await Promise.all([
+    prisma.userRecord.findMany({
+      select: USER_RECORD_WITH_AVATAR_SELECT,
+      orderBy: { name: "asc" }
+    }),
+    prisma.movieRecord.findMany({
+      select: { data: true },
+      orderBy: { slug: "asc" }
+    }),
+    loadNormalizedCollections(groupId)
+  ]);
+
+  return {
+    users: mapUserRecordsToStateUsers(userRows, { useDeliveryUrls: false }),
+    movies: mapMovieRecordsToStateMovies(movieRows),
+    ...collections
+  };
+}
+
 async function loadUsersFromDatabaseUncached(options: { includeAvatarUrls?: boolean } = {}): Promise<User[] | null> {
   if (!shouldAttemptDatabaseRead()) {
     return null;
@@ -1100,7 +1007,7 @@ async function loadUsersFromDatabaseUncached(options: { includeAvatarUrls?: bool
       orderBy: { name: "asc" }
     });
     markDatabaseReadHealthy();
-    return rows.length > 0 ? mapUserRecordsToStateUsers(rows) : null;
+    return mapUserRecordsToStateUsers(rows);
   } catch (error) {
     markDatabaseReadFailure("users read", error);
     return null;
@@ -1219,7 +1126,7 @@ async function loadMovieCatalogFromDatabaseUncached() {
       select: { data: true }
     });
     markDatabaseReadHealthy();
-    return rows.length > 0 ? mapMovieRecordsToStateMovies(rows) : null;
+    return mapMovieRecordsToStateMovies(rows);
   } catch (error) {
     markDatabaseReadFailure("movie catalog read", error);
     return null;
@@ -1677,7 +1584,7 @@ async function loadNormalizedCollectionsCached(groupId: string) {
     return cached;
   }
 
-  const collections = await loadNormalizedCollections(groupId);
+  const collections = await loadNormalizedStateCollections(groupId);
   normalizedCollectionsCache.set(groupId, writeTimedCache(collections));
   return cloneState(collections);
 }
@@ -1688,36 +1595,17 @@ async function loadDatabaseStateUncached() {
   }
 
   try {
-    const parsed = await loadSnapshotStateUncached();
-    if (!parsed) {
+    const snapshotState = await loadSnapshotStateUncached();
+    const baseState = snapshotState ?? loadFallbackState();
+    const normalizedCollections = await loadNormalizedStateCollections(baseState.group.id);
+    if (!snapshotState && !hasNormalizedDatabaseState(normalizedCollections)) {
       return null;
     }
-
-    await backfillNormalizedCollectionsFromSnapshot(parsed);
-    const normalizedCollections = await loadNormalizedCollections(parsed.group.id);
     markDatabaseReadHealthy();
 
-    return ensureStateIntegrity({
-      ...parsed,
-      ratings:
-        normalizedCollections.ratings.length > 0 || parsed.ratings.length === 0
-          ? normalizedCollections.ratings
-          : parsed.ratings,
-      pendingMovieIds:
-        normalizedCollections.pendingMovieIds.length > 0 || parsed.pendingMovieIds.length === 0
-          ? normalizedCollections.pendingMovieIds
-          : parsed.pendingMovieIds,
-      watchEntries:
-        normalizedCollections.watchEntries.length > 0 || parsed.watchEntries.length === 0
-          ? normalizedCollections.watchEntries
-          : parsed.watchEntries,
-      weeklyBatches:
-        normalizedCollections.weeklyBatches.length > 0 || parsed.weeklyBatches.length === 0
-          ? normalizedCollections.weeklyBatches
-          : parsed.weeklyBatches
-    });
+    return ensureStateIntegrity(mergeNormalizedState(baseState, normalizedCollections));
   } catch (error) {
-    markDatabaseReadFailure("normalized collections bootstrap", error);
+    markDatabaseReadFailure("normalized state bootstrap", error);
     return null;
   }
 }
@@ -1729,34 +1617,16 @@ async function loadDatabaseState() {
 
   try {
     const snapshotState = await loadSnapshotStateForRequest();
-    if (!snapshotState) {
+    const baseState = snapshotState ?? loadFallbackState();
+    const normalizedCollections = await loadNormalizedCollectionsCached(baseState.group.id);
+    if (!snapshotState && !hasNormalizedDatabaseState(normalizedCollections)) {
       return null;
     }
-
-    const normalizedCollections = await loadNormalizedCollectionsCached(snapshotState.group.id);
     markDatabaseReadHealthy();
 
-    return ensureStateIntegrity({
-      ...cloneState(snapshotState),
-      ratings:
-        normalizedCollections.ratings.length > 0 || snapshotState.ratings.length === 0
-          ? normalizedCollections.ratings
-          : snapshotState.ratings,
-      pendingMovieIds:
-        normalizedCollections.pendingMovieIds.length > 0 || snapshotState.pendingMovieIds.length === 0
-          ? normalizedCollections.pendingMovieIds
-          : snapshotState.pendingMovieIds,
-      watchEntries:
-        normalizedCollections.watchEntries.length > 0 || snapshotState.watchEntries.length === 0
-          ? normalizedCollections.watchEntries
-          : snapshotState.watchEntries,
-      weeklyBatches:
-        normalizedCollections.weeklyBatches.length > 0 || snapshotState.weeklyBatches.length === 0
-          ? normalizedCollections.weeklyBatches
-          : snapshotState.weeklyBatches
-    });
+    return ensureStateIntegrity(mergeNormalizedState(cloneState(baseState), normalizedCollections));
   } catch (error) {
-    markDatabaseReadFailure("normalized collections read", error);
+    markDatabaseReadFailure("normalized state read", error);
     return null;
   }
 }
@@ -1794,6 +1664,8 @@ async function loadAppStateUncached() {
 
     try {
       await Promise.all([
+        syncUsersToDatabase(initial.users),
+        syncMoviesToDatabase(initial.movies),
         syncRatingsToDatabase(initial.ratings),
         syncPendingMoviesToDatabase(initial.group.id, initial.pendingMovieIds),
         syncWatchEntriesToDatabase(initial.group.id, initial.watchEntries),

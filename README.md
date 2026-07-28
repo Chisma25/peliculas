@@ -113,7 +113,9 @@ npm run db:seed
    `CONFIRM_DATABASE_SEED=production`.
 7. Sube el repo a GitHub y despliega.
 
-`npm run db:seed` vuelca vuestro estado actual de `data/runtime-state.json` a `AppSnapshot` y a las tablas normalizadas de usuarios, películas, notas, vistas, pendientes y recomendaciones, para que producción pueda navegar con lecturas pequeñas sin depender del snapshot completo en cada request.
+`npm run db:seed` vuelca vuestro estado actual de `data/runtime-state.json` a `AppSnapshot` y a las tablas normalizadas de usuarios, películas, notas, vistas, pendientes y recomendaciones. Después del seed, las tablas normalizadas son la única fuente de verdad para esas colecciones.
+
+`AppSnapshot` conserva únicamente el contexto agregado de la aplicación, como el grupo y la actividad reciente. Una colección normalizada vacía se considera un estado válido y nunca se rellena automáticamente desde un snapshot antiguo. Cualquier recuperación desde snapshot debe hacerse mediante una operación administrativa explícita, con copia de seguridad previa.
 
 Cuando cambie el esquema de Prisma, aplica primero la estructura en la base y después siembra los datos:
 
@@ -129,8 +131,9 @@ conexión directa. Las plantillas completas están en `.env.example`, `.env.prev
 ## Notas de implementacion
 
 - La importacion desde Excel ya no forma parte de la interfaz: el historico del grupo esta cargado manualmente en el estado inicial.
-- La persistencia remota conserva un snapshot JSON como respaldo, pero las lecturas frecuentes usan tablas normalizadas para reducir consumo de transferencia en Neon.
-- Esto mantiene el despliegue sencillo sin cargar el snapshot completo para flujos habituales como login, cabecera, dashboard, perfiles, detalle de película, pendientes y vistas.
+- La persistencia remota conserva un snapshot JSON compacto para contexto agregado, pero usuarios, películas, notas, vistas, pendientes y recomendaciones proceden siempre de sus tablas normalizadas.
+- El snapshot no puede repoblar ni sobrescribir automáticamente una tabla normalizada, aunque esa tabla esté vacía.
+- Esto evita resucitar datos eliminados y permite arrancar desde las tablas normalizadas aunque el snapshot falte o esté desactualizado.
 - Si no existe `TMDB_API_KEY`, la app sigue funcionando, pero no podra enriquecer peliculas ni mostrar caratulas reales.
 - En produccion deberias configurar siempre `SESSION_SECRET` con una cadena larga, aleatoria y privada.
 - La nota externa muestra la fuente real disponible; Rotten Tomatoes se trata como preferencia, no como dependencia obligatoria.
