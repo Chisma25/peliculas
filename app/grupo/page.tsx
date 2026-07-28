@@ -44,7 +44,7 @@ export default async function GroupPage() {
               </small>
             </article>
             <article>
-              <span>Mayor media +10</span>
+              <span>Mayor media</span>
               <strong>{highestAverageMember?.member.name ?? "Sin datos"}</strong>
               <small>
                 {highestAverageMember
@@ -54,9 +54,10 @@ export default async function GroupPage() {
                     )}`
                   : "Nadie supera las 10 notas todavía"}
               </small>
+              <small className="group-side-qualifier">Entre miembros con más de 10 notas</small>
             </article>
             <article>
-              <span>Menor media +10</span>
+              <span>Menor media</span>
               <strong>{lowestAverageMember?.member.name ?? "Sin datos"}</strong>
               <small>
                 {lowestAverageMember
@@ -66,6 +67,7 @@ export default async function GroupPage() {
                     )}`
                   : "Nadie supera las 10 notas todavía"}
               </small>
+              <small className="group-side-qualifier">Entre miembros con más de 10 notas</small>
             </article>
             <article>
               <span>Grupo</span>

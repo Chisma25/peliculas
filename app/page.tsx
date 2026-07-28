@@ -53,7 +53,7 @@ export default async function HomePage() {
                   Abrir ficha
                 </Link>
                 {hasWatchedSelection ? (
-                  <span className="secondary-button">Ya está en vistas</span>
+                  <span className="dashboard-viewed-status">Vista por el grupo</span>
                 ) : (
                   <form action="/api/watch/mark-watched" method="post">
                     <input type="hidden" name="movieId" value={selectedMovie.id} />

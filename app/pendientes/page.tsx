@@ -64,6 +64,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   });
 
   const paginationItems = buildPaginationItems(safePage, totalPages);
+  const hasActiveFilters = Boolean(search || activeGenre);
 
   return (
     <section className="pending-page">
@@ -121,37 +122,39 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       ) : null}
 
       <section id="lista-pendientes" className="pending-archive-panel" aria-label="Archivo de pendientes">
-        <form action="/pendientes" method="get" className="pending-filter-panel">
-          <div className="pending-filter-grid">
-            <label className="pending-filter-field pending-filter-field-wide">
-              Buscar por título
-              <input type="search" name="search" defaultValue={search} placeholder="Interstellar, Toy Story, Whiplash..." />
-            </label>
+        {totalPendingCount > 0 || hasActiveFilters ? (
+          <form action="/pendientes" method="get" className="pending-filter-panel">
+            <div className="pending-filter-grid">
+              <label className="pending-filter-field pending-filter-field-wide">
+                Buscar por título
+                <input type="search" name="search" defaultValue={search} placeholder="Interstellar, Toy Story, Whiplash..." />
+              </label>
 
-            <label className="pending-filter-field">
-              Género
-              <FilterDropdown
-                name="genre"
-                value={activeGenre}
-                placeholder="Todos los géneros"
-                ariaLabel="Filtrar pendientes por género"
-                options={[
-                  { value: "", label: "Todos los géneros" },
-                  ...genres.map((genre) => ({ value: genre, label: genre }))
-                ]}
-              />
-            </label>
-          </div>
+              <label className="pending-filter-field">
+                Género
+                <FilterDropdown
+                  name="genre"
+                  value={activeGenre}
+                  placeholder="Todos los géneros"
+                  ariaLabel="Filtrar pendientes por género"
+                  options={[
+                    { value: "", label: "Todos los géneros" },
+                    ...genres.map((genre) => ({ value: genre, label: genre }))
+                  ]}
+                />
+              </label>
+            </div>
 
-          <div className="pending-filter-actions">
-            <button type="submit" className="primary-button">
-              Aplicar filtros
-            </button>
-            <PrefetchLink href="/pendientes" className="ghost-button">
-              Limpiar
-            </PrefetchLink>
-          </div>
-        </form>
+            <div className="pending-filter-actions">
+              <button type="submit" className="primary-button">
+                Aplicar filtros
+              </button>
+              <PrefetchLink href="/pendientes" className="ghost-button">
+                Limpiar
+              </PrefetchLink>
+            </div>
+          </form>
+        ) : null}
 
         <div className="pending-list-anchor">
         <div className="pending-results-strip">

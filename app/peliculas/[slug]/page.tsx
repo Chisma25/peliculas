@@ -1,10 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { MoviePoster } from "@/components/movie-poster";
 import { RatingPanel } from "@/components/rating-panel";
 import { UserAvatar } from "@/components/user-avatar";
 import { getMovieDetailDataHydrated, getSessionUser } from "@/lib/store";
-import { formatLongDate, formatScore } from "@/lib/utils";
+import { formatLongDate, formatMovieCountry, formatMovieLanguage, formatScore } from "@/lib/utils";
 
 type MoviePageProps = {
   params: Promise<{
@@ -21,6 +22,9 @@ export default async function MoviePage({ params }: MoviePageProps) {
   }
 
   const { movie, watchEntry, ratings, members, average, myRating } = movieData;
+  const ratingByUserId = new Map(ratings.map((rating) => [rating.userId, rating]));
+  const ratedMembers = members.filter((member) => ratingByUserId.has(member.id));
+  const unratedMembers = members.filter((member) => !ratingByUserId.has(member.id));
 
   return (
     <div className="detail-grid">
@@ -39,11 +43,11 @@ export default async function MoviePage({ params }: MoviePageProps) {
             </article>
             <article className="detail-fact-card detail-fact-card-wide">
               <span>Idioma original</span>
-              <strong>{movie.language}</strong>
+              <strong>{formatMovieLanguage(movie.language)}</strong>
             </article>
             <article className="detail-fact-card detail-fact-card-wide">
               <span>País</span>
-              <strong>{movie.country}</strong>
+              <strong>{formatMovieCountry(movie.country)}</strong>
             </article>
             <article className="detail-fact-card detail-fact-card-wide detail-fact-card-accent">
               <span>{movie.externalRating.source}</span>
@@ -70,7 +74,11 @@ export default async function MoviePage({ params }: MoviePageProps) {
         </section>
       </aside>
 
-      <section className="panel">
+      <section className="panel detail-main-panel">
+        <Link href={watchEntry ? "/vistas" : "/pendientes"} className="detail-back-link">
+          <span aria-hidden="true">←</span>
+          {watchEntry ? "Volver a vistas" : "Volver a pendientes"}
+        </Link>
         <p className="eyebrow">Ficha de película</p>
         <h1 className="detail-title">{movie.title}</h1>
         <div className="detail-meta">
@@ -101,24 +109,37 @@ export default async function MoviePage({ params }: MoviePageProps) {
             <h2>Valoraciones individuales</h2>
           </div>
           <div className="member-list">
-            {members.map((member) => {
-              const rating = ratings.find((entry) => entry.userId === member.id);
-              return (
-                <article key={member.id} className="member-card">
-                  <div className="member-rating-head">
-                    <div className="member-rating-user">
-                      <UserAvatar user={member} size="sm" />
-                      <div className="member-rating-user-copy">
-                        <strong>{member.name}</strong>
-                        <span>@{member.username}</span>
+            {ratedMembers.length > 0 ? (
+              ratedMembers.map((member) => {
+                const rating = ratingByUserId.get(member.id)!;
+                return (
+                  <article key={member.id} className="member-card">
+                    <div className="member-rating-head">
+                      <div className="member-rating-user">
+                        <UserAvatar user={member} size="sm" />
+                        <div className="member-rating-user-copy">
+                          <strong>{member.name}</strong>
+                          <span>@{member.username}</span>
+                        </div>
                       </div>
+                      <span className="member-rating-score">{formatScore(rating.score)}</span>
                     </div>
-                    <span className="member-rating-score">{rating ? formatScore(rating.score) : "Sin nota"}</span>
-                  </div>
-                  <p className="body-copy">{rating?.comment ?? "Aún no ha dejado comentario."}</p>
-                </article>
-              );
-            })}
+                    <p className="body-copy">{rating.comment ?? "Sin comentario."}</p>
+                  </article>
+                );
+              })
+            ) : (
+              <div className="detail-ratings-empty">
+                <strong>La conversación todavía no ha empezado</strong>
+                <p>Nadie ha dejado una nota para esta película.</p>
+              </div>
+            )}
+            {unratedMembers.length > 0 ? (
+              <div className="detail-unrated-summary">
+                <span>{unratedMembers.length === 1 ? "Falta por valorar" : "Faltan por valorar"}</span>
+                <strong>{unratedMembers.map((member) => member.name).join(", ")}</strong>
+              </div>
+            ) : null}
           </div>
         </section>
 

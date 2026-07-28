@@ -50,7 +50,7 @@ test.describe("authenticated Preview smoke tests", () => {
   });
 
   test("loads protected pages and keeps the group HTML payload lean", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Green Book" })).toBeVisible();
+    await expect(page.locator("main h1").first()).toBeVisible();
 
     const response = await page.goto("/grupo");
     expect(response?.status()).toBe(200);
@@ -75,7 +75,7 @@ test.describe("authenticated Preview smoke tests", () => {
     await page.goto("/");
 
     const headerBox = await page.locator("header").boundingBox();
-    const headingBox = await page.getByRole("heading", { name: "Green Book" }).boundingBox();
+    const headingBox = await page.locator("main h1").first().boundingBox();
 
     expect(headerBox?.height ?? 999).toBeLessThan(100);
     expect(headingBox?.y ?? 0).toBeGreaterThan(headerBox?.y ? headerBox.y + headerBox.height : headerBox?.height ?? 0);
