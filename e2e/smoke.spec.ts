@@ -1,9 +1,20 @@
+import { createHmac } from "node:crypto";
+
 import { expect, test } from "@playwright/test";
 
 const username = process.env.E2E_USERNAME;
 const password = process.env.E2E_PASSWORD;
+const sessionUserId = process.env.E2E_SESSION_USER_ID;
 const ratingMovieId = process.env.E2E_RATING_MOVIE_ID;
 const ratingMovieSlug = process.env.E2E_RATING_MOVIE_SLUG;
+
+function createDevelopmentSessionToken(userId: string) {
+  const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+  const payload = `${encodeURIComponent(userId)}.${expiresAt}`;
+  const secret = process.env.SESSION_SECRET?.trim() || "cine-semanal-dev-session-secret";
+  const signature = createHmac("sha256", secret).update(payload).digest("hex");
+  return `${payload}.${signature}`;
+}
 
 test("login stays focused and hides authenticated navigation", async ({ page }) => {
   await page.goto("/login");
@@ -14,9 +25,24 @@ test("login stays focused and hides authenticated navigation", async ({ page }) 
 });
 
 test.describe("authenticated Preview smoke tests", () => {
-  test.skip(!username || !password, "Set E2E_USERNAME and E2E_PASSWORD to run authenticated flows.");
+  test.skip(
+    !sessionUserId && (!username || !password),
+    "Set E2E_SESSION_USER_ID or E2E_USERNAME and E2E_PASSWORD to run authenticated flows."
+  );
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, baseURL }) => {
+    if (sessionUserId) {
+      await page.context().addCookies([
+        {
+          name: "cine.session",
+          value: createDevelopmentSessionToken(sessionUserId),
+          url: new URL("/", baseURL ?? "http://127.0.0.1:3000").origin
+        }
+      ]);
+      await page.goto("/");
+      return;
+    }
+
     await page.goto("/login");
     await page.getByRole("textbox", { name: /Usuario/ }).fill(username ?? "");
     await page.getByRole("textbox", { name: /Contraseña/ }).fill(password ?? "");
@@ -81,7 +107,7 @@ test.describe("authenticated Preview smoke tests", () => {
 
     await scoreInput.fill("7.3");
     await page.getByRole("button", { name: /Actualizar valoración|Guardar valoración/ }).click();
-    await expect(page.getByRole("alert")).toContainText("0,25");
+    await expect(dialog.getByRole("alert")).toContainText("0,25");
 
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
