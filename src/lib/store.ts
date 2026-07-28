@@ -101,7 +101,6 @@ type ProfileOverview = {
 type DashboardData = {
   selectedMovie: Movie | null;
   selectedWatchEntry: WatchEntry | null;
-  recentActivity: ActivityItem[];
   upcomingReleases: UpcomingReleaseSuggestion[];
   stats: {
     watchedCount: number;
@@ -1950,7 +1949,6 @@ function buildDashboardDataFromState(state: AppState): DashboardOverviewData {
   return {
     selectedMovie,
     selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
-    recentActivity: state.activity.slice(0, 5),
     stats: getGroupStatsFromState(state)
   };
 }
@@ -2016,10 +2014,6 @@ async function hydrateMoviesForDatabaseRead(movies: Movie[]) {
   if (changedMovies.length > 0 && shouldAttemptDatabaseWrite()) {
     await syncMoviesToDatabase(changedMovies).catch((error) => markDatabaseWriteFailure("movie hydration sync", error));
   }
-}
-
-function getRecentActivityForDatabaseRead() {
-  return cloneState(loadFallbackState().activity.slice(0, 5));
 }
 
 async function buildUpcomingDashboardReleases(state: AppState) {
@@ -2110,7 +2104,6 @@ async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | 
     const dashboardData = {
       selectedMovie,
       selectedWatchEntry: selectedWatchRecord ? mapWatchRecordsToStateEntries([selectedWatchRecord])[0] ?? null : null,
-      recentActivity: getRecentActivityForDatabaseRead(),
       stats: {
         watchedCount,
         averageScore,

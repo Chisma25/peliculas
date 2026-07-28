@@ -3,12 +3,11 @@ import Link from "next/link";
 
 import { UpcomingReleasesPanel, UpcomingReleasesPanelFallback } from "@/components/upcoming-releases-panel";
 import { getDashboardOverviewHydrated } from "@/lib/store";
-import { formatScore, formatShortDate } from "@/lib/utils";
+import { formatScore } from "@/lib/utils";
 
 export default async function HomePage() {
   const dashboard = await getDashboardOverviewHydrated();
   const selectedMovie = dashboard.selectedMovie;
-  const latestActivity = dashboard.recentActivity[0] ?? null;
   const spotlightGenres = selectedMovie?.genres.slice(0, 2).join(" / ");
   const spotlightArtwork = selectedMovie?.backdrop || selectedMovie?.posterUrl;
   const hasWatchedSelection = Boolean(dashboard.selectedWatchEntry);
@@ -95,57 +94,6 @@ export default async function HomePage() {
         <Suspense fallback={<UpcomingReleasesPanelFallback />}>
           <UpcomingReleasesPanel />
         </Suspense>
-
-        <details className="dashboard-live-rail dashboard-history-drawer">
-          <summary className="dashboard-history-summary">
-            <span>
-              <span className="eyebrow">Historial</span>
-              <strong>Últimos movimientos</strong>
-            </span>
-            <span className="dashboard-history-toggle" aria-hidden="true">
-              Ver
-            </span>
-          </summary>
-
-          <div className="dashboard-history-content">
-            <div className="dashboard-history-actions">
-              <Link href="/grupo" className="dashboard-rail-link">
-                Ver grupo
-              </Link>
-            </div>
-
-            <div className="dashboard-last-move">
-              <span>Movimiento reciente</span>
-              <strong>{latestActivity ? latestActivity.label : "Todavía no hay actividad reciente"}</strong>
-              <p>
-                {latestActivity
-                  ? `Registrado el ${formatShortDate(latestActivity.date)}.`
-                  : "Cuando puntuéis o mováis pelis, aparecerá aquí."}
-              </p>
-            </div>
-
-            <div className="dashboard-live-list">
-              {dashboard.recentActivity.length > 0 ? (
-                dashboard.recentActivity.slice(0, 4).map((item, index) => (
-                  <article key={`${item.date}-${item.label}`}>
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    <div>
-                      <strong>{item.label}</strong>
-                      <small>{formatShortDate(item.date)}</small>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <article className="dashboard-live-empty">
-                  <div>
-                    <strong>Sin movimientos todavía.</strong>
-                    <small>La bitácora se llenará sola con vuestras acciones.</small>
-                  </div>
-                </article>
-              )}
-            </div>
-          </div>
-        </details>
       </section>
     </div>
   );
