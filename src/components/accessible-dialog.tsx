@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+
+import { useMounted } from "@/lib/use-mounted";
 
 type AccessibleDialogProps = {
   children: ReactNode;
@@ -22,13 +24,11 @@ const FOCUSABLE_SELECTOR = [
 export function AccessibleDialog({ children, labelledBy, describedBy, onClose }: AccessibleDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
-  const [mounted, setMounted] = useState(false);
-
-  onCloseRef.current = onClose;
+  const mounted = useMounted();
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!mounted) {

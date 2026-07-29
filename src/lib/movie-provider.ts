@@ -1,12 +1,13 @@
 import { Movie } from "@/lib/types";
 import { dedupeMovieSearchResults, rankMovieSearchResults } from "@/lib/movie-search";
-import { slugify } from "@/lib/utils";
+import { formatMovieLanguage, slugify } from "@/lib/utils";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 const TMDB_SEARCH_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const TMDB_DETAILS_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const TMDB_UPCOMING_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
+export const TMDB_METADATA_VERSION = 2;
 const tmdbMemoryCache = new Map<string, { payload: unknown; expiresAt: number }>();
 
 const TITLE_SEARCH_OVERRIDES: Record<string, { tmdbId?: string; search?: string; year?: number }> = {
@@ -151,7 +152,7 @@ const BEHIND_THE_SCENES_MARKERS = [
   "special"
 ];
 
-type TmdbSearchResult = {
+export type TmdbSearchResult = {
   id: number;
   title: string;
   original_title?: string;
@@ -161,13 +162,15 @@ type TmdbSearchResult = {
   poster_path?: string | null;
   backdrop_path?: string | null;
   original_language?: string;
+  popularity?: number;
+  vote_count?: number;
 };
 
 type TmdbListPayload = {
   results?: TmdbSearchResult[];
 };
 
-type TmdbMovieDetails = {
+export type TmdbMovieDetails = {
   id: number;
   title: string;
   original_title?: string;
@@ -180,6 +183,9 @@ type TmdbMovieDetails = {
   vote_average?: number;
   poster_path?: string | null;
   backdrop_path?: string | null;
+  original_language?: string;
+  popularity?: number;
+  vote_count?: number;
   videos?: {
     results?: Array<{
       key: string;
@@ -299,11 +305,12 @@ async function tmdbFetch<T>(path: string) {
   }
 }
 
-function mapSearchResultToMovie(item: TmdbSearchResult): Movie {
+export function mapSearchResultToMovie(item: TmdbSearchResult): Movie {
   return {
     id: `tmdb_${item.id}`,
     slug: slugify(item.title),
     title: item.title,
+    originalTitle: item.original_title,
     year: Number.parseInt(item.release_date?.slice(0, 4) ?? "0", 10) || 0,
     releaseDate: item.release_date,
     synopsis: item.overview || "Sinopsis pendiente de enriquecimiento.",
@@ -311,7 +318,7 @@ function mapSearchResultToMovie(item: TmdbSearchResult): Movie {
     genres: ["Pendiente"],
     director: "Pendiente",
     cast: [],
-    language: item.original_language?.toUpperCase() || "Desconocido",
+    language: formatMovieLanguage(item.original_language || "Desconocido"),
     country: "Desconocido",
     posterUrl: buildImageUrl(item.poster_path, "w500"),
     backdrop: buildImageUrl(item.backdrop_path, "w780"),
@@ -319,6 +326,9 @@ function mapSearchResultToMovie(item: TmdbSearchResult): Movie {
       source: "TMDb",
       value: `${Math.round((item.vote_average ?? 0) * 10)}%`
     },
+    metadataVersion: TMDB_METADATA_VERSION,
+    popularity: item.popularity,
+    voteCount: item.vote_count,
     sourceIds: {
       tmdb: String(item.id)
     }
@@ -336,7 +346,7 @@ function getSpainReleaseDate(item: TmdbMovieDetails) {
   return releaseDates[0] ?? item.release_date;
 }
 
-function mapDetailsToMovie(item: TmdbMovieDetails): Movie {
+export function mapDetailsToMovie(item: TmdbMovieDetails): Movie {
   const director = item.credits?.crew?.find((member) => member.job === "Director")?.name ?? "Pendiente";
   const cast =
     item.credits?.cast
@@ -349,6 +359,7 @@ function mapDetailsToMovie(item: TmdbMovieDetails): Movie {
     id: `tmdb_${item.id}`,
     slug: slugify(item.title),
     title: item.title,
+    originalTitle: item.original_title,
     year: Number.parseInt(item.release_date?.slice(0, 4) ?? "0", 10) || 0,
     releaseDate: item.release_date,
     releaseDateEs: getSpainReleaseDate(item),
@@ -357,7 +368,7 @@ function mapDetailsToMovie(item: TmdbMovieDetails): Movie {
     genres: item.genres?.map((genre) => genre.name) ?? ["Pendiente"],
     director,
     cast,
-    language: item.spoken_languages?.[0]?.name || item.spoken_languages?.[0]?.english_name || "Desconocido",
+    language: formatMovieLanguage(item.original_language || "Desconocido"),
     country: item.production_countries?.[0]?.name || "Desconocido",
     trailerUrl: trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : undefined,
     posterUrl: buildImageUrl(item.poster_path, "w500"),
@@ -366,6 +377,9 @@ function mapDetailsToMovie(item: TmdbMovieDetails): Movie {
       source: "TMDb",
       value: `${Math.round((item.vote_average ?? 0) * 10)}%`
     },
+    metadataVersion: TMDB_METADATA_VERSION,
+    popularity: item.popularity,
+    voteCount: item.vote_count,
     sourceIds: {
       tmdb: String(item.id)
     }
@@ -467,7 +481,12 @@ export async function searchMovies(query: string, fallbackMovies: Movie[]) {
     return [];
   }
 
-  const localMatches = fallbackMovies.filter((movie) => movie.title.toLowerCase().includes(trimmed.toLowerCase()));
+  const normalizedQuery = slugify(trimmed);
+  const localMatches = fallbackMovies.filter(
+    (movie) =>
+      slugify(movie.title).includes(normalizedQuery) ||
+      (movie.originalTitle ? slugify(movie.originalTitle).includes(normalizedQuery) : false)
+  );
   const remoteMatches = (await fetchSearchResults(trimmed)).slice(0, 16);
   const deduplicatedMatches = dedupeMovieSearchResults(remoteMatches, localMatches, 16);
   return rankMovieSearchResults(trimmed, deduplicatedMatches).slice(0, 10);

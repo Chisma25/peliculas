@@ -26,10 +26,6 @@ export function PrimaryNav() {
   const queuedPendingNavigation = useRef(false);
 
   useEffect(() => {
-    setPendingHref(null);
-  }, [pathname]);
-
-  useEffect(() => {
     function handlePendingWrite(event: Event) {
       const detail = (event as CustomEvent<PendingWriteEventDetail>).detail;
       activePendingWrites.current =

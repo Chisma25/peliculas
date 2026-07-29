@@ -1,7 +1,3 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { join } from "node:path";
-
 import type { Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
 import { cache } from "react";
@@ -9,8 +5,21 @@ import { cache } from "react";
 import { seedState } from "@/lib/demo-data";
 import { assertDatabaseEnvironmentSafety } from "@/lib/environment-safety";
 import { loadManualHistorySeed } from "@/lib/manual-history";
+import {
+  loadDeferredWriteQueue,
+  readLocalState,
+  saveDeferredWriteQueue,
+  saveLocalState,
+  saveLocalStateStrict,
+  type DeferredDatabaseWrite
+} from "@/lib/local-state-storage";
 import { findStoredMovieForSearchResult } from "@/lib/movie-search";
-import { fetchUpcomingMovies, resolveMovieMetadata, searchMovies } from "@/lib/movie-provider";
+import {
+  fetchUpcomingMovies,
+  resolveMovieMetadata,
+  searchMovies,
+  TMDB_METADATA_VERSION
+} from "@/lib/movie-provider";
 import {
   hasNormalizedDatabaseState,
   mergeNormalizedState,
@@ -26,7 +35,7 @@ import {
 import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
 import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
 import { commitStateChangeAtomically } from "@/lib/state-persistence";
-import { classifyWeeklySelection, shouldCarryWeeklySelection } from "@/lib/weekly-selection";
+import { classifyWeeklySelection, isWeeklyBatchCurrent, shouldCarryWeeklySelection } from "@/lib/weekly-selection";
 import {
   ActivityItem,
   AppState,
@@ -40,10 +49,19 @@ import {
   WeeklyRecommendationItem
 } from "@/lib/types";
 import { getAvatarDeliveryUrl } from "@/lib/avatar-data";
+import {
+  hashPassword,
+  normalizeIdentity,
+  normalizeUsername,
+  sanitizeAvatarDataUrl,
+  sanitizeComment,
+  secureStringMatch,
+  validateDisplayName,
+  validatePassword,
+  validateUsername,
+  verifyPassword
+} from "@/lib/user-input";
 import { average, formatScore, isQuarterPointScore, safeId, slugify } from "@/lib/utils";
-const DATA_DIR = process.env.APP_DATA_DIR?.trim() || join(process.cwd(), "data");
-const STATE_FILE = join(DATA_DIR, "runtime-state.json");
-const WRITE_QUEUE_FILE = join(DATA_DIR, "runtime-write-queue.json");
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
 const STATE_CACHE_TTL_MS = 20_000;
@@ -58,6 +76,7 @@ const DEFERRED_WRITE_FLUSH_TTL_MS = 1000 * 60;
 const APP_REGISTRATION_FALLBACK_DATE = "2026-03-14T17:09:52.000Z";
 
 const REMOVED_TEST_USER_IDS = new Set(["user_xisma25"]);
+const PREVIEW_TECHNICAL_MOVIE_TITLES = new Set(["F1 Review 1987", "F1 Review 2006"]);
 const DEFAULT_ADMIN_IDS = new Set(["user_isma"]);
 const DEFAULT_ADMIN_IDENTITIES = new Set(["isma"]);
 
@@ -166,48 +185,6 @@ type TimedCache<T> = {
   expiresAt: number;
 };
 
-type DeferredDatabaseWrite =
-  | {
-      type: "user-upsert";
-      user: User;
-    }
-  | {
-      type: "movie-upsert";
-      movie: Movie;
-    }
-  | {
-      type: "pending-upsert";
-      groupId: string;
-      movieId: string;
-      addedAt: string;
-    }
-  | {
-      type: "pending-remove";
-      groupId: string;
-      movieId: string;
-    }
-  | {
-      type: "watch-upsert";
-      entry: WatchEntry;
-    }
-  | {
-      type: "rating-upsert";
-      rating: UserRating;
-    }
-  | {
-      type: "weekly-batch-upsert";
-      batch: WeeklyRecommendationBatch;
-    }
-  | {
-      type: "weekly-batch-selection";
-      batchId: string;
-      selectedMovieId?: string;
-    }
-  | {
-      type: "snapshot-backup";
-      state: AppState;
-    };
-
 type DatabaseWriteOperation = {
   run: (client: Prisma.TransactionClient) => Promise<unknown>;
 };
@@ -229,6 +206,7 @@ let databaseReadBackoffUntil = 0;
 let databaseWriteBackoffUntil = 0;
 let liveStateMemoryCache: TimedCache<AppState> | null = null;
 let lastDeferredWriteFlushAt = 0;
+let previewDataHygienePromise: Promise<void> | null = null;
 let groupPageDataMemoryCache: TimedCache<{
   group: AppState["group"];
   members: Array<{
@@ -296,90 +274,6 @@ function invalidatePersistentStateCache() {
   movieDetailDataMemoryCache.clear();
   pendingListMemoryCache.clear();
   viewedListMemoryCache.clear();
-}
-
-function normalizeUsername(value: string) {
-  return slugify(value).replace(/-/g, "");
-}
-
-function normalizeIdentity(value: string) {
-  return normalizeUsername(value.trim());
-}
-
-function secureStringMatch(left: string, right: string) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false;
-  }
-
-  return timingSafeEqual(leftBuffer, rightBuffer);
-}
-
-function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password: string, passwordHash: string) {
-  const [salt, storedHash] = passwordHash.split(":");
-  if (!salt || !storedHash) {
-    return false;
-  }
-
-  const computed = scryptSync(password, salt, 64);
-  const stored = Buffer.from(storedHash, "hex");
-  return computed.length === stored.length && timingSafeEqual(computed, stored);
-}
-
-function validateUsername(value: string) {
-  if (value.length < 3 || value.length > 32) {
-    throw new Error("El usuario debe tener entre 3 y 32 caracteres.");
-  }
-}
-
-function validateDisplayName(value: string) {
-  if (value.length < 2 || value.length > 60) {
-    throw new Error("El nombre visible debe tener entre 2 y 60 caracteres.");
-  }
-}
-
-function validatePassword(value: string) {
-  if (value.length < 8 || value.length > 128) {
-    throw new Error("La contraseña debe tener entre 8 y 128 caracteres.");
-  }
-}
-
-function sanitizeComment(value?: string) {
-  const trimmed = value?.trim() ?? "";
-  if (!trimmed) {
-    return undefined;
-  }
-
-  if (trimmed.length > 1000) {
-    throw new Error("El comentario no puede superar los 1000 caracteres.");
-  }
-
-  return trimmed;
-}
-
-function sanitizeAvatarDataUrl(value?: string) {
-  const trimmed = value?.trim() ?? "";
-  if (!trimmed) {
-    return undefined;
-  }
-
-  const isAllowedImage = /^data:image\/(?:png|jpeg|jpg|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed);
-  if (!isAllowedImage) {
-    throw new Error("El avatar debe ser una imagen PNG, JPG, WEBP o GIF.");
-  }
-
-  if (trimmed.length > 2_000_000) {
-    throw new Error("El avatar es demasiado grande.");
-  }
-
-  return trimmed;
 }
 
 function ensureUserCredentials(user: User) {
@@ -638,6 +532,44 @@ function shouldUseDatabase() {
   return assertDatabaseEnvironmentSafety().usesDatabase;
 }
 
+async function ensurePreviewDataHygiene() {
+  if (process.env.APP_ENV?.trim().toLowerCase() !== "preview") {
+    return;
+  }
+  if (previewDataHygienePromise) {
+    return previewDataHygienePromise;
+  }
+
+  previewDataHygienePromise = (async () => {
+    const { prisma } = await import("@/lib/prisma");
+    const records = await prisma.movieRecord.findMany({ select: { id: true, data: true } });
+    const movieIds = records
+      .filter((record) => PREVIEW_TECHNICAL_MOVIE_TITLES.has((record.data as Partial<Movie>)?.title ?? ""))
+      .map((record) => record.id);
+    if (movieIds.length === 0) {
+      return;
+    }
+
+    await prisma.$transaction(async (database) => {
+      await database.weeklyBatchRecord.updateMany({
+        where: { selectedMovieId: { in: movieIds } },
+        data: { selectedMovieId: null }
+      });
+      await database.weeklyBatchItemRecord.deleteMany({ where: { movieId: { in: movieIds } } });
+      await database.ratingRecord.deleteMany({ where: { movieId: { in: movieIds } } });
+      await database.watchEntryRecord.deleteMany({ where: { movieId: { in: movieIds } } });
+      await database.pendingMovie.deleteMany({ where: { movieId: { in: movieIds } } });
+      await database.movieRecord.deleteMany({ where: { id: { in: movieIds } } });
+    });
+    invalidatePersistentStateCache();
+  })().catch((error) => {
+    previewDataHygienePromise = null;
+    console.error("[store] No se pudo limpiar la información técnica de Preview.", error);
+  });
+
+  return previewDataHygienePromise;
+}
+
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return `${error.name}: ${error.message}`.toLowerCase();
@@ -695,105 +627,19 @@ function markDatabaseWriteFailure(scope: string, error: unknown) {
 }
 
 function loadLocalStateFromDisk() {
-  try {
-    if (!existsSync(STATE_FILE)) {
-      return null;
-    }
-
-    const raw = readFileSync(STATE_FILE, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (!isAppState(parsed)) {
-      return null;
-    }
-
-    const state = ensureStateIntegrity(parsed);
+  const state = readLocalState(isAppState, ensureStateIntegrity);
+  if (state) {
     rememberLiveState(state);
-    return state;
-  } catch {
-    return null;
   }
+  return state;
 }
 
 function saveLocalStateToDisk(state: AppState) {
-  try {
-    saveLocalStateToDiskStrict(state);
-  } catch {
-    // Persistencia local best-effort.
-  }
+  saveLocalState(state);
 }
 
 function saveLocalStateToDiskStrict(state: AppState) {
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
-  }
-
-  const temporaryStateFile = `${STATE_FILE}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
-  try {
-    writeFileSync(temporaryStateFile, JSON.stringify(state, null, 2), "utf8");
-    renameSync(temporaryStateFile, STATE_FILE);
-  } catch (error) {
-    rmSync(temporaryStateFile, { force: true });
-    throw error;
-  }
-}
-
-function isDeferredDatabaseWrite(value: unknown): value is DeferredDatabaseWrite {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as { type?: string };
-  return (
-    candidate.type === "pending-upsert" ||
-    candidate.type === "pending-remove" ||
-    candidate.type === "watch-upsert" ||
-    candidate.type === "rating-upsert" ||
-    candidate.type === "weekly-batch-upsert" ||
-    candidate.type === "weekly-batch-selection" ||
-    candidate.type === "user-upsert" ||
-    candidate.type === "movie-upsert" ||
-    candidate.type === "snapshot-backup"
-  );
-}
-
-function loadDeferredWriteQueue() {
-  try {
-    if (!existsSync(WRITE_QUEUE_FILE)) {
-      return [];
-    }
-
-    const raw = readFileSync(WRITE_QUEUE_FILE, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter(isDeferredDatabaseWrite);
-  } catch {
-    return [];
-  }
-}
-
-function compactDeferredWriteQueue(queue: DeferredDatabaseWrite[]) {
-  const latestSnapshotIndex = [...queue]
-    .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => entry.type === "snapshot-backup")
-    .map(({ index }) => index)
-    .pop();
-
-  return queue.filter((entry, index) => entry.type !== "snapshot-backup" || index === latestSnapshotIndex);
-}
-
-function saveDeferredWriteQueue(queue: DeferredDatabaseWrite[]) {
-  try {
-    if (!existsSync(DATA_DIR)) {
-      mkdirSync(DATA_DIR, { recursive: true });
-    }
-
-    writeFileSync(WRITE_QUEUE_FILE, JSON.stringify(compactDeferredWriteQueue(queue), null, 2), "utf8");
-  } catch {
-    // Persistencia local best-effort.
-  }
+  saveLocalStateStrict(state);
 }
 
 function rememberLiveState(state: AppState) {
@@ -1008,6 +854,7 @@ async function loadUsersFromDatabaseUncached(options: { includeAvatarUrls?: bool
   }
 
   try {
+    await ensurePreviewDataHygiene();
     const { prisma } = await import("@/lib/prisma");
     const rows = await prisma.userRecord.findMany({
       select: options.includeAvatarUrls ? USER_RECORD_WITH_AVATAR_SELECT : USER_RECORD_SELECT,
@@ -1129,6 +976,7 @@ async function loadMovieCatalogFromDatabaseUncached() {
   }
 
   try {
+    await ensurePreviewDataHygiene();
     const { prisma } = await import("@/lib/prisma");
     const rows = await prisma.movieRecord.findMany({
       orderBy: [{ slug: "asc" }],
@@ -1604,6 +1452,7 @@ async function loadDatabaseStateUncached() {
   }
 
   try {
+    await ensurePreviewDataHygiene();
     const snapshotState = await loadSnapshotStateUncached();
     const baseState = snapshotState ?? loadFallbackState();
     const normalizedCollections = await loadNormalizedStateCollections(baseState.group.id);
@@ -1625,6 +1474,7 @@ async function loadDatabaseState() {
   }
 
   try {
+    await ensurePreviewDataHygiene();
     const snapshotState = await loadSnapshotStateForRequest();
     const baseState = snapshotState ?? loadFallbackState();
     const normalizedCollections = await loadNormalizedCollectionsCached(baseState.group.id);
@@ -1818,11 +1668,23 @@ function getCurrentBatchFromState(state: AppState) {
 }
 
 function isDashboardBatchValid(state: AppState, batch: AppState["weeklyBatches"][number] | null) {
-  if (!batch || batch.items.length !== 3) {
+  if (!batch || !isWeeklyBatchCurrent(batch) || batch.items.length !== 3) {
     return false;
   }
 
   const { watchedMovieIdSet, pendingMovieIdSet } = getStateIndexes(state);
+  if (batch.selectedMovieId) {
+    const selectedMovie = getMovieById(state, batch.selectedMovieId);
+    const isSelectable =
+      selectedMovie !== null &&
+      hasRecommendationMetadata(selectedMovie) &&
+      !watchedMovieIdSet.has(batch.selectedMovieId) &&
+      (pendingMovieIdSet.has(batch.selectedMovieId) ||
+        batch.items.some((item) => item.movieId === batch.selectedMovieId));
+    if (!isSelectable) {
+      return false;
+    }
+  }
 
   return batch.items.every((item) => {
     const movie = getMovieById(state, item.movieId);
@@ -1847,9 +1709,18 @@ async function ensureDashboardBatch(state: AppState) {
   }
 
   const refreshedBatch = generateWeeklyRecommendations(state);
+  const selectedMovie = currentBatch?.selectedMovieId
+    ? getMovieById(state, currentBatch.selectedMovieId)
+    : null;
   if (
     currentBatch?.selectedMovieId &&
-    shouldCarryWeeklySelection(currentBatch, getStateIndexes(state).watchedMovieIdSet)
+    selectedMovie &&
+    hasRecommendationMetadata(selectedMovie) &&
+    shouldCarryWeeklySelection(
+      currentBatch,
+      getStateIndexes(state).watchedMovieIdSet,
+      getStateIndexes(state).pendingMovieIdSet
+    )
   ) {
     refreshedBatch.selectedMovieId = currentBatch.selectedMovieId;
   }
@@ -2188,7 +2059,10 @@ function movieNeedsHydration(movie: Movie) {
   const hasDuration = movie.durationMinutes > 0;
   const hasPoster = Boolean(movie.posterUrl);
 
-  return !(hasGenres && hasDirector && hasSynopsis && hasDuration && hasPoster);
+  const hasCurrentTmdbMetadata =
+    !movie.sourceIds?.tmdb || movie.metadataVersion === TMDB_METADATA_VERSION;
+
+  return !(hasGenres && hasDirector && hasSynopsis && hasDuration && hasPoster && hasCurrentTmdbMetadata);
 }
 
 async function hydrateMovie(state: AppState, movie: Movie | null) {
@@ -2587,6 +2461,10 @@ async function getPendingPageDataFromDatabase(input: { search?: string; genre?: 
       activity: []
     });
     pendingListMemoryCache.clear();
+    const ensuredBatch = await ensureDashboardBatch(state);
+    if (ensuredBatch.changed && ensuredBatch.batch) {
+      await insertWeeklyBatchToDatabase(ensuredBatch.batch);
+    }
     const { batch, genres, totalPendingCount, filteredPendingIds, weeklyOptions } = getPendingListBaseFromState(
       state,
       search,
@@ -3427,9 +3305,18 @@ export async function generateBatch() {
   const state = await loadAppStateForMutation();
   const currentBatch = getCurrentBatchFromState(state);
   const batch = generateWeeklyRecommendations(state);
+  const selectedMovie = currentBatch?.selectedMovieId
+    ? getMovieById(state, currentBatch.selectedMovieId)
+    : null;
   if (
     currentBatch?.selectedMovieId &&
-    shouldCarryWeeklySelection(currentBatch, getStateIndexes(state).watchedMovieIdSet)
+    selectedMovie &&
+    hasRecommendationMetadata(selectedMovie) &&
+    shouldCarryWeeklySelection(
+      currentBatch,
+      getStateIndexes(state).watchedMovieIdSet,
+      getStateIndexes(state).pendingMovieIdSet
+    )
   ) {
     batch.selectedMovieId = currentBatch.selectedMovieId;
   }
@@ -3470,6 +3357,9 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
   }
   if (!movie) {
     throw new Error("No se encontró la película.");
+  }
+  if (!hasRecommendationMetadata(movie)) {
+    throw new Error("La película necesita título, año y género válidos antes de poder elegirla.");
   }
 
   const selectionSource = classifyWeeklySelection(

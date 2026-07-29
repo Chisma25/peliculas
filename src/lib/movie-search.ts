@@ -64,15 +64,32 @@ function getExternalRating(movie: Movie) {
 function getSearchRelevance(query: string, movie: Movie) {
   const normalizedQuery = slugify(query);
   const normalizedTitle = slugify(movie.title);
-  const exactTitle = normalizedTitle === normalizedQuery ? 1_000 : 0;
-  const startsWithTitle = normalizedTitle.startsWith(normalizedQuery) ? 240 : 0;
-  const containsTitle = normalizedTitle.includes(normalizedQuery) ? 100 : 0;
+  const normalizedOriginalTitle = movie.originalTitle ? slugify(movie.originalTitle) : "";
+  const titleCandidates = [normalizedTitle, normalizedOriginalTitle].filter(Boolean);
+  const exactTitle = titleCandidates.some((title) => title === normalizedQuery) ? 1_000 : 0;
+  const startsWithTitle = titleCandidates.some((title) => title.startsWith(normalizedQuery)) ? 240 : 0;
+  const containsTitle = titleCandidates.some((title) => title.includes(normalizedQuery)) ? 100 : 0;
   const posterQuality = movie.posterUrl ? 18 : 0;
   const synopsisQuality = movie.synopsis && !movie.synopsis.toLowerCase().includes("pendiente") ? 12 : 0;
   const yearQuality = movie.year > 0 ? 8 : 0;
   const audienceSignal = Math.min(getExternalRating(movie), 100) / 20;
+  const popularitySignal = Math.min(Math.log1p(Math.max(movie.popularity ?? 0, 0)) * 10, 70);
+  const voteCountSignal = Math.min(Math.log1p(Math.max(movie.voteCount ?? 0, 0)) * 8, 80);
+  const lowEvidencePenalty =
+    movie.voteCount === undefined ? 0 : movie.voteCount < 10 ? 120 : movie.voteCount < 50 ? 35 : 0;
 
-  return exactTitle + startsWithTitle + containsTitle + posterQuality + synopsisQuality + yearQuality + audienceSignal;
+  return (
+    exactTitle +
+    startsWithTitle +
+    containsTitle +
+    posterQuality +
+    synopsisQuality +
+    yearQuality +
+    audienceSignal +
+    popularitySignal +
+    voteCountSignal -
+    lowEvidencePenalty
+  );
 }
 
 export function rankMovieSearchResults(query: string, movies: Movie[]) {

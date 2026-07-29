@@ -18,11 +18,11 @@ type FilterDropdownProps = {
 export function FilterDropdown({ name, value, options, placeholder, ariaLabel }: FilterDropdownProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [selectedValue, setSelectedValue] = useState(value);
-
-  useEffect(() => {
-    setSelectedValue(value);
-  }, [value]);
+  const [selection, setSelection] = useState({
+    sourceValue: value,
+    currentValue: value
+  });
+  const selectedValue = selection.sourceValue === value ? selection.currentValue : value;
 
   useEffect(() => {
     if (!open) {
@@ -82,7 +82,7 @@ export function FilterDropdown({ name, value, options, placeholder, ariaLabel }:
                 aria-selected={isActive}
                 className={`filter-dropdown-option ${isActive ? "filter-dropdown-option-active" : ""}`}
                 onClick={() => {
-                  setSelectedValue(option.value);
+                  setSelection({ sourceValue: value, currentValue: option.value });
                   setOpen(false);
                 }}
               >

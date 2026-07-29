@@ -8,9 +8,21 @@ import {
   WeeklyRecommendationItem
 } from "@/lib/types";
 import { average, safeId, startOfWeek } from "@/lib/utils";
+import {
+  adjustFeature,
+  clamp,
+  getMovieDecade,
+  incrementCount,
+  normalizeCountMap,
+  normalizeFeatureMap,
+  normalizeText,
+  parseExternalRating,
+  unique,
+  uniqueNormalized,
+  type CountMap,
+  type FeatureMap
+} from "@/lib/recommendation-primitives";
 
-type FeatureMap = Record<string, number>;
-type CountMap = Record<string, number>;
 type CandidateMode = "discovery" | "pending" | "upcoming";
 
 type TasteProfile = {
@@ -270,30 +282,10 @@ const CONCEPT_LABELS: Record<string, string> = {
 const tokenCache = new Map<string, string[]>();
 const conceptCache = new Map<string, FeatureMap>();
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function normalizeText(value: string | undefined | null) {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
 function tokenize(value: string) {
   return normalizeText(value)
     .match(/[a-z0-9]+/g)
     ?.filter((token) => token.length > 2 && !TOKEN_STOPWORDS.has(token)) ?? [];
-}
-
-function unique<T>(values: T[]) {
-  return [...new Set(values)];
-}
-
-function uniqueNormalized(values: string[]) {
-  return unique(values.map((value) => normalizeText(value)).filter(Boolean));
 }
 
 function getMovieTokens(movie: Movie) {
@@ -326,79 +318,6 @@ function toTokenFrequency(tokens: string[]) {
     frequency[token] = (frequency[token] ?? 0) + 1;
   }
   return frequency;
-}
-
-function normalizeFeatureMap(map: FeatureMap) {
-  const entries = Object.entries(map);
-  if (entries.length === 0) {
-    return {};
-  }
-
-  const maxMagnitude = Math.max(...entries.map(([, value]) => Math.abs(value))) || 1;
-  return Object.fromEntries(entries.map(([key, value]) => [key, value / maxMagnitude]));
-}
-
-function normalizeCountMap(map: CountMap) {
-  const entries = Object.entries(map);
-  if (entries.length === 0) {
-    return {};
-  }
-
-  const maxValue = Math.max(...entries.map(([, value]) => value)) || 1;
-  return Object.fromEntries(entries.map(([key, value]) => [key, value / maxValue]));
-}
-
-function incrementCount(map: CountMap, key: string, amount = 1) {
-  if (!key) {
-    return;
-  }
-
-  map[key] = (map[key] ?? 0) + amount;
-}
-
-function adjustFeature(map: FeatureMap, key: string, amount: number) {
-  if (!key || amount === 0) {
-    return;
-  }
-
-  map[key] = (map[key] ?? 0) + amount;
-}
-
-function getMovieDecade(movie: Movie) {
-  if (!Number.isFinite(movie.year) || movie.year <= 0) {
-    return "";
-  }
-
-  return `${Math.floor(movie.year / 10) * 10}s`;
-}
-
-function parseExternalRating(movie: Movie) {
-  const raw = movie.externalRating?.value?.trim();
-  if (!raw) {
-    return null;
-  }
-
-  if (raw.includes("%")) {
-    const value = Number.parseFloat(raw.replace("%", ""));
-    return Number.isFinite(value) ? clamp(value / 10, 0, 10) : null;
-  }
-
-  if (raw.includes("/10")) {
-    const value = Number.parseFloat(raw.split("/10")[0]);
-    return Number.isFinite(value) ? clamp(value, 0, 10) : null;
-  }
-
-  if (raw.includes("/100")) {
-    const value = Number.parseFloat(raw.split("/100")[0]);
-    return Number.isFinite(value) ? clamp(value / 10, 0, 10) : null;
-  }
-
-  const numeric = Number.parseFloat(raw.replace(",", "."));
-  if (!Number.isFinite(numeric)) {
-    return null;
-  }
-
-  return numeric > 10 ? clamp(numeric / 10, 0, 10) : clamp(numeric, 0, 10);
 }
 
 function getMovieConcepts(movie: Movie) {

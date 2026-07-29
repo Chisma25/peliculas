@@ -84,6 +84,54 @@ describe("rankMovieSearchResults", () => {
 
     expect(results[0].id).toBe("complete");
   });
+
+  it("matches the original title when TMDb returns a translated title", () => {
+    const results = rankMovieSearchResults("Perfect Days", [
+      movie({
+        id: "unrelated",
+        slug: "perfect-days",
+        title: "Perfect Days",
+        year: 2011,
+        popularity: 1,
+        voteCount: 4
+      }),
+      movie({
+        id: "wenders",
+        slug: "dias-perfectos",
+        title: "Días perfectos",
+        originalTitle: "Perfect Days",
+        year: 2023,
+        popularity: 28,
+        voteCount: 1_400
+      })
+    ]);
+
+    expect(results[0].id).toBe("wenders");
+  });
+
+  it("uses audience evidence to surface the canonical exact-title result", () => {
+    const results = rankMovieSearchResults("Fight Club", [
+      movie({
+        id: "obscure",
+        slug: "fight-club",
+        title: "Fight Club",
+        year: 2023,
+        popularity: 0.2,
+        voteCount: 2
+      }),
+      movie({
+        id: "classic",
+        slug: "el-club-de-la-lucha",
+        title: "El club de la lucha",
+        originalTitle: "Fight Club",
+        year: 1999,
+        popularity: 85,
+        voteCount: 31_000
+      })
+    ]);
+
+    expect(results[0].id).toBe("classic");
+  });
 });
 
 describe("findStoredMovieForSearchResult", () => {

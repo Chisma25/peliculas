@@ -1,0 +1,99 @@
+name: Preview quality gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: read
+
+concurrency:
+  group: preview-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the commit
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit and integration tests
+        run: npm test
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Build the application
+        run: npm run build
+
+      - name: Audit production dependencies
+        run: npm audit --audit-level=low
+
+  authenticated-preview:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - name: Check out the commit
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for the matching Vercel Preview
+        id: preview
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >
+          node scripts/find-preview-deployment.mjs
+          --repository=${{ github.repository }}
+          --sha=${{ github.event.pull_request.head.sha || github.sha }}
+          --attempts=45
+          --delay-ms=10000
+
+      - name: Require the dedicated Preview account
+        run: |
+          test -n "$E2E_USERNAME"
+          test -n "$E2E_PASSWORD"
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run authenticated desktop and mobile flows
+        env:
+          E2E_BASE_URL: ${{ steps.preview.outputs.url }}
+        run: npm run test:e2e
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

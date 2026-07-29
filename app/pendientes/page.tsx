@@ -3,7 +3,7 @@ import { PendingFreshness } from "@/components/pending-freshness";
 import { PrefetchLink } from "@/components/prefetch-link";
 import { WeeklySelectionButton } from "@/components/weekly-selection-button";
 import { getPendingPageDataHydrated } from "@/lib/store";
-import { buildPaginationItems } from "@/lib/utils";
+import { buildPaginationItems, formatCount } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -168,7 +168,10 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           <p className="status-text">
             {filteredPendingCount === totalPendingCount
               ? `${totalPendingCount} pendientes en lista.`
-              : `${filteredPendingCount} resultados de ${totalPendingCount} pendientes.`}
+              : `${formatCount(filteredPendingCount, "resultado")} de ${formatCount(
+                  totalPendingCount,
+                  "pendiente"
+                )}.`}
           </p>
           {filteredPendingCount > PAGE_SIZE ? (
             <p className="muted-copy">

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- This effect owns the lifecycle of an external TMDb request. */
+
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 
 import { announcePendingUpdated, announcePendingWrite } from "@/lib/pending-sync";

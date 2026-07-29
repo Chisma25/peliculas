@@ -8,6 +8,7 @@ export type Movie = {
   id: string;
   slug: string;
   title: string;
+  originalTitle?: string;
   year: number;
   releaseDate?: string;
   releaseDateEs?: string;
@@ -22,6 +23,9 @@ export type Movie = {
   posterUrl?: string;
   backdrop?: string;
   externalRating: ExternalRating;
+  metadataVersion?: number;
+  popularity?: number;
+  voteCount?: number;
   sourceIds?: {
     tmdb?: string;
     imdb?: string;

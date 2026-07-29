@@ -51,8 +51,8 @@ export function ResetCredentialsPanel() {
           <input type="text" name="username" placeholder="isma" required autoComplete="username" />
         </label>
         <label>
-          Nueva contrasena
-          <input type="password" name="password" placeholder="Nueva contrasena" required autoComplete="new-password" />
+          Nueva contraseña
+          <input type="password" name="password" placeholder="Nueva contraseña" required autoComplete="new-password" />
         </label>
         <button type="submit" className="primary-button" disabled={isPending}>
           {isPending ? "Restableciendo..." : "Restablecer acceso"}

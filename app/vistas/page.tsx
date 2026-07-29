@@ -135,7 +135,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
             <p className="status-text">
               {filteredHistoryCount === totalHistoryCount
                 ? `${formatCount(totalHistoryCount, "película vista", "películas vistas")} en total.`
-                : `${filteredHistoryCount} resultados de ${formatCount(
+                : `${formatCount(filteredHistoryCount, "resultado")} de ${formatCount(
                     totalHistoryCount,
                     "película vista",
                     "películas vistas"
