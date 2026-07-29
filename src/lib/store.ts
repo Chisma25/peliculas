@@ -10,7 +10,12 @@ import { seedState } from "@/lib/demo-data";
 import { assertDatabaseEnvironmentSafety } from "@/lib/environment-safety";
 import { loadManualHistorySeed } from "@/lib/manual-history";
 import { findStoredMovieForSearchResult } from "@/lib/movie-search";
-import { fetchUpcomingMovies, resolveMovieMetadata, searchMovies } from "@/lib/movie-provider";
+import {
+  fetchUpcomingMovies,
+  resolveMovieMetadata,
+  searchMovies,
+  TMDB_METADATA_VERSION
+} from "@/lib/movie-provider";
 import {
   hasNormalizedDatabaseState,
   mergeNormalizedState,
@@ -58,6 +63,7 @@ const DEFERRED_WRITE_FLUSH_TTL_MS = 1000 * 60;
 const APP_REGISTRATION_FALLBACK_DATE = "2026-03-14T17:09:52.000Z";
 
 const REMOVED_TEST_USER_IDS = new Set(["user_xisma25"]);
+const PREVIEW_TECHNICAL_MOVIE_TITLES = new Set(["F1 Review 1987", "F1 Review 2006"]);
 const DEFAULT_ADMIN_IDS = new Set(["user_isma"]);
 const DEFAULT_ADMIN_IDENTITIES = new Set(["isma"]);
 
@@ -229,6 +235,7 @@ let databaseReadBackoffUntil = 0;
 let databaseWriteBackoffUntil = 0;
 let liveStateMemoryCache: TimedCache<AppState> | null = null;
 let lastDeferredWriteFlushAt = 0;
+let previewDataHygienePromise: Promise<void> | null = null;
 let groupPageDataMemoryCache: TimedCache<{
   group: AppState["group"];
   members: Array<{
@@ -636,6 +643,44 @@ function ensureStateIntegrity(source: AppState) {
 
 function shouldUseDatabase() {
   return assertDatabaseEnvironmentSafety().usesDatabase;
+}
+
+async function ensurePreviewDataHygiene() {
+  if (process.env.APP_ENV?.trim().toLowerCase() !== "preview") {
+    return;
+  }
+  if (previewDataHygienePromise) {
+    return previewDataHygienePromise;
+  }
+
+  previewDataHygienePromise = (async () => {
+    const { prisma } = await import("@/lib/prisma");
+    const records = await prisma.movieRecord.findMany({ select: { id: true, data: true } });
+    const movieIds = records
+      .filter((record) => PREVIEW_TECHNICAL_MOVIE_TITLES.has((record.data as Partial<Movie>)?.title ?? ""))
+      .map((record) => record.id);
+    if (movieIds.length === 0) {
+      return;
+    }
+
+    await prisma.$transaction(async (database) => {
+      await database.weeklyBatchRecord.updateMany({
+        where: { selectedMovieId: { in: movieIds } },
+        data: { selectedMovieId: null }
+      });
+      await database.weeklyBatchItemRecord.deleteMany({ where: { movieId: { in: movieIds } } });
+      await database.ratingRecord.deleteMany({ where: { movieId: { in: movieIds } } });
+      await database.watchEntryRecord.deleteMany({ where: { movieId: { in: movieIds } } });
+      await database.pendingMovie.deleteMany({ where: { movieId: { in: movieIds } } });
+      await database.movieRecord.deleteMany({ where: { id: { in: movieIds } } });
+    });
+    invalidatePersistentStateCache();
+  })().catch((error) => {
+    previewDataHygienePromise = null;
+    console.error("[store] No se pudo limpiar la información técnica de Preview.", error);
+  });
+
+  return previewDataHygienePromise;
 }
 
 function getErrorMessage(error: unknown) {
@@ -1604,6 +1649,7 @@ async function loadDatabaseStateUncached() {
   }
 
   try {
+    await ensurePreviewDataHygiene();
     const snapshotState = await loadSnapshotStateUncached();
     const baseState = snapshotState ?? loadFallbackState();
     const normalizedCollections = await loadNormalizedStateCollections(baseState.group.id);
@@ -1625,6 +1671,7 @@ async function loadDatabaseState() {
   }
 
   try {
+    await ensurePreviewDataHygiene();
     const snapshotState = await loadSnapshotStateForRequest();
     const baseState = snapshotState ?? loadFallbackState();
     const normalizedCollections = await loadNormalizedCollectionsCached(baseState.group.id);
@@ -2209,7 +2256,10 @@ function movieNeedsHydration(movie: Movie) {
   const hasDuration = movie.durationMinutes > 0;
   const hasPoster = Boolean(movie.posterUrl);
 
-  return !(hasGenres && hasDirector && hasSynopsis && hasDuration && hasPoster);
+  const hasCurrentTmdbMetadata =
+    !movie.sourceIds?.tmdb || movie.metadataVersion === TMDB_METADATA_VERSION;
+
+  return !(hasGenres && hasDirector && hasSynopsis && hasDuration && hasPoster && hasCurrentTmdbMetadata);
 }
 
 async function hydrateMovie(state: AppState, movie: Movie | null) {

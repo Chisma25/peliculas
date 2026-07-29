@@ -7,6 +7,7 @@ const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 const TMDB_SEARCH_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const TMDB_DETAILS_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const TMDB_UPCOMING_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
+export const TMDB_METADATA_VERSION = 2;
 const tmdbMemoryCache = new Map<string, { payload: unknown; expiresAt: number }>();
 
 const TITLE_SEARCH_OVERRIDES: Record<string, { tmdbId?: string; search?: string; year?: number }> = {
@@ -325,6 +326,7 @@ export function mapSearchResultToMovie(item: TmdbSearchResult): Movie {
       source: "TMDb",
       value: `${Math.round((item.vote_average ?? 0) * 10)}%`
     },
+    metadataVersion: TMDB_METADATA_VERSION,
     popularity: item.popularity,
     voteCount: item.vote_count,
     sourceIds: {
@@ -375,6 +377,7 @@ export function mapDetailsToMovie(item: TmdbMovieDetails): Movie {
       source: "TMDb",
       value: `${Math.round((item.vote_average ?? 0) * 10)}%`
     },
+    metadataVersion: TMDB_METADATA_VERSION,
     popularity: item.popularity,
     voteCount: item.vote_count,
     sourceIds: {

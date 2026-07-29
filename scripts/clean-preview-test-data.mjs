@@ -41,6 +41,17 @@ try {
 
   if (apply && movieIds.length > 0) {
     await prisma.$transaction(async (database) => {
+      const snapshots = await database.appSnapshot.findMany();
+      for (const snapshot of snapshots) {
+        if (!Array.isArray(snapshot.data?.movies)) continue;
+        const nextMovies = snapshot.data.movies.filter((movie) => !movieIds.includes(movie.id));
+        if (nextMovies.length !== snapshot.data.movies.length) {
+          await database.appSnapshot.update({
+            where: { id: snapshot.id },
+            data: { data: { ...snapshot.data, movies: nextMovies } }
+          });
+        }
+      }
       await database.weeklyBatchRecord.updateMany({
         where: { selectedMovieId: { in: movieIds } },
         data: { selectedMovieId: null }

@@ -23,6 +23,7 @@ export type Movie = {
   posterUrl?: string;
   backdrop?: string;
   externalRating: ExternalRating;
+  metadataVersion?: number;
   popularity?: number;
   voteCount?: number;
   sourceIds?: {

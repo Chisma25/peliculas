@@ -86,6 +86,7 @@ try {
         ...data,
         originalTitle: details.original_title || data.originalTitle,
         language: formatLanguage(details.original_language),
+        metadataVersion: 2,
         popularity: Number.isFinite(details.popularity) ? details.popularity : data.popularity,
         voteCount: Number.isFinite(details.vote_count) ? details.vote_count : data.voteCount
       };
