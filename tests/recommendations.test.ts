@@ -45,6 +45,33 @@ describe("recommendations engine", () => {
     }
   });
 
+  it("includes the decision signals needed by the weekly radar", () => {
+    const state = structuredClone(seedState);
+    state.pendingMovieIds = [
+      "movie_arrival",
+      "movie_drive_my_car",
+      "movie_memories_of_murder",
+      "movie_past_lives",
+      "movie_seven_samurai"
+    ];
+
+    const options = generatePendingWeeklyOptions(state);
+
+    for (const item of options) {
+      expect(item.score).toBeGreaterThanOrEqual(0);
+      expect(item.score).toBeLessThanOrEqual(100);
+      expect(item.reasons[0]?.detail.length).toBeGreaterThan(20);
+      expect(item.metrics).toHaveLength(4);
+      expect(item.metrics?.map((metric) => metric.label)).toEqual([
+        "Radar grupo",
+        "Consenso",
+        "Semana",
+        "Momento"
+      ]);
+      expect(item.metrics?.every((metric) => metric.value >= 0 && metric.value <= 100)).toBe(true);
+    }
+  });
+
   it("keeps recommendation ids unique and reasons populated", () => {
     const state = structuredClone(seedState);
     state.pendingMovieIds = ["movie_memories_of_murder"];

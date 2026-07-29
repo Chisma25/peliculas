@@ -1,6 +1,7 @@
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { PendingFreshness } from "@/components/pending-freshness";
 import { PrefetchLink } from "@/components/prefetch-link";
+import { WeeklySelectionButton } from "@/components/weekly-selection-button";
 import { getPendingPageDataHydrated } from "@/lib/store";
 import { buildPaginationItems } from "@/lib/utils";
 
@@ -71,52 +72,71 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       <PendingFreshness />
       {batch && weeklyOptions.length > 0 ? (
         <section className="pending-radar-panel" aria-label="Radar semanal de pendientes">
-          <p className="eyebrow pending-radar-eyebrow">Radar semanal</p>
+          <div className="pending-radar-heading">
+            <div>
+              <p className="eyebrow pending-radar-eyebrow">Radar semanal</p>
+              <h1>Las candidatas con más sentido esta semana</h1>
+            </div>
+            <p>
+              Una selección breve para salir de dudas sin recorrer toda la lista. Si ninguna os convence,
+              debajo podéis elegir cualquier película de pendientes.
+            </p>
+          </div>
 
-          <div className="pending-radar-grid">
-            {weeklyOptions.map((item, index) => (
-              <article
-                key={item.id}
-                className={`pending-radar-card ${batch.selectedMovieId === item.movie.id ? "is-selected" : ""}`}
-              >
-                <PrefetchLink href={`/peliculas/${item.movie.slug}`} className="pending-radar-link">
-                  <div
-                    className="pending-radar-poster"
-                    style={
-                      item.movie.posterUrl
-                        ? {
-                            backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.06), rgba(10, 15, 24, 0.68)), url(${item.movie.posterUrl})`,
-                            backgroundSize: "cover",
-                            backgroundPosition: "center"
-                          }
-                        : undefined
-                    }
-                  >
-                    <span>{index + 1}</span>
-                  </div>
+          <div
+            className={`pending-radar-grid ${
+              weeklyOptions.length <= 2 ? "pending-radar-grid-tight" : ""
+            }`}
+          >
+            {weeklyOptions.map((item, index) => {
+              const selected = batch.selectedMovieId === item.movie.id;
+              const topReason = item.reasons[0]?.detail ?? item.summary;
+              const positionLabel =
+                index === 0 ? "Mejor encaje" : index === 1 ? "Otra opción" : "También encaja";
+              const primaryGenre = item.movie.genres.find((genre) => genre !== "Pendiente");
 
-                  <div className="pending-radar-copy">
-                    <strong className="pending-card-title">{item.movie.title}</strong>
-                    <p className="pending-card-meta">{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</p>
-                    {item.movie.genres.length > 0 ? (
-                      <div className="pending-card-chips">
-                        {item.movie.genres.slice(0, 2).map((genre) => (
-                          <span key={`${item.movie.id}-${genre}`}>{genre}</span>
-                        ))}
+              return (
+                <article key={item.id} className={`pending-radar-card ${selected ? "is-selected" : ""}`}>
+                  <PrefetchLink href={`/peliculas/${item.movie.slug}`} className="pending-radar-link">
+                    <div
+                      className="pending-radar-poster"
+                      style={
+                        item.movie.posterUrl
+                          ? {
+                              backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.06), rgba(10, 15, 24, 0.72)), url(${item.movie.posterUrl})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center"
+                            }
+                          : undefined
+                      }
+                    >
+                      <span className="pending-radar-rank">#{index + 1}</span>
+                    </div>
+
+                    <div className="pending-radar-copy">
+                      <p className="pending-radar-position-label">{positionLabel}</p>
+                      <div className="pending-radar-title-row">
+                        <strong className="pending-card-title">{item.movie.title}</strong>
+                        {selected ? <span className="pending-selected-pill">Elegida</span> : null}
                       </div>
-                    ) : null}
-                  </div>
-                </PrefetchLink>
+                      <div className="pending-radar-practical" aria-label={`Datos prácticos de ${item.movie.title}`}>
+                        <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
+                        {item.movie.durationMinutes > 0 ? <span>{item.movie.durationMinutes} min</span> : null}
+                        {primaryGenre ? <span>{primaryGenre}</span> : null}
+                      </div>
+                      <p className="pending-radar-reason">{topReason}</p>
+                      <span className="pending-radar-detail-link">Ver ficha</span>
+                    </div>
+                  </PrefetchLink>
 
-                <form action="/api/weekly-recommendations/select" method="post" className="pending-radar-action">
-                  <input type="hidden" name="batchId" value={batch.id} />
-                  <input type="hidden" name="movieId" value={item.movie.id} />
-                  <button type="submit" className="primary-button">
-                    {batch.selectedMovieId === item.movie.id ? "Ya elegida" : "Elegir"}
-                  </button>
-                </form>
-              </article>
-            ))}
+                  <form action="/api/weekly-recommendations/select" method="post" className="pending-radar-action">
+                    <input type="hidden" name="batchId" value={batch.id} />
+                    <input type="hidden" name="movieId" value={item.movie.id} />
+                    <WeeklySelectionButton selected={selected} />
+                  </form>
+                </article>
+              );
+            })}
           </div>
         </section>
       ) : null}
@@ -238,9 +258,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                       <form action="/api/weekly-recommendations/select" method="post">
                         <input type="hidden" name="batchId" value={batch.id} />
                         <input type="hidden" name="movieId" value={movie.id} />
-                        <button type="submit" className="primary-button">
-                          Elegir
-                        </button>
+                        <WeeklySelectionButton selected={batch.selectedMovieId === movie.id} />
                       </form>
                     ) : null}
                   </div>
