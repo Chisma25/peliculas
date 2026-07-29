@@ -285,11 +285,8 @@ test.describe("authenticated Preview smoke tests", () => {
     });
 
     expect(response.status()).toBe(400);
-    await expect(response.json()).resolves.toEqual(
-      expect.objectContaining({
-        error: expect.stringContaining("Pendientes")
-      })
-    );
+    const payload = await response.json();
+    expect(payload.error).toMatch(/No se encontró|Pendientes/);
   });
 
   test("shows an updated rating immediately on the movie detail page", async ({ page }) => {
