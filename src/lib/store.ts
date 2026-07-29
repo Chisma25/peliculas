@@ -1,6 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { join } from "node:path";
 
 import type { Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
@@ -9,6 +7,14 @@ import { cache } from "react";
 import { seedState } from "@/lib/demo-data";
 import { assertDatabaseEnvironmentSafety } from "@/lib/environment-safety";
 import { loadManualHistorySeed } from "@/lib/manual-history";
+import {
+  loadDeferredWriteQueue,
+  readLocalState,
+  saveDeferredWriteQueue,
+  saveLocalState,
+  saveLocalStateStrict,
+  type DeferredDatabaseWrite
+} from "@/lib/local-state-storage";
 import { findStoredMovieForSearchResult } from "@/lib/movie-search";
 import {
   fetchUpcomingMovies,
@@ -46,10 +52,6 @@ import {
 } from "@/lib/types";
 import { getAvatarDeliveryUrl } from "@/lib/avatar-data";
 import { average, formatScore, isQuarterPointScore, safeId, slugify } from "@/lib/utils";
-const DATA_DIR =
-  process.env.APP_DATA_DIR?.trim() || join(/* turbopackIgnore: true */ process.cwd(), "data");
-const STATE_FILE = join(DATA_DIR, "runtime-state.json");
-const WRITE_QUEUE_FILE = join(DATA_DIR, "runtime-write-queue.json");
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
 const STATE_CACHE_TTL_MS = 20_000;
@@ -172,48 +174,6 @@ type TimedCache<T> = {
   value: T;
   expiresAt: number;
 };
-
-type DeferredDatabaseWrite =
-  | {
-      type: "user-upsert";
-      user: User;
-    }
-  | {
-      type: "movie-upsert";
-      movie: Movie;
-    }
-  | {
-      type: "pending-upsert";
-      groupId: string;
-      movieId: string;
-      addedAt: string;
-    }
-  | {
-      type: "pending-remove";
-      groupId: string;
-      movieId: string;
-    }
-  | {
-      type: "watch-upsert";
-      entry: WatchEntry;
-    }
-  | {
-      type: "rating-upsert";
-      rating: UserRating;
-    }
-  | {
-      type: "weekly-batch-upsert";
-      batch: WeeklyRecommendationBatch;
-    }
-  | {
-      type: "weekly-batch-selection";
-      batchId: string;
-      selectedMovieId?: string;
-    }
-  | {
-      type: "snapshot-backup";
-      state: AppState;
-    };
 
 type DatabaseWriteOperation = {
   run: (client: Prisma.TransactionClient) => Promise<unknown>;
@@ -741,105 +701,19 @@ function markDatabaseWriteFailure(scope: string, error: unknown) {
 }
 
 function loadLocalStateFromDisk() {
-  try {
-    if (!existsSync(STATE_FILE)) {
-      return null;
-    }
-
-    const raw = readFileSync(STATE_FILE, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (!isAppState(parsed)) {
-      return null;
-    }
-
-    const state = ensureStateIntegrity(parsed);
+  const state = readLocalState(isAppState, ensureStateIntegrity);
+  if (state) {
     rememberLiveState(state);
-    return state;
-  } catch {
-    return null;
   }
+  return state;
 }
 
 function saveLocalStateToDisk(state: AppState) {
-  try {
-    saveLocalStateToDiskStrict(state);
-  } catch {
-    // Persistencia local best-effort.
-  }
+  saveLocalState(state);
 }
 
 function saveLocalStateToDiskStrict(state: AppState) {
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
-  }
-
-  const temporaryStateFile = `${STATE_FILE}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
-  try {
-    writeFileSync(temporaryStateFile, JSON.stringify(state, null, 2), "utf8");
-    renameSync(temporaryStateFile, STATE_FILE);
-  } catch (error) {
-    rmSync(temporaryStateFile, { force: true });
-    throw error;
-  }
-}
-
-function isDeferredDatabaseWrite(value: unknown): value is DeferredDatabaseWrite {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as { type?: string };
-  return (
-    candidate.type === "pending-upsert" ||
-    candidate.type === "pending-remove" ||
-    candidate.type === "watch-upsert" ||
-    candidate.type === "rating-upsert" ||
-    candidate.type === "weekly-batch-upsert" ||
-    candidate.type === "weekly-batch-selection" ||
-    candidate.type === "user-upsert" ||
-    candidate.type === "movie-upsert" ||
-    candidate.type === "snapshot-backup"
-  );
-}
-
-function loadDeferredWriteQueue() {
-  try {
-    if (!existsSync(WRITE_QUEUE_FILE)) {
-      return [];
-    }
-
-    const raw = readFileSync(WRITE_QUEUE_FILE, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter(isDeferredDatabaseWrite);
-  } catch {
-    return [];
-  }
-}
-
-function compactDeferredWriteQueue(queue: DeferredDatabaseWrite[]) {
-  const latestSnapshotIndex = [...queue]
-    .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => entry.type === "snapshot-backup")
-    .map(({ index }) => index)
-    .pop();
-
-  return queue.filter((entry, index) => entry.type !== "snapshot-backup" || index === latestSnapshotIndex);
-}
-
-function saveDeferredWriteQueue(queue: DeferredDatabaseWrite[]) {
-  try {
-    if (!existsSync(DATA_DIR)) {
-      mkdirSync(DATA_DIR, { recursive: true });
-    }
-
-    writeFileSync(WRITE_QUEUE_FILE, JSON.stringify(compactDeferredWriteQueue(queue), null, 2), "utf8");
-  } catch {
-    // Persistencia local best-effort.
-  }
+  saveLocalStateStrict(state);
 }
 
 function rememberLiveState(state: AppState) {
