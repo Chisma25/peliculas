@@ -26,7 +26,7 @@ import {
 import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
 import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
 import { commitStateChangeAtomically } from "@/lib/state-persistence";
-import { classifyWeeklySelection, shouldCarryWeeklySelection } from "@/lib/weekly-selection";
+import { classifyWeeklySelection, isWeeklyBatchCurrent, shouldCarryWeeklySelection } from "@/lib/weekly-selection";
 import {
   ActivityItem,
   AppState,
@@ -1818,7 +1818,7 @@ function getCurrentBatchFromState(state: AppState) {
 }
 
 function isDashboardBatchValid(state: AppState, batch: AppState["weeklyBatches"][number] | null) {
-  if (!batch || batch.items.length !== 3) {
+  if (!batch || !isWeeklyBatchCurrent(batch) || batch.items.length !== 3) {
     return false;
   }
 
@@ -1849,7 +1849,11 @@ async function ensureDashboardBatch(state: AppState) {
   const refreshedBatch = generateWeeklyRecommendations(state);
   if (
     currentBatch?.selectedMovieId &&
-    shouldCarryWeeklySelection(currentBatch, getStateIndexes(state).watchedMovieIdSet)
+    shouldCarryWeeklySelection(
+      currentBatch,
+      getStateIndexes(state).watchedMovieIdSet,
+      getStateIndexes(state).pendingMovieIdSet
+    )
   ) {
     refreshedBatch.selectedMovieId = currentBatch.selectedMovieId;
   }
@@ -2587,6 +2591,10 @@ async function getPendingPageDataFromDatabase(input: { search?: string; genre?: 
       activity: []
     });
     pendingListMemoryCache.clear();
+    const ensuredBatch = await ensureDashboardBatch(state);
+    if (ensuredBatch.changed && ensuredBatch.batch) {
+      await insertWeeklyBatchToDatabase(ensuredBatch.batch);
+    }
     const { batch, genres, totalPendingCount, filteredPendingIds, weeklyOptions } = getPendingListBaseFromState(
       state,
       search,
@@ -3429,7 +3437,11 @@ export async function generateBatch() {
   const batch = generateWeeklyRecommendations(state);
   if (
     currentBatch?.selectedMovieId &&
-    shouldCarryWeeklySelection(currentBatch, getStateIndexes(state).watchedMovieIdSet)
+    shouldCarryWeeklySelection(
+      currentBatch,
+      getStateIndexes(state).watchedMovieIdSet,
+      getStateIndexes(state).pendingMovieIdSet
+    )
   ) {
     batch.selectedMovieId = currentBatch.selectedMovieId;
   }

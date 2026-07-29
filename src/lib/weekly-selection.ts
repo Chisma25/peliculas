@@ -1,4 +1,5 @@
 import type { WeeklyRecommendationBatch } from "@/lib/types";
+import { startOfWeek } from "@/lib/utils";
 
 export type WeeklySelectionSource = "recommendation" | "pending";
 
@@ -17,12 +18,27 @@ export function classifyWeeklySelection(
 
 export function shouldCarryWeeklySelection(
   batch: WeeklyRecommendationBatch | null,
-  watchedMovieIds: Iterable<string>
+  watchedMovieIds: Iterable<string>,
+  pendingMovieIds: Iterable<string>
 ) {
   if (!batch?.selectedMovieId) {
     return false;
   }
 
   const watchedIds = watchedMovieIds instanceof Set ? watchedMovieIds : new Set(watchedMovieIds);
-  return !watchedIds.has(batch.selectedMovieId);
+  const pendingIds = pendingMovieIds instanceof Set ? pendingMovieIds : new Set(pendingMovieIds);
+  return !watchedIds.has(batch.selectedMovieId) && pendingIds.has(batch.selectedMovieId);
+}
+
+export function isWeeklyBatchCurrent(batch: WeeklyRecommendationBatch | null, now = new Date()) {
+  if (!batch) {
+    return false;
+  }
+
+  const batchDate = new Date(batch.weekOf);
+  if (Number.isNaN(batchDate.getTime())) {
+    return false;
+  }
+
+  return startOfWeek(batchDate).getTime() === startOfWeek(now).getTime();
 }

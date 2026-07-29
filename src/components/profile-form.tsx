@@ -81,7 +81,7 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
           <p className="eyebrow">Tu perfil</p>
           <h2 id="profile-settings-title">Cuenta y avatar</h2>
         </div>
-        <p>Actualiza como apareces en el grupo sin tocar tus notas antiguas.</p>
+        <p>Actualiza cómo apareces en el grupo sin tocar tus notas antiguas.</p>
       </div>
 
       <form
@@ -104,7 +104,7 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
               Imagen de avatar
               <input type="file" accept="image/*" onChange={handleAvatarChange} />
             </label>
-            <p className="muted-copy">Usa una imagen pequena para que cargue rapido.</p>
+            <p className="muted-copy">Usa una imagen pequeña para que cargue rápido.</p>
             {avatarPreview ? (
               <button type="button" className="ghost-button" onClick={removeAvatar}>
                 Quitar avatar
@@ -129,7 +129,7 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
             <input type="text" name="username" defaultValue={initialUsername} required autoComplete="username" />
           </label>
           <label className="profile-form-wide">
-            Nueva contrasena
+            Nueva contraseña
             <input type="password" name="password" placeholder="Solo si quieres cambiarla" autoComplete="new-password" />
           </label>
         </div>

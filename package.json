@@ -16,6 +16,8 @@
     "db:export": "node scripts/db-export.mjs",
     "db:verify-backup": "node scripts/db-verify-backup.mjs",
     "db:restore": "node scripts/db-restore.mjs",
+    "db:repair-movie-metadata": "node scripts/repair-movie-metadata.mjs",
+    "db:clean-preview": "node scripts/clean-preview-test-data.mjs",
     "deploy:verify": "node scripts/verify-deployment.mjs"
   },
   "dependencies": {

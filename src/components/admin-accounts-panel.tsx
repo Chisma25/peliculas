@@ -66,7 +66,7 @@ export function AdminAccountsPanel({ members }: AdminAccountsPanelProps) {
                 <input type="text" name="username" defaultValue={member.username} required autoComplete="username" />
               </label>
               <label>
-                Nueva contrasena
+                Nueva contraseña
                 <input type="password" name="password" placeholder="Solo si quieres cambiarla" autoComplete="new-password" />
               </label>
               <button type="submit" className="primary-button" disabled={isPending}>

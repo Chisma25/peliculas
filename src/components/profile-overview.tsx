@@ -116,12 +116,12 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
         <div className="profile-section-heading">
           <div>
             <p className="eyebrow">Distribución de notas</p>
-            <h2>Cómo puntúas</h2>
+            <h2>{isSelf ? "Cómo puntúas" : `Cómo puntúa ${profile.user.name}`}</h2>
           </div>
           <p>
             {isSelf
-              ? "Intervalos de 0,5 puntos para ver donde se concentra tu criterio."
-              : "Intervalos de 0,5 puntos para ver donde se concentra su criterio."}
+              ? "Intervalos de 0,5 puntos para ver dónde se concentra tu criterio."
+              : "Intervalos de 0,5 puntos para ver dónde se concentra su criterio."}
           </p>
         </div>
 
@@ -133,7 +133,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
             </article>
             <article className="rating-distribution-stat">
               <small>Tramo dominante</small>
-              <strong>{dominantBand?.count ? dominantBand.label : "-"}</strong>
+              <strong>{dominantBand?.count ? formatScore(dominantBand.value) : "-"}</strong>
             </article>
             <article className="rating-distribution-stat">
               <small>Tramos activos</small>
@@ -154,7 +154,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
                 <div
                   key={item.label}
                   className="rating-distribution-column"
-                  title={`${item.label}: ${formatCount(item.count, "nota")}`}
+                  title={`${formatScore(item.value)}: ${formatCount(item.count, "nota")}`}
                 >
                   <div className="rating-distribution-count">{item.count > 0 ? item.count : ""}</div>
                   <div className="rating-distribution-track">
@@ -171,7 +171,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
           <div className="rating-distribution-axis-shell">
             <div className="rating-distribution-axis">
               {profile.distribution.map((item) => (
-                <span key={item.label}>{item.axisLabel}</span>
+                <span key={item.label}>{item.axisLabel ? formatScore(item.value) : ""}</span>
               ))}
             </div>
 
