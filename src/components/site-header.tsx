@@ -3,13 +3,15 @@
 import { PrefetchLink } from "@/components/prefetch-link";
 import { PrimaryNav } from "@/components/primary-nav";
 import { UserAvatar } from "@/components/user-avatar";
+import type { DeploymentVersion } from "@/lib/deployment-version";
 import { User } from "@/lib/types";
 
 type SiteHeaderProps = {
   user: User | null;
+  deploymentVersion: DeploymentVersion;
 };
 
-export function SiteHeader({ user }: SiteHeaderProps) {
+export function SiteHeader({ user, deploymentVersion }: SiteHeaderProps) {
   return (
     <header className={`site-header ${user ? "" : "site-header-public"}`}>
       <PrefetchLink href="/" className="brand-lockup" aria-label="Ir al dashboard de Cine Semanal">
@@ -35,6 +37,12 @@ export function SiteHeader({ user }: SiteHeaderProps) {
               <div className="user-menu-card-copy">
                 <strong>{user.name}</strong>
                 {user.isAdmin ? <span className="user-chip-role">Administrador</span> : null}
+                <span
+                  className="deployment-version"
+                  title={`${deploymentVersion.commitRef}@${deploymentVersion.commitSha}`}
+                >
+                  Versión {deploymentVersion.shortCommitSha} · {deploymentVersion.environment}
+                </span>
               </div>
               <PrefetchLink href="/perfil">Perfil</PrefetchLink>
               <form action="/api/auth/logout" method="post">

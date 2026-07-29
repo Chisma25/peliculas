@@ -24,6 +24,21 @@ test("login stays focused and hides authenticated navigation", async ({ page }) 
   await expect(page.getByRole("link", { name: "Ir al dashboard de Cine Semanal" })).toBeVisible();
 });
 
+test("exposes a public, non-cached deployment identity", async ({ request }) => {
+  const response = await request.get("/api/version");
+  const payload = await response.json();
+
+  expect(response.status()).toBe(200);
+  expect(response.headers()["cache-control"]).toContain("no-store");
+  expect(payload).toMatchObject({
+    service: "cine-semanal",
+    status: "ok"
+  });
+  expect(payload.commitSha).toBeTruthy();
+  expect(payload.commitRef).toBeTruthy();
+  expect(payload.environment).toBeTruthy();
+});
+
 test.describe("authenticated Preview smoke tests", () => {
   test.skip(
     !sessionUserId && (!username || !password),

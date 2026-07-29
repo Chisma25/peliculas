@@ -84,6 +84,19 @@ npm run db:restore -- --dry-run --environment=preview --env-file=.env.preview.lo
 - `db:restore` únicamente admite `--dry-run`: compara el backup con su mismo entorno y host, muestra las
   diferencias de volumen y nunca escribe filas. La restauración real permanece deshabilitada intencionadamente.
 
+## Verificación del despliegue
+
+Cada despliegue expone una identidad de solo lectura en `/api/version` con el commit, la rama y el entorno
+servidos realmente. Se puede contrastar un dominio con un commit concreto mediante:
+
+```powershell
+npm run deploy:verify -- --url=https://cine-semanal.vercel.app --expected-commit=SHA --expected-ref=main --expected-environment=production
+```
+
+El workflow `Verify production deployment` se ejecuta tras cada push a `main`. Primero espera el despliegue
+normal de Vercel. Si la versión no cambia, utiliza el secreto `VERCEL_DEPLOY_HOOK_URL` como respaldo y vuelve
+a comprobar que Producción sirve exactamente el commit fusionado.
+
 ## Accesos del grupo
 
 - Las cuentas del grupo ya no dependen de credenciales semilla dentro del código.
