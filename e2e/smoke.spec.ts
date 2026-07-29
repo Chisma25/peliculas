@@ -215,6 +215,25 @@ test.describe("authenticated Preview smoke tests", () => {
     await expect(existingButton).toBeDisabled();
   });
 
+  test("explains the weekly radar without restricting the pending archive", async ({ page }) => {
+    await page.goto("/pendientes");
+
+    const radar = page.getByRole("region", { name: "Radar semanal de pendientes" });
+    const radarCount = await radar.count();
+    test.skip(radarCount === 0, "The current environment has no weekly radar.");
+
+    await expect(
+      radar.getByRole("heading", { name: "Las candidatas con más sentido esta semana" })
+    ).toBeVisible();
+    await expect(radar.locator(".pending-radar-fit small").first()).toHaveText("% encaje");
+    await expect(radar.getByText("Radar grupo", { exact: true }).first()).toBeVisible();
+    await expect(radar.getByText("Consenso", { exact: true }).first()).toBeVisible();
+    await expect(radar.getByText("Semana", { exact: true }).first()).toBeVisible();
+
+    const archive = page.getByRole("region", { name: "Archivo de pendientes" });
+    await expect(archive.getByRole("button", { name: /Elegir/ }).first()).toBeVisible();
+  });
+
   test("rejects a manipulated weekly selection without changing pending choices", async ({ page }) => {
     await page.goto("/pendientes");
 
