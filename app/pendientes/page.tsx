@@ -92,7 +92,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               const selected = batch.selectedMovieId === item.movie.id;
               const topReason = item.reasons[0]?.detail ?? item.summary;
               const positionLabel =
-                index === 0 ? "Mejor encaje" : index === 1 ? "Alternativa sólida" : "Otra buena opción";
+                index === 0 ? "Mejor encaje" : index === 1 ? "Otra opción" : "También encaja";
               const primaryGenre = item.movie.genres.find((genre) => genre !== "Pendiente");
 
               return (

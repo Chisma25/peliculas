@@ -226,6 +226,7 @@ test.describe("authenticated Preview smoke tests", () => {
       radar.getByRole("heading", { name: "Las candidatas con más sentido esta semana" })
     ).toBeVisible();
     await expect(radar.getByText("Mejor encaje", { exact: true }).first()).toBeVisible();
+    await expect(radar.getByText("Otra opción", { exact: true }).first()).toBeVisible();
     await expect(radar.getByText("#1", { exact: true }).first()).toBeVisible();
     await expect(radar.locator(".pending-radar-reason").first()).toBeVisible();
     await expect(radar.getByText("Ver ficha", { exact: true }).first()).toBeVisible();
