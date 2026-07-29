@@ -1823,6 +1823,18 @@ function isDashboardBatchValid(state: AppState, batch: AppState["weeklyBatches"]
   }
 
   const { watchedMovieIdSet, pendingMovieIdSet } = getStateIndexes(state);
+  if (batch.selectedMovieId) {
+    const selectedMovie = getMovieById(state, batch.selectedMovieId);
+    const isSelectable =
+      selectedMovie !== null &&
+      hasRecommendationMetadata(selectedMovie) &&
+      !watchedMovieIdSet.has(batch.selectedMovieId) &&
+      (pendingMovieIdSet.has(batch.selectedMovieId) ||
+        batch.items.some((item) => item.movieId === batch.selectedMovieId));
+    if (!isSelectable) {
+      return false;
+    }
+  }
 
   return batch.items.every((item) => {
     const movie = getMovieById(state, item.movieId);
@@ -1847,8 +1859,13 @@ async function ensureDashboardBatch(state: AppState) {
   }
 
   const refreshedBatch = generateWeeklyRecommendations(state);
+  const selectedMovie = currentBatch?.selectedMovieId
+    ? getMovieById(state, currentBatch.selectedMovieId)
+    : null;
   if (
     currentBatch?.selectedMovieId &&
+    selectedMovie &&
+    hasRecommendationMetadata(selectedMovie) &&
     shouldCarryWeeklySelection(
       currentBatch,
       getStateIndexes(state).watchedMovieIdSet,
@@ -3435,8 +3452,13 @@ export async function generateBatch() {
   const state = await loadAppStateForMutation();
   const currentBatch = getCurrentBatchFromState(state);
   const batch = generateWeeklyRecommendations(state);
+  const selectedMovie = currentBatch?.selectedMovieId
+    ? getMovieById(state, currentBatch.selectedMovieId)
+    : null;
   if (
     currentBatch?.selectedMovieId &&
+    selectedMovie &&
+    hasRecommendationMetadata(selectedMovie) &&
     shouldCarryWeeklySelection(
       currentBatch,
       getStateIndexes(state).watchedMovieIdSet,
@@ -3482,6 +3504,9 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
   }
   if (!movie) {
     throw new Error("No se encontró la película.");
+  }
+  if (!hasRecommendationMetadata(movie)) {
+    throw new Error("La película necesita título, año y género válidos antes de poder elegirla.");
   }
 
   const selectionSource = classifyWeeklySelection(
