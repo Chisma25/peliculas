@@ -9,6 +9,7 @@ export async function middleware(request: NextRequest) {
   const isPublicPage = pathname === "/login" || pathname === "/reset-credenciales";
   const isApiRoute = pathname.startsWith("/api");
   const isAuthApi = pathname.startsWith("/api/auth");
+  const isPublicApi = isAuthApi || pathname === "/api/version";
   const isNextAsset = pathname.startsWith("/_next");
   const isFile = /\.[^/]+$/.test(pathname);
 
@@ -16,7 +17,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(pathname || "/", request.url), 303);
   }
 
-  if (isPublicPage || isAuthApi || isNextAsset || isFile) {
+  if (isPublicPage || isPublicApi || isNextAsset || isFile) {
     return NextResponse.next();
   }
 

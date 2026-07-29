@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 import { SiteHeader } from "@/components/site-header";
+import { getDeploymentVersion } from "@/lib/deployment-version";
 import { getSessionUser } from "@/lib/store";
 
 export const metadata: Metadata = {
@@ -15,6 +16,7 @@ export const preferredRegion = "fra1";
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const user = await getSessionUser();
+  const deploymentVersion = getDeploymentVersion();
 
   return (
     <html lang="es">
@@ -22,7 +24,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <div className="app-shell">
           <div className="ambient ambient-one" />
           <div className="ambient ambient-two" />
-          <SiteHeader user={user} />
+          <SiteHeader user={user} deploymentVersion={deploymentVersion} />
           <main className="page-shell">{children}</main>
         </div>
       </body>

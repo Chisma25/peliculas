@@ -456,6 +456,14 @@ video {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.deployment-version {
+  margin-top: 0.32rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.25;
+  letter-spacing: 0.035em;
+}
+
 .user-menu[open] .user-chip-actions {
   display: flex;
 }

@@ -1,0 +1,57 @@
+name: Verify production deployment
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-production-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PRODUCTION_URL: https://cine-semanal.vercel.app
+      EXPECTED_COMMIT: ${{ github.sha }}
+      VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+    steps:
+      - name: Check out the release commit
+        uses: actions/checkout@v4
+
+      - name: Wait for the normal Vercel deployment
+        id: normal-deployment
+        continue-on-error: true
+        run: >
+          node scripts/verify-deployment.mjs
+          --url=$PRODUCTION_URL
+          --expected-commit=$EXPECTED_COMMIT
+          --expected-ref=main
+          --expected-environment=production
+          --attempts=12
+          --delay-ms=10000
+
+      - name: Trigger the Vercel fallback hook
+        if: steps.normal-deployment.outcome == 'failure'
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "::error::Vercel did not deploy the commit and VERCEL_DEPLOY_HOOK_URL is unavailable."
+            exit 1
+          fi
+          curl --fail --silent --show-error --request POST "$VERCEL_DEPLOY_HOOK_URL" > /dev/null
+
+      - name: Verify the deployed commit
+        if: steps.normal-deployment.outcome == 'failure'
+        run: >
+          node scripts/verify-deployment.mjs
+          --url=$PRODUCTION_URL
+          --expected-commit=$EXPECTED_COMMIT
+          --expected-ref=main
+          --expected-environment=production
+          --attempts=30
+          --delay-ms=10000
