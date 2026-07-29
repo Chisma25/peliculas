@@ -5108,34 +5108,15 @@ code {
 }
 
 .pending-radar-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.58fr);
-  gap: 1.25rem;
-  align-items: end;
-  padding: 0.2rem 0.15rem 0.35rem;
-}
-
-.pending-radar-eyebrow {
-  margin: 0;
+  padding: 0.15rem;
 }
 
 .pending-radar-heading h1 {
-  max-width: 16ch;
-  margin: 0.32rem 0 0;
-  font-family: "Aptos Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-  font-size: clamp(1.75rem, 3vw, 2.9rem);
-  line-height: 0.94;
-  letter-spacing: -0.055em;
-}
-
-.pending-radar-heading > p {
-  max-width: 42rem;
   margin: 0;
-  justify-self: end;
-  color: rgba(247, 242, 232, 0.66);
-  font-size: 0.94rem;
-  line-height: 1.55;
-  text-align: right;
+  font-family: "Aptos Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  font-size: clamp(1.55rem, 2.3vw, 2.25rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
 }
 
 .pending-section-head {
@@ -5166,38 +5147,8 @@ code {
 }
 
 .pending-radar-grid.pending-radar-grid-tight {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.pending-radar-grid-tight .pending-radar-card {
-  display: grid;
-  grid-template-columns: minmax(11rem, 0.72fr) minmax(0, 1fr);
-  align-items: stretch;
-}
-
-.pending-radar-grid-tight .pending-radar-link {
-  display: grid;
-  grid-template-columns: minmax(11rem, 0.72fr) minmax(0, 1fr);
-  grid-column: 1 / -1;
-  gap: 0.85rem;
-}
-
-.pending-radar-grid-tight .pending-radar-poster {
-  grid-column: 1;
-  grid-row: 1;
-  height: 100%;
-  min-height: 17rem;
-  aspect-ratio: auto;
-}
-
-.pending-radar-grid-tight .pending-radar-copy {
-  grid-column: 2;
-  grid-row: 1;
-  min-height: 17rem;
-}
-
-.pending-radar-grid-tight .pending-radar-action {
-  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 320px));
+  justify-content: start;
 }
 
 .pending-radar-card,
@@ -5327,7 +5278,7 @@ code {
 }
 
 .pending-radar-copy {
-  min-height: 10.5rem;
+  min-height: 4.8rem;
 }
 
 .pending-movie-copy {
@@ -5349,15 +5300,6 @@ code {
   justify-content: space-between;
 }
 
-.pending-radar-position-label {
-  margin: 0;
-  color: var(--accent-soft);
-  font-size: 0.68rem;
-  font-weight: 850;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
 .pending-selected-pill {
   flex: 0 0 auto;
   padding: 0.28rem 0.42rem;
@@ -5369,18 +5311,6 @@ code {
   font-weight: 850;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-}
-
-.pending-radar-reason {
-  display: -webkit-box;
-  min-height: 4.15em;
-  margin: 0;
-  overflow: hidden;
-  color: rgba(247, 242, 232, 0.73);
-  font-size: 0.83rem;
-  line-height: 1.38;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
 }
 
 .pending-radar-practical {
@@ -5397,22 +5327,6 @@ code {
   color: rgba(247, 242, 232, 0.66);
   font-size: 0.72rem;
   line-height: 1;
-}
-
-.pending-radar-detail-link {
-  width: fit-content;
-  margin-top: auto;
-  color: rgba(247, 242, 232, 0.72);
-  font-size: 0.78rem;
-  font-weight: 750;
-  text-decoration: underline;
-  text-decoration-color: rgba(213, 139, 94, 0.5);
-  text-underline-offset: 0.22rem;
-}
-
-.pending-radar-link:hover .pending-radar-detail-link {
-  color: var(--accent-soft);
-  text-decoration-color: currentColor;
 }
 
 .pending-card-title {
@@ -5621,6 +5535,12 @@ code {
   margin-top: auto;
 }
 
+.pending-movie-actions button {
+  height: 2.75rem;
+  min-height: 2.75rem;
+  white-space: nowrap;
+}
+
 .pending-movie-actions form:only-child {
   grid-column: 1 / -1;
 }
@@ -5671,13 +5591,11 @@ code {
 
 @media (max-width: 1280px) {
   .pending-command-strip,
-  .pending-section-head,
-  .pending-radar-heading {
+  .pending-section-head {
     grid-template-columns: 1fr;
   }
 
-  .pending-section-head .body-copy,
-  .pending-radar-heading > p {
+  .pending-section-head .body-copy {
     justify-self: start;
     text-align: left;
   }
@@ -5687,9 +5605,6 @@ code {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .pending-movie-actions {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 1420px) and (min-width: 981px) {
@@ -5732,16 +5647,11 @@ code {
   }
 
   .pending-radar-heading {
-    gap: 0.7rem;
+    padding: 0.1rem;
   }
 
   .pending-radar-heading h1 {
-    max-width: 18ch;
-    font-size: clamp(1.85rem, 9vw, 2.6rem);
-  }
-
-  .pending-radar-heading > p {
-    font-size: 0.88rem;
+    font-size: clamp(1.55rem, 7.5vw, 2rem);
   }
 
   .pending-command-stats,
@@ -5769,19 +5679,14 @@ code {
     grid-column: 1;
     grid-row: 1;
     height: 100%;
-    min-height: 15rem;
+    min-height: 11.5rem;
     aspect-ratio: auto;
   }
 
   .pending-radar-copy {
     grid-column: 2;
     grid-row: 1;
-    min-height: 15rem;
-  }
-
-  .pending-radar-reason {
     min-height: 0;
-    -webkit-line-clamp: 5;
   }
 
   .pending-radar-action {

@@ -215,26 +215,32 @@ test.describe("authenticated Preview smoke tests", () => {
     await expect(existingButton).toBeDisabled();
   });
 
-  test("explains the weekly radar without exposing internal scores or restricting the pending archive", async ({ page }) => {
+  test("keeps weekly recommendations concise without restricting the pending archive", async ({ page }) => {
     await page.goto("/pendientes");
 
-    const radar = page.getByRole("region", { name: "Radar semanal de pendientes" });
+    const radar = page.getByRole("region", { name: "Recomendaciones semanales" });
     const radarCount = await radar.count();
     test.skip(radarCount === 0, "The current environment has no weekly radar.");
 
-    await expect(
-      radar.getByRole("heading", { name: "Las candidatas con más sentido esta semana" })
-    ).toBeVisible();
-    await expect(radar.getByText("Mejor encaje", { exact: true }).first()).toBeVisible();
-    await expect(radar.getByText("Otra opción", { exact: true }).first()).toBeVisible();
+    await expect(radar.getByRole("heading", { name: "Recomendaciones" })).toBeVisible();
     await expect(radar.getByText("#1", { exact: true }).first()).toBeVisible();
-    await expect(radar.locator(".pending-radar-reason").first()).toBeVisible();
-    await expect(radar.getByText("Ver ficha", { exact: true }).first()).toBeVisible();
+    await expect(radar.locator(".pending-radar-position-label")).toHaveCount(0);
+    await expect(radar.locator(".pending-radar-reason")).toHaveCount(0);
+    await expect(radar.locator(".pending-radar-detail-link")).toHaveCount(0);
     await expect(radar.locator(".pending-radar-fit")).toHaveCount(0);
     await expect(radar.locator(".pending-radar-metrics")).toHaveCount(0);
 
     const archive = page.getByRole("region", { name: "Archivo de pendientes" });
-    await expect(archive.getByRole("button", { name: /Elegir/ }).first()).toBeVisible();
+    const firstCard = archive.locator(".pending-movie-card").first();
+    const removeButton = firstCard.getByRole("button", { name: "Quitar", exact: true });
+    const chooseButton = firstCard.getByRole("button", { name: /^(Elegir|Elegida)$/ });
+    await expect(chooseButton).toBeVisible();
+
+    const [removeBox, chooseBox] = await Promise.all([removeButton.boundingBox(), chooseButton.boundingBox()]);
+    expect(removeBox).not.toBeNull();
+    expect(chooseBox).not.toBeNull();
+    expect(Math.abs((removeBox?.width ?? 0) - (chooseBox?.width ?? 0))).toBeLessThan(2);
+    expect(Math.abs((removeBox?.height ?? 0) - (chooseBox?.height ?? 0))).toBeLessThan(2);
   });
 
   test("rejects a manipulated weekly selection without changing pending choices", async ({ page }) => {
