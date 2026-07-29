@@ -23,6 +23,7 @@ if (!baseUrl || !expectedCommit) {
 
 const versionUrl = new URL("/api/version", baseUrl);
 let lastErrors = [];
+let verified = false;
 
 for (let attempt = 1; attempt <= attempts; attempt += 1) {
   try {
@@ -45,7 +46,8 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
         console.log(
           `Despliegue verificado: ${payload.shortCommitSha} · ${payload.commitRef} · ${payload.environment}`
         );
-        process.exit(0);
+        verified = true;
+        break;
       }
     }
   } catch (error) {
@@ -58,5 +60,7 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
   }
 }
 
-console.error(`No se pudo verificar ${versionUrl}: ${lastErrors.join(" ")}`);
-process.exit(1);
+if (!verified) {
+  console.error(`No se pudo verificar ${versionUrl}: ${lastErrors.join(" ")}`);
+  process.exitCode = 1;
+}
