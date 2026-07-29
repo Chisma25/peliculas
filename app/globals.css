@@ -5795,6 +5795,33 @@ code {
     min-height: 15rem;
   }
 
+  .pending-radar-metrics {
+    grid-template-columns: 1fr;
+    gap: 0.3rem;
+  }
+
+  .pending-radar-metrics span {
+    display: flex;
+    min-height: 1.85rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    padding: 0.38rem 0.45rem;
+  }
+
+  .pending-radar-metrics small {
+    overflow: hidden;
+    font-size: 0.58rem;
+    letter-spacing: 0.055em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pending-radar-metrics strong {
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+  }
+
   .pending-radar-action {
     grid-column: 1 / -1;
   }
