@@ -83,7 +83,11 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
             </p>
           </div>
 
-          <div className="pending-radar-grid">
+          <div
+            className={`pending-radar-grid ${
+              weeklyOptions.length <= 2 ? "pending-radar-grid-tight" : ""
+            }`}
+          >
             {weeklyOptions.map((item, index) => {
               const selected = batch.selectedMovieId === item.movie.id;
               const topReason = item.reasons[0]?.detail ?? item.summary;
