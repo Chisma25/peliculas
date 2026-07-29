@@ -5679,7 +5679,7 @@ code {
     grid-column: 1;
     grid-row: 1;
     height: 100%;
-    min-height: 15rem;
+    min-height: 11.5rem;
     aspect-ratio: auto;
   }
 
