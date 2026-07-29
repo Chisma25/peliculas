@@ -1053,6 +1053,7 @@ async function loadUsersFromDatabaseUncached(options: { includeAvatarUrls?: bool
   }
 
   try {
+    await ensurePreviewDataHygiene();
     const { prisma } = await import("@/lib/prisma");
     const rows = await prisma.userRecord.findMany({
       select: options.includeAvatarUrls ? USER_RECORD_WITH_AVATAR_SELECT : USER_RECORD_SELECT,
@@ -1174,6 +1175,7 @@ async function loadMovieCatalogFromDatabaseUncached() {
   }
 
   try {
+    await ensurePreviewDataHygiene();
     const { prisma } = await import("@/lib/prisma");
     const rows = await prisma.movieRecord.findMany({
       orderBy: [{ slug: "asc" }],
