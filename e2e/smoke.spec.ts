@@ -215,7 +215,7 @@ test.describe("authenticated Preview smoke tests", () => {
     await expect(existingButton).toBeDisabled();
   });
 
-  test("explains the weekly radar without restricting the pending archive", async ({ page }) => {
+  test("explains the weekly radar without exposing internal scores or restricting the pending archive", async ({ page }) => {
     await page.goto("/pendientes");
 
     const radar = page.getByRole("region", { name: "Radar semanal de pendientes" });
@@ -225,10 +225,12 @@ test.describe("authenticated Preview smoke tests", () => {
     await expect(
       radar.getByRole("heading", { name: "Las candidatas con más sentido esta semana" })
     ).toBeVisible();
-    await expect(radar.locator(".pending-radar-fit small").first()).toHaveText("% encaje");
-    await expect(radar.getByText("Radar grupo", { exact: true }).first()).toBeVisible();
-    await expect(radar.getByText("Consenso", { exact: true }).first()).toBeVisible();
-    await expect(radar.getByText("Semana", { exact: true }).first()).toBeVisible();
+    await expect(radar.getByText("Mejor encaje", { exact: true }).first()).toBeVisible();
+    await expect(radar.getByText("#1", { exact: true }).first()).toBeVisible();
+    await expect(radar.locator(".pending-radar-reason").first()).toBeVisible();
+    await expect(radar.getByText("Ver ficha", { exact: true }).first()).toBeVisible();
+    await expect(radar.locator(".pending-radar-fit")).toHaveCount(0);
+    await expect(radar.locator(".pending-radar-metrics")).toHaveCount(0);
 
     const archive = page.getByRole("region", { name: "Archivo de pendientes" });
     await expect(archive.getByRole("button", { name: /Elegir/ }).first()).toBeVisible();

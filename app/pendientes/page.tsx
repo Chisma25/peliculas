@@ -3,7 +3,7 @@ import { PendingFreshness } from "@/components/pending-freshness";
 import { PrefetchLink } from "@/components/prefetch-link";
 import { WeeklySelectionButton } from "@/components/weekly-selection-button";
 import { getPendingPageDataHydrated } from "@/lib/store";
-import { buildPaginationItems, formatFitScore } from "@/lib/utils";
+import { buildPaginationItems } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -78,8 +78,8 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               <h1>Las candidatas con más sentido esta semana</h1>
             </div>
             <p>
-              Ordenadas por afinidad, consenso y encaje con el plan. El radar orienta; debajo podéis seguir
-              eligiendo cualquier película de pendientes.
+              Una selección breve para salir de dudas sin recorrer toda la lista. Si ninguna os convence,
+              debajo podéis elegir cualquier película de pendientes.
             </p>
           </div>
 
@@ -91,7 +91,9 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
             {weeklyOptions.map((item, index) => {
               const selected = batch.selectedMovieId === item.movie.id;
               const topReason = item.reasons[0]?.detail ?? item.summary;
-              const visibleMetrics = item.metrics?.slice(0, 3) ?? [];
+              const positionLabel =
+                index === 0 ? "Mejor encaje" : index === 1 ? "Alternativa sólida" : "Otra buena opción";
+              const primaryGenre = item.movie.genres.find((genre) => genre !== "Pendiente");
 
               return (
                 <article key={item.id} className={`pending-radar-card ${selected ? "is-selected" : ""}`}>
@@ -109,33 +111,21 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                       }
                     >
                       <span className="pending-radar-rank">#{index + 1}</span>
-                      <strong className="pending-radar-fit">
-                        {formatFitScore(item.score)}
-                        <small>% encaje</small>
-                      </strong>
                     </div>
 
                     <div className="pending-radar-copy">
+                      <p className="pending-radar-position-label">{positionLabel}</p>
                       <div className="pending-radar-title-row">
                         <strong className="pending-card-title">{item.movie.title}</strong>
                         {selected ? <span className="pending-selected-pill">Elegida</span> : null}
                       </div>
-                      <p className="pending-card-meta">
-                        {item.movie.year > 0 ? item.movie.year : "Año pendiente"}
-                        {item.movie.director ? ` · ${item.movie.director}` : ""}
-                      </p>
+                      <div className="pending-radar-practical" aria-label={`Datos prácticos de ${item.movie.title}`}>
+                        <span>{item.movie.year > 0 ? item.movie.year : "Año pendiente"}</span>
+                        {item.movie.durationMinutes > 0 ? <span>{item.movie.durationMinutes} min</span> : null}
+                        {primaryGenre ? <span>{primaryGenre}</span> : null}
+                      </div>
                       <p className="pending-radar-reason">{topReason}</p>
-
-                      {visibleMetrics.length > 0 ? (
-                        <div className="pending-radar-metrics" aria-label={`Señales de encaje de ${item.movie.title}`}>
-                          {visibleMetrics.map((metric) => (
-                            <span key={`${item.id}-${metric.label}`}>
-                              <small>{metric.label}</small>
-                              <strong>{metric.value}%</strong>
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
+                      <span className="pending-radar-detail-link">Ver ficha</span>
                     </div>
                   </PrefetchLink>
 
