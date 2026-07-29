@@ -46,7 +46,8 @@ import {
 } from "@/lib/types";
 import { getAvatarDeliveryUrl } from "@/lib/avatar-data";
 import { average, formatScore, isQuarterPointScore, safeId, slugify } from "@/lib/utils";
-const DATA_DIR = process.env.APP_DATA_DIR?.trim() || join(process.cwd(), "data");
+const DATA_DIR =
+  process.env.APP_DATA_DIR?.trim() || join(/* turbopackIgnore: true */ process.cwd(), "data");
 const STATE_FILE = join(DATA_DIR, "runtime-state.json");
 const WRITE_QUEUE_FILE = join(DATA_DIR, "runtime-write-queue.json");
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";

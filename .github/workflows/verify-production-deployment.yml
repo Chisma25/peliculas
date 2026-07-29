@@ -22,7 +22,7 @@ jobs:
       VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
     steps:
       - name: Check out the release commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Wait for the normal Vercel deployment
         id: normal-deployment

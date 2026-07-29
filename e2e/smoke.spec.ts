@@ -17,6 +17,7 @@ function createDevelopmentSessionToken(userId: string) {
 }
 
 test("login stays focused and hides authenticated navigation", async ({ page }) => {
+  await page.context().clearCookies();
   await page.goto("/login");
 
   await expect(page.getByRole("heading", { name: "Iniciar sesión" })).toBeVisible();
@@ -46,6 +47,11 @@ test.describe("authenticated Preview smoke tests", () => {
   );
 
   test.beforeEach(async ({ page, baseURL }) => {
+    if (username && password) {
+      await page.goto("/");
+      return;
+    }
+
     if (sessionUserId) {
       await page.context().addCookies([
         {
@@ -58,10 +64,7 @@ test.describe("authenticated Preview smoke tests", () => {
       return;
     }
 
-    await page.goto("/login");
-    await page.getByRole("textbox", { name: /Usuario/ }).fill(username ?? "");
-    await page.getByRole("textbox", { name: /Contraseña/ }).fill(password ?? "");
-    await Promise.all([page.waitForURL("**/"), page.getByRole("button", { name: "Entrar" }).click()]);
+    throw new Error("No hay un método de autenticación E2E configurado.");
   });
 
   test("loads protected pages and keeps the group HTML payload lean", async ({ page }) => {
@@ -84,6 +87,26 @@ test.describe("authenticated Preview smoke tests", () => {
     const matrixLink = page.locator('a[href="https://www.themoviedb.org/movie/603"]');
     await expect(matrixLink).toHaveCount(1);
     await expect(page.getByText("resultados encontrados.")).toBeVisible();
+  });
+
+  test("prioritizes canonical movies across translated and reused titles", async ({ page }) => {
+    await page.goto("/explorar");
+    const search = page.getByRole("searchbox", { name: "Buscar por título" });
+
+    await search.fill("Perfect Days");
+    await expect(page.getByText("resultados encontrados.")).toBeVisible();
+    await expect(page.locator(".explorer-card").first().getByText("Días perfectos", { exact: true })).toBeVisible();
+
+    await search.fill("Fight Club");
+    await expect(page.locator('a[href="https://www.themoviedb.org/movie/550"]')).toBeVisible();
+    await expect(page.locator(".explorer-card").first().getByText("El club de la lucha", { exact: true })).toBeVisible();
+  });
+
+  test("shows TMDb original language instead of the first spoken language", async ({ page }) => {
+    await page.goto("/peliculas/oppenheimer");
+
+    const languageCard = page.locator("article").filter({ hasText: "Idioma original" });
+    await expect(languageCard.getByText("Inglés", { exact: true })).toBeVisible();
   });
 
   test("uses compact mobile navigation without covering the main heading", async ({ page }, testInfo) => {
@@ -273,7 +296,7 @@ test.describe("authenticated Preview smoke tests", () => {
     test.skip(!ratingMovieId || !ratingMovieSlug, "Set the dedicated E2E rating movie id and slug to run this mutation.");
 
     await page.goto(`/peliculas/${ratingMovieSlug}`);
-    await page.getByRole("button", { name: "Editar mi valoraciÃ³n" }).click();
+    await page.getByRole("button", { name: "Editar mi valoración" }).click();
 
     const scoreInput = page.getByRole("spinbutton", { name: /Nota/ });
     const commentInput = page.getByRole("textbox", { name: "Comentario opcional" });
@@ -287,7 +310,7 @@ test.describe("authenticated Preview smoke tests", () => {
 
     try {
       await scoreInput.fill(String(nextScore));
-      await page.getByRole("button", { name: "Actualizar valoraciÃ³n" }).click();
+      await page.getByRole("button", { name: "Actualizar valoración" }).click();
 
       const ownRating = page.locator("article").filter({ hasText: `@${username}` });
       await expect(ownRating.getByText(expectedLabel, { exact: true })).toBeVisible();

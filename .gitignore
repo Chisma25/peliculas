@@ -20,3 +20,4 @@ NOTAS PELICULAS - listo para importar.csv
 .vercel
 playwright-report/
 test-results/
+playwright/.auth/

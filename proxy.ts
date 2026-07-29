@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { getSessionCookieName, verifySessionToken } from "@/lib/session";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublicPage = pathname === "/login" || pathname === "/reset-credenciales";

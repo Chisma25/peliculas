@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+
+import { useMounted } from "@/lib/use-mounted";
 
 type GroupMemberAccessButtonProps = {
   member: {
@@ -16,14 +18,10 @@ type GroupMemberAccessButtonProps = {
 export function GroupMemberAccessButton({ member }: GroupMemberAccessButtonProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   async function submitUpdate(formData: FormData) {
     const response = await fetch("/api/admin/users/update", {
