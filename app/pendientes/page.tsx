@@ -71,16 +71,9 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
     <section className="pending-page">
       <PendingFreshness />
       {batch && weeklyOptions.length > 0 ? (
-        <section className="pending-radar-panel" aria-label="Radar semanal de pendientes">
+        <section className="pending-radar-panel" aria-label="Recomendaciones semanales">
           <div className="pending-radar-heading">
-            <div>
-              <p className="eyebrow pending-radar-eyebrow">Radar semanal</p>
-              <h1>Las candidatas con más sentido esta semana</h1>
-            </div>
-            <p>
-              Una selección breve para salir de dudas sin recorrer toda la lista. Si ninguna os convence,
-              debajo podéis elegir cualquier película de pendientes.
-            </p>
+            <h1>Recomendaciones</h1>
           </div>
 
           <div
@@ -90,9 +83,6 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           >
             {weeklyOptions.map((item, index) => {
               const selected = batch.selectedMovieId === item.movie.id;
-              const topReason = item.reasons[0]?.detail ?? item.summary;
-              const positionLabel =
-                index === 0 ? "Mejor encaje" : index === 1 ? "Otra opción" : "También encaja";
               const primaryGenre = item.movie.genres.find((genre) => genre !== "Pendiente");
 
               return (
@@ -114,7 +104,6 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                     </div>
 
                     <div className="pending-radar-copy">
-                      <p className="pending-radar-position-label">{positionLabel}</p>
                       <div className="pending-radar-title-row">
                         <strong className="pending-card-title">{item.movie.title}</strong>
                         {selected ? <span className="pending-selected-pill">Elegida</span> : null}
@@ -124,8 +113,6 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                         {item.movie.durationMinutes > 0 ? <span>{item.movie.durationMinutes} min</span> : null}
                         {primaryGenre ? <span>{primaryGenre}</span> : null}
                       </div>
-                      <p className="pending-radar-reason">{topReason}</p>
-                      <span className="pending-radar-detail-link">Ver ficha</span>
                     </div>
                   </PrefetchLink>
 
@@ -258,7 +245,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                       <form action="/api/weekly-recommendations/select" method="post">
                         <input type="hidden" name="batchId" value={batch.id} />
                         <input type="hidden" name="movieId" value={movie.id} />
-                        <WeeklySelectionButton selected={batch.selectedMovieId === movie.id} />
+                        <WeeklySelectionButton compact selected={batch.selectedMovieId === movie.id} />
                       </form>
                     ) : null}
                   </div>
