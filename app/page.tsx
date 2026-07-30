@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 
+import { CinematicStage } from "@/components/cinematic-stage";
 import { UpcomingReleasesPanel, UpcomingReleasesPanelFallback } from "@/components/upcoming-releases-panel";
 import { getDashboardOverviewHydrated } from "@/lib/store";
 import { formatScore } from "@/lib/utils";
@@ -16,27 +17,33 @@ export default async function HomePage() {
     : "Elegid una candidata y la portada se convertira en programa de la semana.";
 
   return (
-    <div className="dashboard-pilot">
-      <section className="dashboard-command" aria-labelledby="dashboard-title">
+    <div className="cinema-home">
+      <CinematicStage className="cinema-opening" labelledBy="dashboard-title">
         {spotlightArtwork ? (
           <div
-            className="dashboard-command-art"
+            className="cinema-opening-art"
             style={{
-              backgroundImage: `linear-gradient(90deg, rgba(10, 14, 22, 0.95) 0%, rgba(10, 14, 22, 0.8) 42%, rgba(10, 14, 22, 0.2) 100%), url(${spotlightArtwork})`
+              backgroundImage: `url(${spotlightArtwork})`
             }}
           />
         ) : null}
 
-        <div className="dashboard-command-label">
-          <p className="eyebrow">Peli de la semana</p>
+        <div className="cinema-opening-shade" />
+        <div className="cinema-opening-grain" aria-hidden="true" />
+
+        <div className="cinema-opening-index" aria-hidden="true">
+          <span>01</span>
+          <i />
+          <span>Sesión semanal</span>
         </div>
 
-        <div className="dashboard-command-copy">
+        <div className="cinema-opening-copy">
+          <p className="cinema-kicker">Ahora en el centro de la conversación</p>
           <h1 id="dashboard-title">{selectedMovie ? selectedMovie.title : "Cartelera por decidir"}</h1>
-          <p className="dashboard-command-director">{heroSubtitle}</p>
+          <p className="cinema-opening-director">{heroSubtitle}</p>
 
           {selectedMovie ? (
-            <div className="dashboard-command-meta" aria-label="Datos de la pelicula seleccionada">
+            <div className="cinema-opening-meta" aria-label="Datos de la película seleccionada">
               <span>{selectedMovie.year > 0 ? selectedMovie.year : "Año pendiente"}</span>
               <span>{spotlightGenres || "Género pendiente"}</span>
               <span>
@@ -45,52 +52,58 @@ export default async function HomePage() {
             </div>
           ) : null}
 
-          <div className="dashboard-command-actions">
+          <div className="cinema-opening-actions">
             {selectedMovie ? (
               <>
-                <Link href={`/peliculas/${selectedMovie.slug}`} className="primary-button">
-                  Abrir ficha
+                <Link href={`/peliculas/${selectedMovie.slug}`} className="cinema-primary-action">
+                  <span>Abrir ficha</span>
+                  <span aria-hidden="true">↗</span>
                 </Link>
                 {hasWatchedSelection ? (
-                  <span className="dashboard-viewed-status">Vista por el grupo</span>
+                  <span className="cinema-viewed-status">Vista por el grupo</span>
                 ) : (
                   <form action="/api/watch/mark-watched" method="post">
                     <input type="hidden" name="movieId" value={selectedMovie.id} />
                     <input type="hidden" name="redirectTo" value="/" />
-                    <button type="submit" className="secondary-button">
+                    <button type="submit" className="cinema-secondary-action">
                       Marcar como vista
                     </button>
                   </form>
                 )}
               </>
             ) : (
-              <Link href="/pendientes" className="primary-button">
+              <Link href="/pendientes" className="cinema-primary-action">
                 Elegir desde pendientes
               </Link>
             )}
           </div>
         </div>
 
-        <div className="dashboard-command-ledger" aria-label="Resumen del grupo">
+        <div className="cinema-opening-ledger" aria-label="Resumen del grupo">
           <article>
-            <span>Archivo</span>
+            <span>Películas vistas</span>
             <strong>{dashboard.stats.watchedCount}</strong>
-            <small>vistas</small>
+            <small>en el archivo</small>
           </article>
           <article>
-            <span>Media</span>
+            <span>Nota del grupo</span>
             <strong>{formatScore(dashboard.stats.averageScore)}</strong>
-            <small>grupo</small>
+            <small>media histórica</small>
           </article>
           <article>
-            <span>Lista</span>
+            <span>Por descubrir</span>
             <strong>{dashboard.stats.pendingCount}</strong>
-            <small>pendientes</small>
+            <small>en pendientes</small>
           </article>
         </div>
-      </section>
 
-      <section className="dashboard-bottom-grid">
+        <div className="cinema-scroll-cue" aria-hidden="true">
+          <span>Continúa</span>
+          <i />
+        </div>
+      </CinematicStage>
+
+      <section className="cinema-home-program">
         <Suspense fallback={<UpcomingReleasesPanelFallback />}>
           <UpcomingReleasesPanel />
         </Suspense>
