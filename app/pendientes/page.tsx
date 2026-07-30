@@ -1,6 +1,7 @@
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { PendingFreshness } from "@/components/pending-freshness";
 import { PrefetchLink } from "@/components/prefetch-link";
+import { PosterImage } from "@/components/poster-image";
 import { WeeklySelectionButton } from "@/components/weekly-selection-button";
 import { getPendingPageDataHydrated } from "@/lib/store";
 import { buildPaginationItems, formatCount } from "@/lib/utils";
@@ -88,18 +89,8 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               return (
                 <article key={item.id} className={`pending-radar-card ${selected ? "is-selected" : ""}`}>
                   <PrefetchLink href={`/peliculas/${item.movie.slug}`} className="pending-radar-link">
-                    <div
-                      className="pending-radar-poster"
-                      style={
-                        item.movie.posterUrl
-                          ? {
-                              backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.06), rgba(10, 15, 24, 0.72)), url(${item.movie.posterUrl})`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center"
-                            }
-                          : undefined
-                      }
-                    >
+                    <div className="pending-radar-poster">
+                      <PosterImage src={item.movie.posterUrl} />
                       <span className="pending-radar-rank">#{index + 1}</span>
                     </div>
 
@@ -206,18 +197,8 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               {pagedPending.map((movie) => (
                 <article key={movie.id} className="pending-movie-card">
                   <PrefetchLink href={`/peliculas/${movie.slug}`} className="pending-movie-link">
-                    <div
-                      className="pending-movie-poster"
-                      style={
-                        movie.posterUrl
-                          ? {
-                              backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.06), rgba(10, 15, 24, 0.72)), url(${movie.posterUrl})`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center"
-                            }
-                          : undefined
-                      }
-                    >
+                    <div className="pending-movie-poster">
+                      <PosterImage src={movie.posterUrl} />
                       <span>{movie.externalRating.source} {movie.externalRating.value}</span>
                     </div>
 

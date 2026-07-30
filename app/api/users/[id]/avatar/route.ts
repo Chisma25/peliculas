@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { parseAvatarDataUrl } from "@/lib/avatar-data";
+import { optimizeAvatarImage } from "@/lib/avatar-image";
 
 type AvatarRouteProps = {
   params: Promise<{
@@ -21,13 +22,14 @@ export async function GET(_request: Request, { params }: AvatarRouteProps) {
     return NextResponse.json({ error: "Avatar no encontrado." }, { status: 404 });
   }
 
-  const body = avatar.bytes.slice().buffer as ArrayBuffer;
+  const optimizedAvatar = await optimizeAvatarImage(avatar.bytes);
+  const body = optimizedAvatar.bytes.slice().buffer as ArrayBuffer;
 
   return new Response(body, {
     headers: {
-      "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400",
-      "Content-Length": String(avatar.bytes.byteLength),
-      "Content-Type": avatar.contentType,
+      "Cache-Control": "private, max-age=86400, stale-while-revalidate=604800",
+      "Content-Length": String(optimizedAvatar.bytes.byteLength),
+      "Content-Type": optimizedAvatar.contentType,
       "Last-Modified": user?.updatedAt.toUTCString() ?? new Date().toUTCString(),
       "X-Content-Type-Options": "nosniff"
     }

@@ -16,6 +16,7 @@
     "db:push": "prisma db push",
     "db:seed": "node scripts/bootstrap-db.mjs",
     "db:health": "node scripts/db-health.mjs",
+    "db:checkpoint": "node scripts/db-checkpoint.mjs",
     "db:export": "node scripts/db-export.mjs",
     "db:verify-backup": "node scripts/db-verify-backup.mjs",
     "db:restore": "node scripts/db-restore.mjs",
@@ -27,7 +28,8 @@
     "@prisma/client": "^6.19.3",
     "next": "16.2.12",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",

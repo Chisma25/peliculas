@@ -270,6 +270,14 @@
   pointer-events: none;
 }
 
+.pending-radar-poster .poster-image,
+.pending-movie-poster .poster-image {
+  inset: 0.16rem;
+  width: calc(100% - 0.32rem);
+  height: calc(100% - 0.32rem);
+  border-radius: calc(0.9rem - 0.16rem);
+}
+
 .pending-radar-poster span,
 .pending-movie-poster span {
   position: absolute;

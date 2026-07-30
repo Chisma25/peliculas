@@ -71,6 +71,7 @@ archivo aislado mediante `--env-file`; sus valores deben incluir como mínimo `D
 
 ```powershell
 npm run db:health -- --environment=preview --env-file=.env.preview.local
+npm run db:checkpoint -- --environment=preview --env-file=.env.preview.local --label=antes-de-un-cambio
 npm run db:export -- --environment=preview --env-file=.env.preview.local
 npm run db:verify-backup -- --file=data/database-export-preview-FECHA.json
 npm run db:restore -- --dry-run --environment=preview --env-file=.env.preview.local --file=data/database-export-preview-FECHA.json
@@ -78,11 +79,41 @@ npm run db:restore -- --dry-run --environment=preview --env-file=.env.preview.lo
 
 - `db:health` solo lee y comprueba huérfanos, duplicados, notas inválidas, solapamientos, tandas incoherentes,
   fechas y calidad mínima de metadatos. Devuelve código `2` cuando encuentra errores estructurales.
+- `db:checkpoint` crea un punto de guardado completo, lo escribe primero como archivo temporal, comprueba su
+  checksum y el host de origen y solo entonces lo publica con su nombre definitivo. Nunca sobrescribe una copia
+  existente. Si detecta errores conserva el archivo para diagnóstico, pero termina con código `2`.
 - `db:export` solo lee y crea un JSON local con checksum SHA-256. Los exports dentro de `data` quedan ignorados
   por Git. El archivo contiene hashes de credenciales y debe tratarse como información privada.
 - `db:verify-backup` comprueba formato, checksum e integridad interna sin conectarse a ninguna base.
 - `db:restore` únicamente admite `--dry-run`: compara el backup con su mismo entorno y host, muestra las
   diferencias de volumen y nunca escribe filas. La restauración real permanece deshabilitada intencionadamente.
+
+## Puntos de guardado y recuperación
+
+Producción utiliza tres niveles complementarios:
+
+1. Neon conserva siete días de historial para restauración instantánea y consultas Time Travel.
+2. Neon crea snapshots diarios a las 00:00 UTC, conserva los diarios durante 14 días, el snapshot de cada lunes
+   durante 5 semanas y el del primer día de cada mes durante 1 mes.
+3. Antes de cualquier reparación, migración o cambio delicado se crea un checkpoint independiente:
+
+```powershell
+npm run db:checkpoint -- --environment=production --env-file=.env.local --label=antes-de-la-operacion
+```
+
+Los checkpoints contienen datos privados y hashes de credenciales. Permanecen fuera de Git y deben copiarse a
+almacenamiento privado si se quiere una copia externa a Neon y al ordenador local.
+
+En una incidencia:
+
+1. Detén las escrituras y anota la hora aproximada del problema.
+2. En Neon, usa `Backup & Restore` y `Preview data` para localizar un estado correcto sin modificar Producción.
+3. Prefiere restaurar o inspeccionar primero una rama temporal. Solo después confirma la restauración de `main`.
+4. Ejecuta `db:health`, verifica los recuentos y completa un flujo funcional en la aplicación.
+5. Crea un checkpoint nuevo tras confirmar la recuperación.
+
+El snapshot agregado de la aplicación no sustituye estas copias y nunca repuebla automáticamente las tablas
+normalizadas.
 
 ## Verificación del despliegue
 

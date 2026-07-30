@@ -4,6 +4,7 @@
 
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 
+import { PosterImage } from "@/components/poster-image";
 import { announcePendingUpdated, announcePendingWrite } from "@/lib/pending-sync";
 
 type SearchMovie = {
@@ -278,18 +279,9 @@ export function MovieExplorer() {
 
             return (
               <article key={movie.id} className="explorer-card">
-                <div
-                  className="search-poster"
-                  style={
-                    movie.posterUrl
-                      ? {
-                          backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.04), rgba(10, 15, 24, 0.62)), url(${movie.posterUrl})`,
-                          backgroundSize: "cover",
-                          backgroundPosition: "center"
-                        }
-                      : undefined
-                  }
-                />
+                <div className="search-poster">
+                  <PosterImage src={movie.posterUrl} />
+                </div>
 
                 <div className="explorer-card-copy">
                   <div className="explorer-card-meta">

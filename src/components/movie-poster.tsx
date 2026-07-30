@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PosterImage } from "@/components/poster-image";
 import { Movie } from "@/lib/types";
 import { getMovieTone } from "@/lib/utils";
 
@@ -29,17 +30,9 @@ export function MoviePoster({
   const content = (
     <article
       className={`poster-card ${compact ? "poster-card-compact" : ""} ${hasImage ? "poster-card-with-image" : ""}`}
-      style={
-        hasImage
-          ? {
-              backgroundImage: `linear-gradient(180deg, rgba(8, 12, 20, 0.1), rgba(8, 12, 20, 0.82)), url(${imageUrl})`,
-              backgroundColor: getMovieTone(movie),
-              backgroundSize: "cover",
-              backgroundPosition: "center"
-            }
-          : { background: getMovieTone(movie) }
-      }
+      style={{ background: getMovieTone(movie) }}
     >
+      <PosterImage src={imageUrl} />
       <div className="poster-noise" />
       <div className="poster-meta">
         <span>{metaStartLabel ?? (movie.year > 0 ? movie.year : "Año pendiente")}</span>

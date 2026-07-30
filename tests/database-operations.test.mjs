@@ -4,6 +4,7 @@ import {
   buildBackupPayload,
   checksumTables,
   parseArguments,
+  prepareDatabaseTarget,
   validateBackupPayload
 } from "../scripts/lib/database-operations.mjs";
 
@@ -61,5 +62,31 @@ describe("database operation safeguards", () => {
     payload.tables.movies.push({ id: "movie-injected" });
 
     expect(() => validateBackupPayload(payload)).toThrow("checksum");
+  });
+
+  it("requires an explicit production host for remote checkpoints", () => {
+    const original = {
+      APP_ENV: process.env.APP_ENV,
+      DATABASE_ENVIRONMENT: process.env.DATABASE_ENVIRONMENT,
+      DATABASE_URL: process.env.DATABASE_URL,
+      PRODUCTION_DATABASE_HOST: process.env.PRODUCTION_DATABASE_HOST
+    };
+
+    try {
+      process.env.APP_ENV = "production";
+      process.env.DATABASE_ENVIRONMENT = "production";
+      process.env.DATABASE_URL =
+        "postgresql://user:password@production.example.com:5432/cine";
+      process.env.PRODUCTION_DATABASE_HOST = " ";
+
+      expect(() =>
+        prepareDatabaseTarget({ environment: "production" })
+      ).toThrow("PRODUCTION_DATABASE_HOST es obligatorio");
+    } finally {
+      for (const [key, value] of Object.entries(original)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 });

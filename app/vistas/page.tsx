@@ -1,5 +1,6 @@
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { PrefetchLink } from "@/components/prefetch-link";
+import { PosterImage } from "@/components/poster-image";
 import { getSessionUser, getViewedPageDataHydrated } from "@/lib/store";
 import { buildPaginationItems, formatCount, formatScore, formatShortDate } from "@/lib/utils";
 
@@ -168,18 +169,8 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                   return (
                     <PrefetchLink key={item.movie.id} href={`/peliculas/${item.movie.slug}`} className="seen-card-link">
                       <article className="seen-card">
-                        <div
-                          className="seen-card-poster"
-                          style={
-                            item.movie.posterUrl
-                              ? {
-                                  backgroundImage: `linear-gradient(180deg, rgba(10, 15, 24, 0.06), rgba(10, 15, 24, 0.68)), url(${item.movie.posterUrl})`,
-                                  backgroundSize: "cover",
-                                  backgroundPosition: "center"
-                                }
-                              : undefined
-                          }
-                        >
+                        <div className="seen-card-poster">
+                          <PosterImage src={item.movie.posterUrl} />
                           <span>{watchedDate}</span>
                         </div>
 

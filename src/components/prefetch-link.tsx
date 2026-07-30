@@ -2,42 +2,34 @@
 
 import Link, { LinkProps } from "next/link";
 import { useRouter } from "next/navigation";
-import { AnchorHTMLAttributes, PropsWithChildren, useEffect } from "react";
+import { AnchorHTMLAttributes, PropsWithChildren } from "react";
 
 type PrefetchLinkProps = PropsWithChildren<
   LinkProps & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, keyof LinkProps>
 >;
 
-export function PrefetchLink({ href, children, onMouseEnter, onFocus, ...props }: PrefetchLinkProps) {
+export function PrefetchLink({ href, children, onMouseEnter, onFocus, onTouchStart, ...props }: PrefetchLinkProps) {
   const router = useRouter();
   const hrefValue = typeof href === "string" ? href : href.pathname ?? "/";
 
-  useEffect(() => {
-    const prefetch = () => {
-      router.prefetch(hrefValue);
-    };
-
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const idleId = window.requestIdleCallback(prefetch, { timeout: 1200 });
-      return () => window.cancelIdleCallback(idleId);
-    }
-
-    const timeoutId = globalThis.setTimeout(prefetch, 250);
-    return () => globalThis.clearTimeout(timeoutId);
-  }, [hrefValue, router]);
+  const prefetchOnIntent = () => router.prefetch(hrefValue);
 
   return (
     <Link
       {...props}
       href={href}
-      prefetch
+      prefetch={false}
       onMouseEnter={(event) => {
-        router.prefetch(hrefValue);
+        prefetchOnIntent();
         onMouseEnter?.(event);
       }}
       onFocus={(event) => {
-        router.prefetch(hrefValue);
+        prefetchOnIntent();
         onFocus?.(event);
+      }}
+      onTouchStart={(event) => {
+        prefetchOnIntent();
+        onTouchStart?.(event);
       }}
     >
       {children}
