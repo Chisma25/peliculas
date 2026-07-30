@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 
+import { resolveApiSessionUser } from "@/lib/api-session";
+import { operationalErrorResponse } from "@/lib/operational-errors";
 import { ensureSameOrigin, sanitizeInternalRedirect } from "@/lib/request-security";
-import { getSessionUser, removePendingMovie } from "@/lib/store";
+import { removePendingMovie } from "@/lib/store";
 
 export async function POST(request: Request) {
   const originError = ensureSameOrigin(request);
@@ -10,7 +12,9 @@ export async function POST(request: Request) {
     return originError;
   }
 
-  const sessionUser = await getSessionUser();
+  const sessionResult = await resolveApiSessionUser("pending/remove/session");
+  if ("response" in sessionResult) return sessionResult.response;
+  const sessionUser = sessionResult.user;
   if (!sessionUser) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
   }
@@ -29,11 +33,10 @@ export async function POST(request: Request) {
     revalidatePath("/pendientes");
     return NextResponse.redirect(new URL(redirectTo, request.url), 303);
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "No se pudo quitar la película de pendientes."
-      },
-      { status: 400 }
-    );
+    return operationalErrorResponse(error, {
+      scope: "pending/remove",
+      fallbackMessage: "No se pudo quitar la película de pendientes.",
+      defaultStatus: 400
+    });
   }
 }

@@ -124,9 +124,15 @@ servidos realmente. Se puede contrastar un dominio con un commit concreto median
 npm run deploy:verify -- --url=https://cine-semanal.vercel.app --expected-commit=SHA --expected-ref=main --expected-environment=production
 ```
 
-El workflow `Verify production deployment` se ejecuta tras cada push a `main`. Primero espera el despliegue
-normal de Vercel. Si la versión no cambia, utiliza el secreto `VERCEL_DEPLOY_HOOK_URL` como respaldo y vuelve
-a comprobar que Producción sirve exactamente el commit fusionado.
+El workflow `Deploy and verify production` se ejecuta tras cada push a `main`: construye ese commit con la
+configuración de Producción, publica el artefacto precompilado y comprueba que el dominio sirve exactamente
+el SHA fusionado. Requiere los secretos `VERCEL_TOKEN`, `VERCEL_ORG_ID` y `VERCEL_PROJECT_ID` en GitHub.
+
+El workflow `Daily production health` se ejecuta cada mañana y también puede lanzarse manualmente. Verifica
+el SHA desplegado y consulta `/api/health`, que comprueba la conexión con Neon, los recuentos principales,
+notas fuera de incrementos de 0,25, registros huérfanos y películas simultáneamente pendientes y vistas.
+La ruta solo acepta el secreto `HEALTHCHECK_SECRET`, compartido con
+`PRODUCTION_HEALTHCHECK_SECRET` en GitHub, y nunca devuelve credenciales ni datos personales.
 
 ## Accesos del grupo
 
@@ -157,6 +163,7 @@ tablas normalizadas también contienen datos compartidos.
 | `SESSION_SECRET` | secreto exclusivo de Preview | secreto exclusivo de Producción |
 | `ADMIN_RESET_CODE` | código exclusivo de Preview | código exclusivo de Producción |
 | `TMDB_API_KEY` | clave correspondiente | clave correspondiente |
+| `HEALTHCHECK_SECRET` | opcional | secreto exclusivo del monitor diario |
 
 La aplicación se niega a usar una base `production` desde Preview, exige que Producción coincida con el host
 declarado y rechaza configuraciones contradictorias entre `APP_ENV` y `VERCEL_ENV`.
@@ -215,3 +222,4 @@ conexión directa. Las plantillas completas están en `.env.example`, `.env.prev
 - `POST /api/profile/update`
 - `POST /api/ratings/create-or-update`
 - `GET /api/history/list`
+- `GET /api/health` (privado, monitorización operativa)

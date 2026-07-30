@@ -9,7 +9,7 @@ export async function proxy(request: NextRequest) {
   const isPublicPage = pathname === "/login" || pathname === "/reset-credenciales";
   const isApiRoute = pathname.startsWith("/api");
   const isAuthApi = pathname.startsWith("/api/auth");
-  const isPublicApi = isAuthApi || pathname === "/api/version";
+  const isPublicApi = isAuthApi || pathname === "/api/version" || pathname === "/api/health";
   const isNextAsset = pathname.startsWith("/_next");
   const isFile = /\.[^/]+$/.test(pathname);
 

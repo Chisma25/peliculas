@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { operationalErrorResponse } from "@/lib/operational-errors";
 import { enforceRateLimit, ensureSameOrigin } from "@/lib/request-security";
 import { authenticateUser } from "@/lib/store";
 import { createSessionToken, getSessionCookieName, getSessionCookieOptions } from "@/lib/session";
@@ -22,7 +23,15 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
-  const user = await authenticateUser(username, password);
+  let user;
+  try {
+    user = await authenticateUser(username, password);
+  } catch (error) {
+    return operationalErrorResponse(error, {
+      scope: "auth/login",
+      fallbackMessage: "El acceso no está disponible temporalmente."
+    });
+  }
   if (!user) {
     return NextResponse.json({ error: "Usuario o contraseña incorrectos." }, { status: 401 });
   }

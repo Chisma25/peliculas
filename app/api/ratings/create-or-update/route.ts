@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { resolveApiSessionUser } from "@/lib/api-session";
+import { operationalErrorResponse } from "@/lib/operational-errors";
 import { ensureSameOrigin } from "@/lib/request-security";
-import { getSessionUser, upsertRating } from "@/lib/store";
+import { upsertRating } from "@/lib/store";
 import { isQuarterPointScore } from "@/lib/utils";
 
 export async function POST(request: Request) {
@@ -10,7 +12,9 @@ export async function POST(request: Request) {
     return originError;
   }
 
-  const sessionUser = await getSessionUser();
+  const sessionResult = await resolveApiSessionUser("ratings/create-or-update/session");
+  if ("response" in sessionResult) return sessionResult.response;
+  const sessionUser = sessionResult.user;
   if (!sessionUser) {
     return NextResponse.json({ error: "Sesion no valida." }, { status: 401 });
   }
@@ -30,12 +34,20 @@ export async function POST(request: Request) {
     );
   }
 
-  await upsertRating({
-    movieId,
-    userId: sessionUser.id,
-    score,
-    comment
-  });
+  try {
+    await upsertRating({
+      movieId,
+      userId: sessionUser.id,
+      score,
+      comment
+    });
+  } catch (error) {
+    return operationalErrorResponse(error, {
+      scope: "ratings/create-or-update",
+      fallbackMessage: "No se pudo guardar la valoración.",
+      defaultStatus: 400
+    });
+  }
 
   return NextResponse.json({ message: "Valoraci\u00f3n guardada correctamente." });
 }

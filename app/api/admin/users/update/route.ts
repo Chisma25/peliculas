@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { resolveApiSessionUser } from "@/lib/api-session";
+import { operationalErrorResponse } from "@/lib/operational-errors";
 import { enforceRateLimit, ensureSameOrigin } from "@/lib/request-security";
-import { getSessionUser, updateUserCredentialsByAdmin } from "@/lib/store";
+import { updateUserCredentialsByAdmin } from "@/lib/store";
 
 export async function POST(request: Request) {
   const originError = ensureSameOrigin(request);
@@ -18,7 +20,9 @@ export async function POST(request: Request) {
     return rateLimitError;
   }
 
-  const sessionUser = await getSessionUser();
+  const sessionResult = await resolveApiSessionUser("admin/users/update/session");
+  if ("response" in sessionResult) return sessionResult.response;
+  const sessionUser = sessionResult.user;
   if (!sessionUser?.isAdmin) {
     return NextResponse.json({ error: "No tienes permisos para gestionar cuentas." }, { status: 403 });
   }
@@ -39,11 +43,10 @@ export async function POST(request: Request) {
       message: `Cuenta actualizada para ${user.name}. Ahora entra con @${user.username}.`
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "No se pudo actualizar la cuenta."
-      },
-      { status: 400 }
-    );
+    return operationalErrorResponse(error, {
+      scope: "admin/users/update",
+      fallbackMessage: "No se pudo actualizar la cuenta.",
+      defaultStatus: 400
+    });
   }
 }
