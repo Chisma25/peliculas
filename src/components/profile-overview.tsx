@@ -37,8 +37,8 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
   const occupiedBands = profile.distribution.filter((item) => item.count > 0).length;
   const title = isSelf ? "Tu perfil" : profile.user.name;
   const subtitle = isSelf
-    ? "Lectura personal de tus notas, tus extremos y tu forma de valorar dentro del grupo."
-    : `Lectura de cómo puntúa ${profile.user.name} dentro del grupo.`;
+    ? "Tus notas y estadísticas."
+    : `Notas y estadísticas de ${profile.user.name}.`;
 
   return (
     <div className="profile-overview">
@@ -48,7 +48,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
           <span aria-hidden="true">{String(profile.ratingsCount).padStart(2, "0")}</span>
         </div>
         <div className="profile-command-copy">
-          <p className="cinema-kicker">{isSelf ? "Resumen personal" : "Perfil del grupo"}</p>
+          <p className="cinema-kicker">{isSelf ? "Mi perfil" : "Perfil"}</p>
           <h1 id="profile-title">{title}</h1>
           <p>{subtitle}</p>
         </div>
@@ -93,7 +93,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
           <div className="profile-section-heading">
             <div>
               <p className="eyebrow">{profile.ratingsCount > 0 ? "Primeras valoraciones" : "Perfil por estrenar"}</p>
-              <h2>{profile.ratingsCount > 0 ? "El criterio aún está tomando forma" : "Aún no hay notas"}</h2>
+              <h2>{profile.ratingsCount > 0 ? "Todavía hay pocas valoraciones" : "Aún no hay notas"}</h2>
             </div>
             <p>
               {profile.ratingsCount > 0
@@ -125,8 +125,8 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
           </div>
           <p>
             {isSelf
-              ? "Intervalos de 0,5 puntos para ver dónde se concentra tu criterio."
-              : "Intervalos de 0,5 puntos para ver dónde se concentra su criterio."}
+              ? "Intervalos de 0,5 puntos para resumir tus notas."
+              : "Intervalos de 0,5 puntos para resumir sus notas."}
           </p>
         </div>
 

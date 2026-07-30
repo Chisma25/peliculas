@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Instrument_Sans, Instrument_Serif } from "next/font/google";
+import { Geist } from "next/font/google";
 
 import "./globals.css";
 
@@ -10,17 +10,9 @@ import { getDeploymentVersion } from "@/lib/deployment-version";
 import { getSessionUser } from "@/lib/store";
 import type { User } from "@/lib/types";
 
-const interfaceFont = Instrument_Sans({
+const interfaceFont = Geist({
   subsets: ["latin"],
   variable: "--font-cinema-sans",
-  display: "swap"
-});
-
-const editorialFont = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-cinema-serif",
   display: "swap"
 });
 
@@ -43,7 +35,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const deploymentVersion = getDeploymentVersion();
 
   return (
-    <html lang="es" className={`${interfaceFont.variable} ${editorialFont.variable}`}>
+    <html lang="es" className={interfaceFont.variable}>
       <body>
         <div className="app-shell">
           <div className="ambient ambient-one" />

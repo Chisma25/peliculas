@@ -13,11 +13,11 @@ export async function UpcomingReleasesPanel() {
     <section className="cinema-releases">
       <div className="cinema-releases-heading">
         <div>
-          <p className="cinema-kicker">Después de esta sesión</p>
+          <p className="cinema-kicker">Estrenos</p>
           <h2>Próximamente</h2>
         </div>
         <p className="body-copy">
-          Tres estrenos cercanos que encajan con lo que suele funcionar en el grupo.
+          Tres próximos estrenos que pueden interesaros.
         </p>
       </div>
 
@@ -58,7 +58,7 @@ export async function UpcomingReleasesPanel() {
         </div>
       ) : (
         <div className="cinema-release-empty">
-          <span aria-hidden="true">Próxima sesión</span>
+          <span aria-hidden="true">Estrenos</span>
           <p>No hemos encontrado estrenos relevantes para el próximo mes.</p>
         </div>
       )}
@@ -71,7 +71,7 @@ export function UpcomingReleasesPanelFallback() {
     <section className="cinema-releases">
       <div className="cinema-releases-heading">
         <div>
-          <p className="cinema-kicker">Después de esta sesión</p>
+          <p className="cinema-kicker">Estrenos</p>
           <h2>Próximamente</h2>
         </div>
         <p className="body-copy">Preparando los próximos estrenos…</p>

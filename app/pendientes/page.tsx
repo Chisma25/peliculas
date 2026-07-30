@@ -73,21 +73,21 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       <PendingFreshness />
       <header className="cinema-page-intro pending-page-intro">
         <div>
-          <p className="cinema-kicker">La próxima sesión</p>
-          <h1>Entre todo lo pendiente, empecemos por aquí</h1>
+          <p className="cinema-kicker">Lista del grupo</p>
+          <h1>Pendientes</h1>
         </div>
         <div className="cinema-page-intro-aside">
           <strong>{totalPendingCount}</strong>
-          <p>Películas esperando su momento. El radar sólo abre una puerta; la elección sigue siendo vuestra.</p>
+          <p>Películas guardadas para ver más adelante.</p>
         </div>
       </header>
 
       {batch && weeklyOptions.length > 0 ? (
         <section className="pending-radar-panel" aria-label="Recomendaciones semanales">
           <div className="pending-radar-heading">
-            <p className="cinema-section-number">01 / Una primera criba</p>
+            <p className="cinema-section-number">01 / Radar semanal</p>
             <h2>Recomendaciones</h2>
-            <p>Una selección breve para cuando la lista completa no ayuda a decidir.</p>
+            <p>Cinco opciones para empezar.</p>
           </div>
 
           <div
@@ -135,10 +135,10 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       <section id="lista-pendientes" className="pending-archive-panel" aria-label="Archivo de pendientes">
         <div className="pending-archive-heading">
           <div>
-            <p className="cinema-section-number">02 / Sin atajos</p>
-            <h2>La lista completa</h2>
+            <p className="cinema-section-number">02 / Lista completa</p>
+            <h2>Todas las pendientes</h2>
           </div>
-          <p>Cualquier película pendiente puede convertirse en la próxima sesión.</p>
+          <p>También podéis elegir directamente cualquier película.</p>
         </div>
         {totalPendingCount > 0 || hasActiveFilters ? (
           <form action="/pendientes" method="get" className="pending-filter-panel">

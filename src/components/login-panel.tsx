@@ -50,15 +50,15 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
   return (
     <section className="login-screen" aria-labelledby="login-title">
       <div className="login-cinema-copy" aria-hidden="true">
-        <p className="cinema-kicker">Archivo privado</p>
-        <h2>La sala es vuestra.</h2>
-        <p>Una película cada vez. Las discusiones, las notas y todo lo que queda después viven aquí.</p>
+        <p className="cinema-kicker">Acceso privado</p>
+        <h2>Cine Semanal</h2>
+        <p>Películas, notas y planes del grupo.</p>
         <div className="login-cinema-reel">
-          <span>Cine club</span>
+          <span>Películas</span>
           <i />
-          <span>Sesión semanal</span>
+          <span>Notas</span>
           <i />
-          <span>Archivo compartido</span>
+          <span>Pendientes</span>
         </div>
       </div>
 

@@ -22,8 +22,8 @@ export function ResetCredentialsPanel() {
   return (
     <section className="reset-screen" aria-labelledby="reset-title">
       <header className="reset-cinema-copy">
-        <p className="cinema-kicker">Salida de emergencia</p>
-        <h1 id="reset-title">Recupera el acceso.</h1>
+        <p className="cinema-kicker">Recuperar cuenta</p>
+        <h1 id="reset-title">Restablecer acceso</h1>
         <p className="body-copy">
           Esta pantalla es solo para emergencias. Necesitas el código de administración del grupo para fijar un nuevo
           usuario y una nueva contraseña.

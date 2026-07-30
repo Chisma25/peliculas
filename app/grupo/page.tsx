@@ -28,13 +28,10 @@ export default async function GroupPage() {
     <section className="group-page-stack group-redesign" aria-labelledby="group-title">
       <header className="group-cinema-hero">
         <div>
-          <p className="cinema-kicker">Seis formas de mirar</p>
+          <p className="cinema-kicker">El grupo</p>
           <h1 id="group-title">{groupData.group.name}</h1>
         </div>
-        <p>
-          El archivo no tiene una única voz. Aquí se ve quién puntúa, cuánto se entusiasma y dónde empieza cada
-          discusión.
-        </p>
+        <p>Actividad y estadísticas de cada miembro.</p>
         <div className="group-cinema-total">
           <strong>{totalRatings ? formatScore(groupAverage) : "—"}</strong>
           <span>media del grupo</span>
@@ -44,8 +41,8 @@ export default async function GroupPage() {
       <div className="group-roster-layout">
         <aside className="group-side-panel" aria-label="Lectura rápida del grupo">
           <div>
-            <p className="cinema-section-number">01 / El pulso</p>
-            <h2>Lectura rápida</h2>
+            <p className="cinema-section-number">01 / Resumen</p>
+            <h2>Estadísticas</h2>
           </div>
 
           <div className="group-side-list">
@@ -98,8 +95,8 @@ export default async function GroupPage() {
         <div className="group-roster-panel">
           <div className="group-roster-header">
             <div>
-              <p className="cinema-section-number">02 / El reparto</p>
-              <h2>Perfiles</h2>
+              <p className="cinema-section-number">02 / Miembros</p>
+              <h2>El grupo</h2>
             </div>
             <span>{formatCount(groupData.members.length, "ficha")}</span>
           </div>

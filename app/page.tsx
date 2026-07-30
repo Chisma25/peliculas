@@ -14,7 +14,7 @@ export default async function HomePage() {
   const hasWatchedSelection = Boolean(dashboard.selectedWatchEntry);
   const heroSubtitle = selectedMovie
     ? selectedMovie.director
-    : "Elegid una candidata y la portada se convertira en programa de la semana.";
+    : "Todavía no habéis elegido película.";
 
   return (
     <div className="cinema-home">
@@ -35,8 +35,8 @@ export default async function HomePage() {
         <div className="cinema-opening-grain" aria-hidden="true" />
         {!selectedMovie ? (
           <div className="cinema-opening-empty-art" aria-hidden="true">
-            <span>Sin</span>
-            <span>título</span>
+            <span>Por</span>
+            <span>elegir</span>
             <i />
           </div>
         ) : null}
@@ -48,8 +48,8 @@ export default async function HomePage() {
         </div>
 
         <div className="cinema-opening-copy">
-          <p className="cinema-kicker">Ahora en el centro de la conversación</p>
-          <h1 id="dashboard-title">{selectedMovie ? selectedMovie.title : "Cartelera por decidir"}</h1>
+          <p className="cinema-kicker">Película de la semana</p>
+          <h1 id="dashboard-title">{selectedMovie ? selectedMovie.title : "Esta semana"}</h1>
           <p className="cinema-opening-director">{heroSubtitle}</p>
 
           {selectedMovie ? (
@@ -93,7 +93,7 @@ export default async function HomePage() {
           <article>
             <span>Películas vistas</span>
             <strong>{dashboard.stats.watchedCount}</strong>
-            <small>en el archivo</small>
+            <small>en total</small>
           </article>
           <article>
             <span>Nota del grupo</span>
@@ -101,9 +101,9 @@ export default async function HomePage() {
             <small>media histórica</small>
           </article>
           <article>
-            <span>Por descubrir</span>
+            <span>Pendientes</span>
             <strong>{dashboard.stats.pendingCount}</strong>
-            <small>en pendientes</small>
+            <small>por ver</small>
           </article>
         </div>
 

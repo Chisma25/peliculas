@@ -216,9 +216,9 @@ export function MovieExplorer() {
   return (
     <section className={`explore-page ${query ? "explore-page-active" : "explore-page-idle"}`}>
       <header className="explore-cinematic-intro">
-        <p className="cinema-kicker">Fuera del archivo</p>
-        <h1>¿Qué película tenéis en la cabeza?</h1>
-        <p>Busca en TMDb y déjala preparada para cuando llegue su momento.</p>
+        <p className="cinema-kicker">TMDb</p>
+        <h1>Buscar películas</h1>
+        <p>Busca un título y añádelo a pendientes.</p>
       </header>
 
       <form className="explore-search-panel" role="search" onSubmit={(event) => event.preventDefault()}>
@@ -257,15 +257,15 @@ export function MovieExplorer() {
       {!query ? (
         <div className="explore-idle-stage" aria-hidden="true">
           <div className="explore-idle-track">
-            <span>Una pendiente</span>
+            <span>Películas</span>
             <i />
-            <span>Una recomendación</span>
+            <span>Directores</span>
             <i />
-            <span>Una obsesión</span>
+            <span>Estrenos</span>
             <i />
-            <span>Una deuda histórica</span>
+            <span>Clásicos</span>
           </div>
-          <p>Empieza por un título, un recuerdo o una película que alguien lleva meses proponiendo.</p>
+          <p>Escribe al menos dos letras para buscar.</p>
         </div>
       ) : null}
 

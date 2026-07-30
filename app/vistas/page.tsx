@@ -87,12 +87,12 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
     <section className="seen-page">
       <header className="cinema-page-intro seen-page-intro">
         <div>
-          <p className="cinema-kicker">Archivo del grupo</p>
-          <h1>Todo lo que ya forma parte de nosotros</h1>
+          <p className="cinema-kicker">Historial</p>
+          <h1>Películas vistas</h1>
         </div>
         <div className="cinema-page-intro-aside">
           <strong>{totalHistoryCount}</strong>
-          <p>Películas, discusiones y notas que han ido construyendo el criterio del grupo.</p>
+          <p>El historial completo del grupo.</p>
         </div>
       </header>
 

@@ -12,7 +12,7 @@
   --cinema-line: rgba(233, 226, 213, 0.16);
   --cinema-accent: #dc8a57;
   --cinema-accent-soft: #efb580;
-  --cinema-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --cinema-display: var(--font-cinema-sans), "Segoe UI", sans-serif;
   --cinema-ui: "Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
 }
 
@@ -1551,7 +1551,7 @@ body {
 /* -------------------------------------------------------------------------- */
 
 :root {
-  --cinema-display: var(--font-cinema-serif), Georgia, serif;
+  --cinema-display: var(--font-cinema-sans), "Segoe UI", sans-serif;
   --cinema-ui: var(--font-cinema-sans), "Segoe UI", sans-serif;
   --display: var(--cinema-ui);
   --body: var(--cinema-ui);
@@ -3536,5 +3536,173 @@ textarea {
   .pending-radar-poster .poster-image,
   .pending-movie-poster .poster-image {
     transition: none;
+  }
+}
+
+/* Final typography calibration */
+
+.brand-copy p,
+.modal-card h2,
+.cinema-opening h1,
+.cinema-releases-heading h2,
+.cinema-release-copy h3,
+.cinema-detail-title-block h1,
+.cinema-detail-story h2,
+.cinema-detail-ratings h2,
+.cinema-detail-your-rating h2,
+.cinema-page-intro h1,
+.pending-radar-heading h2,
+.pending-archive-heading h2,
+.explore-cinematic-intro h1,
+.group-cinema-hero h1,
+.group-side-panel h2,
+.group-roster-header h2,
+.profile-command-copy h1,
+.profile-section-heading h2,
+.login-cinema-copy h2,
+.login-form-heading h1,
+.reset-cinema-copy h1 {
+  font-family: var(--cinema-display);
+  font-style: normal;
+  font-weight: 620;
+  letter-spacing: -0.065em;
+}
+
+.brand-copy p {
+  font-size: 1.12rem;
+  font-weight: 580;
+  letter-spacing: -0.04em;
+}
+
+.cinema-opening h1 {
+  max-width: 11ch;
+  font-size: clamp(3.7rem, 7vw, 7.4rem);
+  line-height: 0.84;
+}
+
+.cinema-releases-heading h2,
+.cinema-page-intro h1 {
+  font-size: clamp(3.4rem, 6.5vw, 6.8rem);
+  line-height: 0.86;
+}
+
+.cinema-page-intro h1 {
+  max-width: 14ch;
+}
+
+.cinema-detail-title-block h1 {
+  max-width: 12ch;
+  font-size: clamp(3.6rem, 7.5vw, 7.8rem);
+  line-height: 0.84;
+}
+
+.cinema-detail-story h2,
+.cinema-detail-ratings h2,
+.cinema-detail-your-rating h2,
+.pending-radar-heading h2,
+.pending-archive-heading h2,
+.profile-section-heading h2 {
+  font-size: clamp(2.8rem, 5vw, 5.2rem);
+  line-height: 0.88;
+}
+
+.explore-cinematic-intro h1 {
+  max-width: 12ch;
+  font-size: clamp(3.5rem, 6.7vw, 7rem);
+  line-height: 0.86;
+}
+
+.group-cinema-hero h1,
+.profile-command-copy h1 {
+  font-size: clamp(3.8rem, 7vw, 7.4rem);
+  line-height: 0.84;
+}
+
+.group-side-panel h2,
+.group-roster-header h2 {
+  font-size: clamp(2.5rem, 4vw, 4rem);
+  line-height: 0.9;
+}
+
+.login-cinema-copy h2 {
+  max-width: 9ch;
+  font-size: clamp(4rem, 8vw, 8.2rem);
+  line-height: 0.82;
+}
+
+.login-form-heading h1 {
+  font-size: clamp(2.8rem, 4.5vw, 4.5rem);
+  line-height: 0.86;
+}
+
+.reset-cinema-copy h1 {
+  max-width: 9ch;
+  font-size: clamp(3.5rem, 6vw, 6.2rem);
+  line-height: 0.85;
+}
+
+.cinema-page-intro-aside strong,
+.group-cinema-total strong,
+.profile-command-ledger strong,
+.seen-card-score-pill strong,
+.group-side-list strong,
+.group-redesign .member-metric-chip strong,
+.rating-distribution-stat strong,
+.cinema-rating-number {
+  font-family: var(--cinema-display);
+  font-style: normal;
+  font-weight: 540;
+  letter-spacing: -0.055em;
+}
+
+.seen-card-title,
+.pending-card-title,
+.explorer-card-title,
+.group-redesign .member-card-heading strong {
+  font-family: var(--cinema-display);
+  font-style: normal;
+  font-weight: 580;
+  letter-spacing: -0.045em;
+}
+
+.cinema-opening-empty-art,
+.explore-idle-track,
+.login-cinema-copy::before,
+.reset-cinema-copy::before {
+  font-style: normal;
+  font-weight: 650;
+}
+
+.cinema-opening-empty-art,
+.explore-idle-track {
+  letter-spacing: -0.07em;
+  text-transform: uppercase;
+}
+
+.explore-idle-track {
+  font-size: clamp(2.2rem, 5vw, 5.6rem);
+}
+
+@media (max-width: 820px) {
+  .cinema-opening h1,
+  .cinema-page-intro h1,
+  .explore-cinematic-intro h1,
+  .group-cinema-hero h1,
+  .profile-command-copy h1 {
+    font-size: clamp(3rem, 14vw, 5.2rem);
+    line-height: 0.86;
+  }
+
+  .pending-radar-heading h2,
+  .pending-archive-heading h2,
+  .profile-section-heading h2,
+  .group-side-panel h2,
+  .group-roster-header h2 {
+    font-size: clamp(2.6rem, 11vw, 4rem);
+  }
+
+  .login-cinema-copy h2,
+  .reset-cinema-copy h1 {
+    font-size: clamp(3.5rem, 15vw, 5.6rem);
   }
 }

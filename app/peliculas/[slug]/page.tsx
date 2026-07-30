@@ -115,15 +115,15 @@ export default async function MoviePage({ params }: MoviePageProps) {
 
         <div className="cinema-detail-story">
           <section className="cinema-detail-synopsis" aria-labelledby="synopsis-title">
-            <p className="cinema-section-number">01 / La película</p>
-            <h2 id="synopsis-title">La historia</h2>
+            <p className="cinema-section-number">01 / Sinopsis</p>
+            <h2 id="synopsis-title">Sinopsis</h2>
             <p>{movie.synopsis}</p>
           </section>
 
           <section className="cinema-detail-context" aria-labelledby="context-title">
             <div>
-              <p className="cinema-section-number">02 / La sesión</p>
-              <h2 id="context-title">En vuestro archivo</h2>
+              <p className="cinema-section-number">02 / Sesión</p>
+              <h2 id="context-title">Vista en grupo</h2>
             </div>
             <p>
               {watchEntry?.watchedOn
@@ -149,8 +149,8 @@ export default async function MoviePage({ params }: MoviePageProps) {
           <section className="cinema-detail-ratings" aria-labelledby="ratings-title">
             <header>
               <div>
-                <p className="cinema-section-number">03 / Después de verla</p>
-                <h2 id="ratings-title">Lo que quedó en el grupo</h2>
+                <p className="cinema-section-number">03 / Notas</p>
+                <h2 id="ratings-title">Valoraciones del grupo</h2>
               </div>
               <span>{ratings.length} valoraciones</span>
             </header>
@@ -175,7 +175,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 })
               ) : (
                 <div className="cinema-ratings-empty">
-                  <strong>La conversación todavía no ha empezado</strong>
+                  <strong>Todavía no hay valoraciones</strong>
                   <p>Nadie ha dejado una nota para esta película.</p>
                 </div>
               )}
@@ -194,12 +194,12 @@ export default async function MoviePage({ params }: MoviePageProps) {
               <div>
                 <p className="cinema-section-number">04 / Tu valoración</p>
                 <h2 id="your-rating-title">
-                  {myRating ? "Tu impresión ya forma parte de la sesión" : "¿Qué te pareció?"}
+                  {myRating ? "Tu valoración" : "Añade tu valoración"}
                 </h2>
                 <p>
                   {myRating
                     ? `Ahora mismo figura con un ${formatScore(myRating.score)}. Puedes cambiarla cuando quieras.`
-                    : "Guarda tu nota y, si quieres, una frase para recordar qué te dejó la película."}
+                    : "Guarda una nota y, si quieres, añade un comentario."}
                 </p>
               </div>
               <RatingPanel movieId={movie.id} initialScore={myRating?.score} initialComment={myRating?.comment} />
