@@ -292,7 +292,8 @@ async function tmdbFetch<T>(path: string) {
     const response = await fetch(`${TMDB_BASE_URL}${path}${separator}api_key=${apiKey}&language=es-ES`, {
       next: {
         revalidate: 43200
-      }
+      },
+      signal: AbortSignal.timeout(12_000)
     });
 
     if (!response.ok) {

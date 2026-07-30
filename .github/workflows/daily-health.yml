@@ -1,0 +1,45 @@
+name: Daily production health
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PRODUCTION_URL: https://cine-semanal.vercel.app
+      HEALTHCHECK_SECRET: ${{ secrets.PRODUCTION_HEALTHCHECK_SECRET }}
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Verify the deployed commit
+        run: >
+          node scripts/verify-deployment.mjs
+          --url=$PRODUCTION_URL
+          --expected-commit=$(git rev-parse HEAD)
+          --expected-ref=main
+          --expected-environment=production
+          --attempts=3
+          --delay-ms=5000
+
+      - name: Require the private health secret
+        run: test -n "$HEALTHCHECK_SECRET"
+
+      - name: Check application and database integrity
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --max-time 20 \
+            --header "Authorization: Bearer $HEALTHCHECK_SECRET" \
+            "$PRODUCTION_URL/api/health"

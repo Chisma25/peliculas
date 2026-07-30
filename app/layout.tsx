@@ -4,8 +4,10 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 import { SiteHeader } from "@/components/site-header";
+import { DataUnavailableError } from "@/lib/data-availability";
 import { getDeploymentVersion } from "@/lib/deployment-version";
 import { getSessionUser } from "@/lib/store";
+import type { User } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "Cine semanal",
@@ -15,7 +17,14 @@ export const metadata: Metadata = {
 export const preferredRegion = "fra1";
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const user = await getSessionUser();
+  let user: User | null = null;
+  try {
+    user = await getSessionUser();
+  } catch (error) {
+    if (!(error instanceof DataUnavailableError)) {
+      throw error;
+    }
+  }
   const deploymentVersion = getDeploymentVersion();
 
   return (

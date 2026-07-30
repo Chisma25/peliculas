@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { resolveApiSessionUser } from "@/lib/api-session";
+import { operationalErrorResponse } from "@/lib/operational-errors";
 import { ensureSameOrigin } from "@/lib/request-security";
-import { getSessionUser, updateUserProfile } from "@/lib/store";
+import { updateUserProfile } from "@/lib/store";
 
 export async function POST(request: Request) {
   const originError = ensureSameOrigin(request);
@@ -9,7 +11,9 @@ export async function POST(request: Request) {
     return originError;
   }
 
-  const sessionUser = await getSessionUser();
+  const sessionResult = await resolveApiSessionUser("profile/update/session");
+  if ("response" in sessionResult) return sessionResult.response;
+  const sessionUser = sessionResult.user;
   if (!sessionUser) {
     return NextResponse.json({ error: "Sesion no valida." }, { status: 401 });
   }
@@ -34,11 +38,10 @@ export async function POST(request: Request) {
       message: `Perfil actualizado. Ahora entras como ${user.username}.`
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "No se pudo actualizar el perfil."
-      },
-      { status: 400 }
-    );
+    return operationalErrorResponse(error, {
+      scope: "profile/update",
+      fallbackMessage: "No se pudo actualizar el perfil.",
+      defaultStatus: 400
+    });
   }
 }

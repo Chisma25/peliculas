@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 
+import { resolveApiSessionUser } from "@/lib/api-session";
+import { operationalErrorResponse } from "@/lib/operational-errors";
 import { ensureSameOrigin, readJsonBody } from "@/lib/request-security";
-import { getSessionUser, addPendingMovie } from "@/lib/store";
+import { addPendingMovie } from "@/lib/store";
 import { Movie } from "@/lib/types";
 
 export const preferredRegion = "fra1";
@@ -13,7 +15,9 @@ export async function POST(request: Request) {
     return originError;
   }
 
-  const sessionUser = await getSessionUser();
+  const sessionResult = await resolveApiSessionUser("pending/add/session");
+  if ("response" in sessionResult) return sessionResult.response;
+  const sessionUser = sessionResult.user;
   if (!sessionUser) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
   }
@@ -43,10 +47,9 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(result);
   } catch (error) {
-    console.error("[pending/add] Could not add pending movie.", error);
-    return NextResponse.json(
-      { status: "error", error: "No se pudo guardar la película en pendientes. Prueba otra vez." },
-      { status: 500 }
-    );
+    return operationalErrorResponse(error, {
+      scope: "pending/add",
+      fallbackMessage: "No se pudo guardar la película en pendientes. Prueba otra vez."
+    });
   }
 }

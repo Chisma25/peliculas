@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 
+import { resolveApiSessionUser } from "@/lib/api-session";
+import { operationalErrorResponse } from "@/lib/operational-errors";
 import { ensureSameOrigin } from "@/lib/request-security";
-import { getSessionUser, selectWeeklyMovie } from "@/lib/store";
+import { selectWeeklyMovie } from "@/lib/store";
 
 export const preferredRegion = "fra1";
 
@@ -12,7 +14,9 @@ export async function POST(request: Request) {
     return originError;
   }
 
-  const sessionUser = await getSessionUser();
+  const sessionResult = await resolveApiSessionUser("weekly-recommendations/select/session");
+  if ("response" in sessionResult) return sessionResult.response;
+  const sessionUser = sessionResult.user;
   if (!sessionUser) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
   }
@@ -27,11 +31,10 @@ export async function POST(request: Request) {
     revalidatePath("/pendientes");
     return NextResponse.redirect(new URL("/", request.url), 303);
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "No se pudo seleccionar la película."
-      },
-      { status: 400 }
-    );
+    return operationalErrorResponse(error, {
+      scope: "weekly-recommendations/select",
+      fallbackMessage: "No se pudo seleccionar la película.",
+      defaultStatus: 400
+    });
   }
 }

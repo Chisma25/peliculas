@@ -2,6 +2,11 @@ import type { Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
 import { cache } from "react";
 
+import {
+  ensureDatabaseReadCanProceed,
+  failClosedAfterDatabaseReadError,
+  shouldFailClosedOnDatabaseError
+} from "@/lib/data-availability";
 import { seedState } from "@/lib/demo-data";
 import { assertDatabaseEnvironmentSafety } from "@/lib/environment-safety";
 import { loadManualHistorySeed } from "@/lib/manual-history";
@@ -593,7 +598,10 @@ function getBackoffDuration(error: unknown, fallbackMs: number) {
 }
 
 function shouldAttemptDatabaseRead() {
-  return shouldUseDatabase() && Date.now() >= databaseReadBackoffUntil;
+  return ensureDatabaseReadCanProceed({
+    usesDatabase: shouldUseDatabase(),
+    backoffUntil: databaseReadBackoffUntil
+  });
 }
 
 function shouldAttemptDatabaseWrite() {
@@ -614,7 +622,8 @@ function markDatabaseReadFailure(scope: string, error: unknown) {
   if (isDatabaseQuotaExceededError(error)) {
     databaseWriteBackoffUntil = Math.max(databaseWriteBackoffUntil, Date.now() + backoffMs);
   }
-  console.error(`[store] Database read failed in ${scope}. Falling back to local state for reads.`, error);
+  console.error(`[store] Database read failed in ${scope}.`, error);
+  failClosedAfterDatabaseReadError();
 }
 
 function markDatabaseWriteFailure(scope: string, error: unknown) {
@@ -623,7 +632,7 @@ function markDatabaseWriteFailure(scope: string, error: unknown) {
   if (isDatabaseQuotaExceededError(error)) {
     databaseReadBackoffUntil = Math.max(databaseReadBackoffUntil, Date.now() + backoffMs);
   }
-  console.error(`[store] Database write failed in ${scope}. Keeping local fallback state alive.`, error);
+  console.error(`[store] Database write failed in ${scope}.`, error);
 }
 
 function loadLocalStateFromDisk() {
@@ -889,6 +898,9 @@ async function loadUsersForRead(options: { includeAvatarUrls?: boolean } = {}): 
   }
 
   const snapshot = await loadSnapshotStateUncached();
+  if (!snapshot && shouldFailClosedOnDatabaseError()) {
+    failClosedAfterDatabaseReadError();
+  }
   const sourceUsers = snapshot?.users ?? loadFallbackState().users;
   const users: User[] = cloneState(
     includeAvatarUrls
@@ -1454,6 +1466,9 @@ async function loadDatabaseStateUncached() {
   try {
     await ensurePreviewDataHygiene();
     const snapshotState = await loadSnapshotStateUncached();
+    if (!snapshotState && shouldFailClosedOnDatabaseError()) {
+      failClosedAfterDatabaseReadError();
+    }
     const baseState = snapshotState ?? loadFallbackState();
     const normalizedCollections = await loadNormalizedStateCollections(baseState.group.id);
     if (!snapshotState && !hasNormalizedDatabaseState(normalizedCollections)) {
@@ -1476,6 +1491,9 @@ async function loadDatabaseState() {
   try {
     await ensurePreviewDataHygiene();
     const snapshotState = await loadSnapshotStateForRequest();
+    if (!snapshotState && shouldFailClosedOnDatabaseError()) {
+      failClosedAfterDatabaseReadError();
+    }
     const baseState = snapshotState ?? loadFallbackState();
     const normalizedCollections = await loadNormalizedCollectionsCached(baseState.group.id);
     if (!snapshotState && !hasNormalizedDatabaseState(normalizedCollections)) {
@@ -3263,6 +3281,11 @@ export async function upsertRating(input: { movieId: string; userId: string; sco
 
   const state = await loadAppStateForMutation();
   const comment = sanitizeComment(input.comment);
+  const user = findUserById(state, input.userId);
+  const movie = getMovieById(state, input.movieId);
+  if (!user || !movie) {
+    throw new Error("No se encontró la película o el miembro que quieres valorar.");
+  }
   const ratingKey = `${input.userId}:${input.movieId}`;
   const existing = getStateIndexes(state).ratingByUserMovie.get(ratingKey);
 
@@ -3279,17 +3302,13 @@ export async function upsertRating(input: { movieId: string; userId: string; sco
     });
   }
 
-  const user = findUserById(state, input.userId);
-  const movie = getMovieById(state, input.movieId);
-  if (user && movie) {
-    addActivity(state, {
-      type: "rated",
-      label: `${user.name} puntuó ${movie.title} con un ${formatScore(input.score)}`,
-      movieId: movie.id,
-      userId: user.id,
-      date: new Date().toISOString()
-    });
-  }
+  addActivity(state, {
+    type: "rated",
+    label: `${user.name} puntuó ${movie.title} con un ${formatScore(input.score)}`,
+    movieId: movie.id,
+    userId: user.id,
+    date: new Date().toISOString()
+  });
 
   invalidateDerivedCaches(state);
   const nextRating = getStateIndexes(state).ratingByUserMovie.get(ratingKey) as UserRating;
