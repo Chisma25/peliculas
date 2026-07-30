@@ -53,10 +53,10 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: npx --yes vercel@58.4.4 build --prod --token="$VERCEL_TOKEN"
 
-      - name: Deploy the prebuilt release
+      - name: Deploy the exact source release
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: npx --yes vercel@58.4.4 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        run: npx --yes vercel@58.4.4 deploy --prod --yes --token="$VERCEL_TOKEN"
 
       - name: Verify the public production alias and commit
         run: >
