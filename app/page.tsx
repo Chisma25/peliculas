@@ -18,7 +18,10 @@ export default async function HomePage() {
 
   return (
     <div className="cinema-home">
-      <CinematicStage className="cinema-opening" labelledBy="dashboard-title">
+      <CinematicStage
+        className={`cinema-opening ${selectedMovie ? "cinema-opening-selected" : "cinema-opening-empty"}`}
+        labelledBy="dashboard-title"
+      >
         {spotlightArtwork ? (
           <div
             className="cinema-opening-art"
@@ -30,6 +33,13 @@ export default async function HomePage() {
 
         <div className="cinema-opening-shade" />
         <div className="cinema-opening-grain" aria-hidden="true" />
+        {!selectedMovie ? (
+          <div className="cinema-opening-empty-art" aria-hidden="true">
+            <span>Sin</span>
+            <span>título</span>
+            <i />
+          </div>
+        ) : null}
 
         <div className="cinema-opening-index" aria-hidden="true">
           <span>01</span>

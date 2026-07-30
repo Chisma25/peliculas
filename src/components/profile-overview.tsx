@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { MoviePoster } from "@/components/movie-poster";
+import { UserAvatar } from "@/components/user-avatar";
 import { Movie, User, UserRating } from "@/lib/types";
 import { formatCount, formatScore } from "@/lib/utils";
 
@@ -42,8 +43,12 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
   return (
     <div className="profile-overview">
       <section className="profile-command-panel" aria-labelledby="profile-title">
+        <div className="profile-command-portrait">
+          <UserAvatar user={profile.user} size="lg" />
+          <span aria-hidden="true">{String(profile.ratingsCount).padStart(2, "0")}</span>
+        </div>
         <div className="profile-command-copy">
-          <p className="eyebrow">{isSelf ? "Resumen personal" : "Perfil del grupo"}</p>
+          <p className="cinema-kicker">{isSelf ? "Resumen personal" : "Perfil del grupo"}</p>
           <h1 id="profile-title">{title}</h1>
           <p>{subtitle}</p>
         </div>

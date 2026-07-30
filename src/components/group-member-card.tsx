@@ -18,11 +18,13 @@ type GroupMemberCardProps = {
   };
   profileHref: string;
   canManage: boolean;
+  index?: number;
 };
 
-export function GroupMemberCard({ member, profileSummary, profileHref, canManage }: GroupMemberCardProps) {
+export function GroupMemberCard({ member, profileSummary, profileHref, canManage, index = 0 }: GroupMemberCardProps) {
   return (
     <article className="member-card member-card-interactive">
+      <span className="member-card-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
       <div className="member-card-topline">
         <div className="member-card-head">
           <UserAvatar user={member} size="md" />
@@ -50,8 +52,8 @@ export function GroupMemberCard({ member, profileSummary, profileHref, canManage
       </div>
 
       <div className="member-card-actions">
-        <PrefetchLink href={profileHref} className="secondary-button">
-          Ver perfil
+        <PrefetchLink href={profileHref} className="cinema-text-link">
+          Ver perfil <span aria-hidden="true">↗</span>
         </PrefetchLink>
         {canManage ? <GroupMemberAccessButton member={member} /> : null}
       </div>

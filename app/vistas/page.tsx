@@ -85,6 +85,17 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
 
   return (
     <section className="seen-page">
+      <header className="cinema-page-intro seen-page-intro">
+        <div>
+          <p className="cinema-kicker">Archivo del grupo</p>
+          <h1>Todo lo que ya forma parte de nosotros</h1>
+        </div>
+        <div className="cinema-page-intro-aside">
+          <strong>{totalHistoryCount}</strong>
+          <p>Películas, discusiones y notas que han ido construyendo el criterio del grupo.</p>
+        </div>
+      </header>
+
       <section id="archivo-vistas" className="seen-archive-panel" aria-label="Archivo de vistas">
         <form action="/vistas" method="get" className="seen-toolbar">
           <div className="seen-filter-grid">

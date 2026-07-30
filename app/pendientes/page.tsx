@@ -71,10 +71,23 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   return (
     <section className="pending-page">
       <PendingFreshness />
+      <header className="cinema-page-intro pending-page-intro">
+        <div>
+          <p className="cinema-kicker">La próxima sesión</p>
+          <h1>Entre todo lo pendiente, empecemos por aquí</h1>
+        </div>
+        <div className="cinema-page-intro-aside">
+          <strong>{totalPendingCount}</strong>
+          <p>Películas esperando su momento. El radar sólo abre una puerta; la elección sigue siendo vuestra.</p>
+        </div>
+      </header>
+
       {batch && weeklyOptions.length > 0 ? (
         <section className="pending-radar-panel" aria-label="Recomendaciones semanales">
           <div className="pending-radar-heading">
-            <h1>Recomendaciones</h1>
+            <p className="cinema-section-number">01 / Una primera criba</p>
+            <h2>Recomendaciones</h2>
+            <p>Una selección breve para cuando la lista completa no ayuda a decidir.</p>
           </div>
 
           <div
@@ -120,6 +133,13 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       ) : null}
 
       <section id="lista-pendientes" className="pending-archive-panel" aria-label="Archivo de pendientes">
+        <div className="pending-archive-heading">
+          <div>
+            <p className="cinema-section-number">02 / Sin atajos</p>
+            <h2>La lista completa</h2>
+          </div>
+          <p>Cualquier película pendiente puede convertirse en la próxima sesión.</p>
+        </div>
         {totalPendingCount > 0 || hasActiveFilters ? (
           <form action="/pendientes" method="get" className="pending-filter-panel">
             <div className="pending-filter-grid">

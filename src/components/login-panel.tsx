@@ -49,6 +49,19 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
 
   return (
     <section className="login-screen" aria-labelledby="login-title">
+      <div className="login-cinema-copy" aria-hidden="true">
+        <p className="cinema-kicker">Archivo privado</p>
+        <h2>La sala es vuestra.</h2>
+        <p>Una película cada vez. Las discusiones, las notas y todo lo que queda después viven aquí.</p>
+        <div className="login-cinema-reel">
+          <span>Cine club</span>
+          <i />
+          <span>Sesión semanal</span>
+          <i />
+          <span>Archivo compartido</span>
+        </div>
+      </div>
+
       <div className="login-form-panel">
         <div className="login-form-heading">
           <span className="login-form-led" aria-hidden="true" />

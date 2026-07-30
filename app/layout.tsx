@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Instrument_Sans, Instrument_Serif } from "next/font/google";
 
 import "./globals.css";
 
@@ -8,6 +9,20 @@ import { DataUnavailableError } from "@/lib/data-availability";
 import { getDeploymentVersion } from "@/lib/deployment-version";
 import { getSessionUser } from "@/lib/store";
 import type { User } from "@/lib/types";
+
+const interfaceFont = Instrument_Sans({
+  subsets: ["latin"],
+  variable: "--font-cinema-sans",
+  display: "swap"
+});
+
+const editorialFont = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-cinema-serif",
+  display: "swap"
+});
 
 export const metadata: Metadata = {
   title: "Cine semanal",
@@ -28,7 +43,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const deploymentVersion = getDeploymentVersion();
 
   return (
-    <html lang="es">
+    <html lang="es" className={`${interfaceFont.variable} ${editorialFont.variable}`}>
       <body>
         <div className="app-shell">
           <div className="ambient ambient-one" />
