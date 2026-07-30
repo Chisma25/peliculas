@@ -120,6 +120,39 @@ test.describe("authenticated Preview smoke tests", () => {
     expect(headingBox?.y ?? 0).toBeGreaterThan(headerBox?.y ? headerBox.y + headerBox.height : headerBox?.height ?? 0);
   });
 
+  test("keeps the tablet header compact without covering group content", async ({ page }, testInfo) => {
+    test.skip(!testInfo.project.name.startsWith("desktop"), "Desktop project owns the tablet viewport assertion.");
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto("/grupo");
+
+    const headerBox = await page.locator("header").boundingBox();
+    const brandBox = await page.getByRole("link", { name: "Ir al dashboard de Cine Semanal" }).boundingBox();
+    const navigationBox = await page.getByRole("navigation", { name: "Principal" }).boundingBox();
+    const profileBox = await page.locator(".user-chip").boundingBox();
+    const headingBox = await page.getByRole("heading", { name: "Cine club" }).boundingBox();
+
+    expect(headerBox?.height ?? 999).toBeLessThan(100);
+    expect((brandBox?.x ?? 999) + (brandBox?.width ?? 999)).toBeLessThan(navigationBox?.x ?? 0);
+    expect((navigationBox?.x ?? 999) + (navigationBox?.width ?? 999)).toBeLessThan(profileBox?.x ?? 0);
+    expect(headingBox?.y ?? 0).toBeGreaterThan(headerBox?.y ? headerBox.y + headerBox.height : headerBox?.height ?? 0);
+  });
+
+  test("uses native lazy-loaded images for poster collections", async ({ page }) => {
+    await page.goto("/pendientes");
+
+    const posters = page.locator(".pending-radar-poster img.poster-image, .pending-movie-poster img.poster-image");
+    const posterCount = await posters.count();
+    test.skip(posterCount === 0, "The current environment has no poster artwork.");
+
+    await expect(posters.first()).toHaveAttribute("loading", "lazy");
+    await expect(posters.first()).toHaveAttribute("decoding", "async");
+
+    const cssBackgroundPosters = await page.locator(
+      '.pending-radar-poster[style*="background-image"], .pending-movie-poster[style*="background-image"]'
+    ).count();
+    expect(cssBackgroundPosters).toBe(0);
+  });
+
   test("keeps the main flows inside the viewport", async ({ page }) => {
     for (const path of ["/", "/vistas", "/explorar", "/pendientes"]) {
       await page.goto(path);

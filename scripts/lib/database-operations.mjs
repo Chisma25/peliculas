@@ -77,13 +77,16 @@ export function prepareDatabaseTarget(args) {
 
   const productionHost = process.env.PRODUCTION_DATABASE_HOST?.trim().toLowerCase();
   const databaseHost = parsedUrl.hostname.toLowerCase();
-  if (productionHost) {
-    if (environment === "production" && databaseHost !== productionHost) {
-      throw new Error("El destino declarado como Producción no coincide con PRODUCTION_DATABASE_HOST.");
-    }
-    if (environment === "preview" && databaseHost === productionHost) {
-      throw new Error("Preview no puede apuntar al host declarado de Producción.");
-    }
+  if (environment !== "development" && !productionHost) {
+    throw new Error(
+      "PRODUCTION_DATABASE_HOST es obligatorio para operar sobre Preview o Producción."
+    );
+  }
+  if (environment === "production" && databaseHost !== productionHost) {
+    throw new Error("El destino declarado como Producción no coincide con PRODUCTION_DATABASE_HOST.");
+  }
+  if (environment === "preview" && databaseHost === productionHost) {
+    throw new Error("Preview no puede apuntar al host declarado de Producción.");
   }
 
   return {
