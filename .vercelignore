@@ -1,0 +1,26 @@
+.git
+.vercel
+.next
+node_modules
+out
+dist
+coverage
+
+.env
+.env.*
+*.log
+
+data/*.json
+data/*.partial
+playwright-report
+test-results
+playwright/.auth
+
+e2e
+tests
+scripts
+
+tmp_xlsx_inspect
+tmp_notas_peliculas.zip
+NOTAS PELICULAS - listo para importar.csv
+tsconfig.tsbuildinfo
