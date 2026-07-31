@@ -32,6 +32,11 @@ export function UserAvatar({ user, size = "md", className = "" }: UserAvatarProp
       // The authenticated avatar endpoint is intentionally loaded by the browser rather than Next's server-side image optimizer.
       // eslint-disable-next-line @next/next/no-img-element
       <img
+        ref={(image) => {
+          if (image?.complete && image.naturalWidth === 0) {
+            setImageFailed(true);
+          }
+        }}
         src={user.avatarUrl}
         alt={`Avatar de ${user.name}`}
         className={classes}
