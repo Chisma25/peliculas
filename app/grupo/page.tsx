@@ -27,7 +27,7 @@ export default async function GroupPage() {
             <p className="cinema-kicker">El grupo</p>
             <h1 id="group-title">{groupData.group.name}</h1>
           </div>
-          <p className="group-editorial-intro">{formatCount(groupData.members.length, "perfil")}</p>
+          <p className="group-editorial-intro">{formatCount(groupData.members.length, "perfil", "perfiles")}</p>
         </div>
 
         <div className="group-cast" aria-label="Miembros del grupo">
