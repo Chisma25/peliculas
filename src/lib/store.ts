@@ -2397,6 +2397,23 @@ async function getViewedPageDataFromDatabase(input: {
       ];
     });
 
+    const recentHistory: HistoryItem[] = allHistory.slice(0, 3).flatMap((item) => {
+      const movie = moviesById.get(item.movieId);
+      if (!movie) {
+        return [];
+      }
+
+      return [
+        {
+          movie,
+          watchedOn: item.watchedOn,
+          groupAverage: item.groupAverage,
+          ratings: ratingsByMovieId.get(item.movieId) ?? [],
+          userRating: item.userRating
+        }
+      ];
+    });
+
     const normalizedSearch = input.search?.trim().toLocaleLowerCase("es") ?? "";
     const normalizedGenre = input.genre?.trim().toLocaleLowerCase("es") ?? "";
     const activeYear = input.year?.trim() ?? "";
@@ -2469,7 +2486,9 @@ async function getViewedPageDataFromDatabase(input: {
         ];
       });
 
-    await hydrateMoviesForDatabaseRead(pagedHistory.map((item) => item.movie));
+    await hydrateMoviesForDatabaseRead(
+      [...new Map([...recentHistory, ...pagedHistory].map((item) => [item.movie.id, item.movie])).values()]
+    );
     markDatabaseReadHealthy();
     return {
       genres,
@@ -2477,6 +2496,7 @@ async function getViewedPageDataFromDatabase(input: {
       filteredHistoryCount: filteredHistory.length,
       totalPages,
       currentPage: safePage,
+      recentHistory,
       pagedHistory
     };
   } catch (error) {
@@ -3055,6 +3075,11 @@ export async function getViewedPageDataHydrated(input: {
     currentUserId: input.currentUserId
   });
 
+  const { filteredHistory: recentBase } = getViewedListBaseFromState(state, {
+    sort: "watched-desc",
+    currentUserId: input.currentUserId
+  });
+
   const moviesToHydrate = new Map<string, Movie>();
   const totalPages = Math.max(1, Math.ceil(filteredHistory.length / itemsPerPage));
   const safePage = Math.min(currentPage, totalPages);
@@ -3077,7 +3102,28 @@ export async function getViewedPageDataHydrated(input: {
     })
     .filter((item): item is HistoryItem => Boolean(item));
 
+  const recentHistory = recentBase
+    .slice(0, 3)
+    .map((item) => {
+      const movie = indexes.moviesById.get(item.movieId);
+      if (!movie) {
+        return null;
+      }
+
+      return {
+        movie,
+        watchedOn: item.watchedOn,
+        groupAverage: item.groupAverage,
+        ratings: indexes.ratingsByMovieId.get(item.movieId) ?? [],
+        userRating: item.userRating
+      };
+    })
+    .filter((item): item is HistoryItem => Boolean(item));
+
   for (const item of pagedHistory) {
+    moviesToHydrate.set(item.movie.id, item.movie);
+  }
+  for (const item of recentHistory) {
     moviesToHydrate.set(item.movie.id, item.movie);
   }
 
@@ -3089,6 +3135,7 @@ export async function getViewedPageDataHydrated(input: {
     filteredHistoryCount: filteredHistory.length,
     totalPages,
     currentPage: safePage,
+    recentHistory,
     pagedHistory
   };
 }
