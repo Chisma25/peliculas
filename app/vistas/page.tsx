@@ -72,7 +72,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
     filteredHistoryCount,
     totalPages,
     currentPage: safePage,
-    recentHistory,
+    featuredHistory,
     pagedHistory
   } = await getViewedPageDataHydrated({
     search,
@@ -86,9 +86,9 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
 
   const paginationItems = buildPaginationItems(safePage, totalPages);
   const hasActiveFilters = Boolean(search || year || genre || activeSort !== "watched-desc");
-  const latest = recentHistory[0];
-  const heroStyle = latest?.movie.backdrop
-    ? ({ "--seen-hero-image": `url("${latest.movie.backdrop}")` } as CSSProperties)
+  const featured = featuredHistory[0];
+  const heroStyle = featured?.movie.backdrop
+    ? ({ "--seen-hero-image": `url("${featured.movie.backdrop}")` } as CSSProperties)
     : undefined;
 
   return (
@@ -99,11 +99,11 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
         <div className="seen-page-intro-copy">
           <p className="cinema-kicker">Archivo del grupo</p>
           <h1>Vistas</h1>
-          {latest ? (
+          {featured ? (
             <div className="seen-page-intro-latest">
-              <span>Última sesión</span>
-              <PrefetchLink href={`/peliculas/${latest.movie.slug}`}>
-                {latest.movie.title} <span aria-hidden="true">↗</span>
+              <span>Mejor valorada</span>
+              <PrefetchLink href={`/peliculas/${featured.movie.slug}`}>
+                {featured.movie.title} <span aria-hidden="true">↗</span>
               </PrefetchLink>
             </div>
           ) : null}
@@ -112,47 +112,11 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
         <div className="seen-page-intro-ledger">
           <span>En total</span>
           <strong>{String(totalHistoryCount).padStart(2, "0")}</strong>
-          <a href={recentHistory.length > 0 ? "#ultimas-vistas" : "#archivo-vistas"}>
-            Ver últimas <span aria-hidden="true">↓</span>
+          <a href="#archivo-vistas">
+            Ir al archivo <span aria-hidden="true">↓</span>
           </a>
         </div>
       </header>
-
-      {recentHistory.length > 0 ? (
-        <section id="ultimas-vistas" className="seen-recent-panel" data-scroll-chapter aria-label="Últimas películas vistas">
-          <div className="seen-section-heading">
-            <p className="cinema-kicker">Últimas sesiones</p>
-            <h2>Recién vistas</h2>
-          </div>
-
-          <div className={`seen-recent-grid ${recentHistory.length < 3 ? "seen-recent-grid-tight" : ""}`}>
-            {recentHistory.map((item, index) => {
-              const primaryGenre = item.movie.genres.find((entry) => entry !== "Pendiente");
-              return (
-                <PrefetchLink
-                  key={item.movie.id}
-                  href={`/peliculas/${item.movie.slug}`}
-                  className={`seen-recent-card ${index === 0 ? "is-lead" : ""}`}
-                >
-                  <div className="seen-recent-image">
-                    <PosterImage src={index === 0 ? item.movie.backdrop ?? item.movie.posterUrl : item.movie.posterUrl} />
-                    <span className="seen-recent-number">{String(index + 1).padStart(2, "0")}</span>
-                    <div className="seen-recent-overlay">
-                      <p>{item.watchedOn ? formatShortDate(item.watchedOn) : "Fecha pendiente"}</p>
-                      <h3>{item.movie.title}</h3>
-                      <div className="seen-recent-meta">
-                        {item.movie.year > 0 ? <span>{item.movie.year}</span> : null}
-                        {primaryGenre ? <span>{primaryGenre}</span> : null}
-                        <span>Grupo {formatScore(item.groupAverage)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </PrefetchLink>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
 
       <section id="archivo-vistas" className="seen-archive-panel" data-scroll-chapter aria-label="Archivo de vistas">
         <div className="seen-section-heading seen-archive-heading">

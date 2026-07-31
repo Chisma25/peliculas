@@ -2397,7 +2397,10 @@ async function getViewedPageDataFromDatabase(input: {
       ];
     });
 
-    const recentHistory: HistoryItem[] = allHistory.slice(0, 3).flatMap((item) => {
+    const featuredHistory: HistoryItem[] = [...allHistory]
+      .sort((left, right) => right.groupAverage - left.groupAverage)
+      .slice(0, 1)
+      .flatMap((item) => {
       const movie = moviesById.get(item.movieId);
       if (!movie) {
         return [];
@@ -2412,7 +2415,7 @@ async function getViewedPageDataFromDatabase(input: {
           userRating: item.userRating
         }
       ];
-    });
+      });
 
     const normalizedSearch = input.search?.trim().toLocaleLowerCase("es") ?? "";
     const normalizedGenre = input.genre?.trim().toLocaleLowerCase("es") ?? "";
@@ -2487,7 +2490,7 @@ async function getViewedPageDataFromDatabase(input: {
       });
 
     await hydrateMoviesForDatabaseRead(
-      [...new Map([...recentHistory, ...pagedHistory].map((item) => [item.movie.id, item.movie])).values()]
+      [...new Map([...featuredHistory, ...pagedHistory].map((item) => [item.movie.id, item.movie])).values()]
     );
     markDatabaseReadHealthy();
     return {
@@ -2496,7 +2499,7 @@ async function getViewedPageDataFromDatabase(input: {
       filteredHistoryCount: filteredHistory.length,
       totalPages,
       currentPage: safePage,
-      recentHistory,
+      featuredHistory,
       pagedHistory
     };
   } catch (error) {
@@ -3075,8 +3078,8 @@ export async function getViewedPageDataHydrated(input: {
     currentUserId: input.currentUserId
   });
 
-  const { filteredHistory: recentBase } = getViewedListBaseFromState(state, {
-    sort: "watched-desc",
+  const { filteredHistory: featuredBase } = getViewedListBaseFromState(state, {
+    sort: "group-desc",
     currentUserId: input.currentUserId
   });
 
@@ -3102,8 +3105,8 @@ export async function getViewedPageDataHydrated(input: {
     })
     .filter((item): item is HistoryItem => Boolean(item));
 
-  const recentHistory = recentBase
-    .slice(0, 3)
+  const featuredHistory = featuredBase
+    .slice(0, 1)
     .map((item) => {
       const movie = indexes.moviesById.get(item.movieId);
       if (!movie) {
@@ -3123,7 +3126,7 @@ export async function getViewedPageDataHydrated(input: {
   for (const item of pagedHistory) {
     moviesToHydrate.set(item.movie.id, item.movie);
   }
-  for (const item of recentHistory) {
+  for (const item of featuredHistory) {
     moviesToHydrate.set(item.movie.id, item.movie);
   }
 
@@ -3135,7 +3138,7 @@ export async function getViewedPageDataHydrated(input: {
     filteredHistoryCount: filteredHistory.length,
     totalPages,
     currentPage: safePage,
-    recentHistory,
+    featuredHistory,
     pagedHistory
   };
 }
