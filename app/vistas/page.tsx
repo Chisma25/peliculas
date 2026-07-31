@@ -113,7 +113,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
           <span>En total</span>
           <strong>{String(totalHistoryCount).padStart(2, "0")}</strong>
           <a href={recentHistory.length > 0 ? "#ultimas-vistas" : "#archivo-vistas"}>
-            Recorrer archivo <span aria-hidden="true">↓</span>
+            Ver últimas <span aria-hidden="true">↓</span>
           </a>
         </div>
       </header>

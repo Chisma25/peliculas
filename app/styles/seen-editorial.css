@@ -696,7 +696,9 @@ html:has(.seen-page) {
 
   .seen-recent-grid,
   .seen-recent-grid.seen-recent-grid-tight {
-    grid-template-columns: repeat(3, minmax(78vw, 1fr));
+    grid-template-columns: none;
+    grid-auto-columns: minmax(78vw, 1fr);
+    grid-auto-flow: column;
     gap: 0.85rem;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
@@ -704,7 +706,7 @@ html:has(.seen-page) {
   }
 
   .seen-recent-grid.seen-recent-grid-tight {
-    grid-template-columns: repeat(2, minmax(78vw, 1fr));
+    grid-template-columns: none;
   }
 
   .seen-recent-card.is-lead {
