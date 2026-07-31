@@ -18,6 +18,7 @@ export default async function HomePage() {
 
   return (
     <div className="cinema-home">
+      <div className="cinema-home-snap-start" aria-hidden="true" />
       <CinematicStage
         className={`cinema-opening ${selectedMovie ? "cinema-opening-selected" : "cinema-opening-empty"}`}
         labelledBy="dashboard-title"
@@ -107,13 +108,13 @@ export default async function HomePage() {
           </article>
         </div>
 
-        <div className="cinema-scroll-cue" aria-hidden="true">
-          <span>Continúa</span>
+        <a className="cinema-scroll-cue" href="#proximamente" aria-label="Ir a próximos estrenos">
+          <span>Estrenos</span>
           <i />
-        </div>
+        </a>
       </CinematicStage>
 
-      <section className="cinema-home-program">
+      <section id="proximamente" className="cinema-home-program" aria-label="Próximos estrenos">
         <Suspense fallback={<UpcomingReleasesPanelFallback />}>
           <UpcomingReleasesPanel />
         </Suspense>

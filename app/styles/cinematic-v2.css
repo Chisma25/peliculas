@@ -3706,3 +3706,119 @@ textarea {
     font-size: clamp(3.5rem, 15vw, 5.6rem);
   }
 }
+
+/* Dashboard chapters: the releases panel rises over the weekly selection. */
+
+html:has(.cinema-home) {
+  scroll-padding-top: 6.45rem;
+  scroll-snap-type: y proximity;
+}
+
+.app-shell:has(.cinema-home) {
+  overflow: clip;
+}
+
+.cinema-home {
+  gap: 0;
+}
+
+.cinema-home-snap-start {
+  width: 1px;
+  height: 1px;
+  margin-bottom: -1px;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  pointer-events: none;
+}
+
+.cinema-scroll-cue {
+  z-index: 3;
+  padding: 0.65rem 0.45rem;
+  outline-offset: 0.3rem;
+  transition:
+    color 220ms ease,
+    transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cinema-scroll-cue:hover,
+.cinema-scroll-cue:focus-visible {
+  color: var(--cinema-paper);
+  transform: translateY(0.2rem);
+}
+
+.cinema-home-program {
+  position: relative;
+  z-index: 2;
+  min-height: calc(100dvh - 6.45rem);
+  margin-top: clamp(4.5rem, 9vh, 7rem);
+  padding: clamp(4.5rem, 8vw, 8rem) clamp(1.25rem, 3vw, 3rem) clamp(3.5rem, 7vw, 7rem);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  border-top: 1px solid rgba(233, 226, 213, 0.2);
+  background:
+    linear-gradient(180deg, rgba(239, 181, 128, 0.055), transparent 13rem),
+    #11120f;
+  box-shadow: 0 -3.5rem 7rem rgba(8, 8, 7, 0.58);
+  isolation: isolate;
+}
+
+.cinema-home-program::before,
+.cinema-home-program::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  height: 1px;
+  pointer-events: none;
+}
+
+.cinema-home-program::before {
+  right: var(--page-gutter);
+  left: var(--page-gutter);
+  background: rgba(233, 226, 213, 0.12);
+}
+
+.cinema-home-program::after {
+  left: var(--page-gutter);
+  width: clamp(4rem, 9vw, 8rem);
+  background: var(--cinema-accent-soft);
+}
+
+@media (min-width: 821px) and (prefers-reduced-motion: no-preference) {
+  .cinema-opening {
+    position: sticky;
+    top: 6.45rem;
+    z-index: 0;
+  }
+}
+
+@media (max-width: 820px) {
+  html:has(.cinema-home) {
+    scroll-padding-top: 5.6rem;
+  }
+
+  .cinema-home-program {
+    min-height: calc(100dvh - 5.6rem);
+    margin-top: 3.5rem;
+    padding: 4rem 0 4.5rem;
+  }
+
+  .cinema-home-program::before {
+    right: 0;
+    left: 0;
+  }
+
+  .cinema-home-program::after {
+    left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.cinema-home) {
+    scroll-behavior: auto;
+    scroll-snap-type: none;
+  }
+
+  .cinema-scroll-cue {
+    transition: none;
+  }
+}
