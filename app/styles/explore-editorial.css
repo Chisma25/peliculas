@@ -62,6 +62,19 @@
   color: rgba(233, 226, 213, 0.24);
 }
 
+.explore-search-field input::-webkit-search-cancel-button,
+.explore-search-field input::-webkit-search-decoration {
+  display: none;
+  appearance: none;
+}
+
+.explore-search-field input::-ms-clear,
+.explore-search-field input::-ms-reveal {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .explore-search-field input:focus-visible {
   outline: none;
 }
