@@ -382,6 +382,12 @@ html:has(.pending-page) {
   }
 }
 
+@media (min-width: 821px) and (max-height: 760px) {
+  .pending-radar-panel {
+    padding-block: 1.5rem;
+  }
+}
+
 @media (max-width: 820px) {
   html:has(.pending-page) {
     scroll-padding-top: 5.6rem;
