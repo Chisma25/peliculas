@@ -3766,6 +3766,34 @@ html:has(.cinema-home) {
   isolation: isolate;
 }
 
+.cinema-home-now-playing {
+  background:
+    linear-gradient(145deg, rgba(196, 130, 77, 0.085), transparent 38%),
+    linear-gradient(180deg, rgba(239, 181, 128, 0.045), transparent 13rem),
+    #15140f;
+}
+
+.cinema-home-upcoming {
+  background:
+    linear-gradient(180deg, rgba(239, 181, 128, 0.055), transparent 13rem),
+    #11120f;
+}
+
+.cinema-program-status {
+  max-width: 34ch;
+  margin: 0 0 0.25rem;
+  color: rgba(233, 226, 213, 0.5);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.cinema-program-cue {
+  right: 0.5rem;
+  bottom: 1rem;
+}
+
 .cinema-home-program::before,
 .cinema-home-program::after {
   content: "";

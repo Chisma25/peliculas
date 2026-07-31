@@ -1,6 +1,7 @@
 import {
   AppState,
   Movie,
+  NowPlayingSuggestion,
   RecommendationMetric,
   RecommendationReason,
   UpcomingReleaseSuggestion,
@@ -1318,6 +1319,70 @@ export function generatePendingWeeklyOptions(state: AppState): WeeklyRecommendat
   );
 
   return createRecommendationItems(applyDisplayScores(pickDiverseCandidates(candidates, PENDING_COUNT), "pending"));
+}
+
+export function rankNowPlayingForGroup(
+  state: AppState,
+  nowPlayingMovies: Movie[],
+  desiredCount = 3
+): NowPlayingSuggestion[] {
+  const { groupProfile, userProfiles } = buildProfiles(state);
+  const context = buildWeeklyContext(state);
+  const feedback = buildFeedbackProfile(state);
+  const previousBatch = [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  const previousMovieIds = new Set(previousBatch?.items.map((item) => item.movieId) ?? []);
+  const moviesById = new Map(state.movies.map((movie) => [movie.id, movie]));
+  const unavailableIds = new Set([
+    ...state.watchEntries.map((entry) => entry.movieId),
+    ...state.pendingMovieIds,
+    ...(previousBatch?.selectedMovieId ? [previousBatch.selectedMovieId] : [])
+  ]);
+  const unavailableTmdbIds = new Set(
+    [...unavailableIds]
+      .map((movieId) => moviesById.get(movieId)?.sourceIds?.tmdb)
+      .filter((value): value is string => Boolean(value))
+  );
+  const unavailableSlugs = new Set(
+    [...unavailableIds]
+      .map((movieId) => moviesById.get(movieId)?.slug)
+      .filter((value): value is string => Boolean(value))
+  );
+
+  const candidates = nowPlayingMovies
+    .filter(
+      (movie) =>
+        hasRecommendationMetadata(movie) &&
+        Boolean(movie.posterUrl || movie.backdrop) &&
+        !unavailableIds.has(movie.id) &&
+        !unavailableSlugs.has(movie.slug) &&
+        !(movie.sourceIds?.tmdb && unavailableTmdbIds.has(movie.sourceIds.tmdb))
+    )
+    .map((movie) => {
+      const scored = scoreMovie(movie, groupProfile, userProfiles, context, feedback, "discovery", previousMovieIds);
+      const rating = clamp((parseExternalRating(movie) ?? 5.5) / 10, 0, 1);
+      const popularity = clamp(Math.log1p(Math.max(movie.popularity ?? 0, 0)) / Math.log1p(320), 0, 1);
+      const voteConfidence = clamp(Math.log1p(Math.max(movie.voteCount ?? 0, 0)) / Math.log1p(12_000), 0, 1);
+      const publicInterest = rating * 0.48 + popularity * 0.34 + voteConfidence * 0.18;
+      const groupInterest = clamp(
+        scored.breakdown.structured * 0.3 +
+          scored.breakdown.semantic * 0.25 +
+          scored.breakdown.prediction * 0.3 +
+          scored.breakdown.watchability * 0.15,
+        0,
+        1
+      );
+
+      return {
+        ...scored,
+        rawScore: publicInterest * 5.2 + groupInterest * 1.5 + scored.breakdown.quality * 0.5
+      };
+    });
+
+  return applyDisplayScores(pickDiverseCandidates(candidates, desiredCount), "discovery").map((candidate) => ({
+    movie: candidate.movie,
+    releaseDate: candidate.movie.releaseDateEs ?? candidate.movie.releaseDate,
+    score: candidate.displayScore
+  }));
 }
 
 export function rankUpcomingReleasesForGroup(state: AppState, upcomingMovies: Movie[], desiredCount = 3): UpcomingReleaseSuggestion[] {

@@ -103,6 +103,12 @@ export type UpcomingReleaseSuggestion = {
   metrics: RecommendationMetric[];
 };
 
+export type NowPlayingSuggestion = {
+  movie: Movie;
+  releaseDate?: string;
+  score: number;
+};
+
 export type ActivityItem = {
   type: "watched" | "rated" | "recommended" | "queued";
   label: string;

@@ -7,6 +7,7 @@ const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 const TMDB_SEARCH_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const TMDB_DETAILS_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const TMDB_UPCOMING_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
+const TMDB_NOW_PLAYING_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 export const TMDB_METADATA_VERSION = 2;
 const tmdbMemoryCache = new Map<string, { payload: unknown; expiresAt: number }>();
 
@@ -154,6 +155,7 @@ const BEHIND_THE_SCENES_MARKERS = [
 
 export type TmdbSearchResult = {
   id: number;
+  adult?: boolean;
   title: string;
   original_title?: string;
   overview?: string;
@@ -474,6 +476,41 @@ export async function fetchUpcomingMovies(daysAhead = 31, region = "ES", limit =
     ...mapSearchResultToMovie(item),
     releaseDateEs: item.release_date
   }));
+}
+
+function mapNowPlayingResults(results: TmdbSearchResult[], limit: number) {
+  return results
+    .filter(
+      (item) =>
+        !item.adult &&
+        !isBehindTheScenesTitle(item.title, "") &&
+        Boolean(item.poster_path || item.backdrop_path)
+    )
+    .slice(0, limit)
+    .map((item) => ({
+      ...mapSearchResultToMovie(item),
+      releaseDateEs: item.release_date
+    }));
+}
+
+export async function fetchNowPlayingMovies(region = "ES", limit = 18) {
+  const today = new Date().toISOString().slice(0, 10);
+  const cacheKey = `${region}:${today}:${limit}`;
+  const cached = await readCachedPayload<TmdbSearchResult[]>("movie-now-playing", cacheKey);
+  if (cached) {
+    return cached.hit && cached.data ? mapNowPlayingResults(cached.data, limit) : [];
+  }
+
+  const payload = await tmdbFetch<TmdbListPayload>(`/movie/now_playing?region=${encodeURIComponent(region)}&page=1`);
+  const rawResults = payload?.results ?? [];
+  await writeCachedPayload(
+    "movie-now-playing",
+    cacheKey,
+    { hit: rawResults.length > 0, data: rawResults },
+    TMDB_NOW_PLAYING_CACHE_TTL_MS
+  );
+
+  return mapNowPlayingResults(rawResults, limit);
 }
 
 export async function searchMovies(query: string, fallbackMovies: Movie[]) {

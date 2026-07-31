@@ -20,6 +20,7 @@ import {
 } from "@/lib/local-state-storage";
 import { findStoredMovieForSearchResult } from "@/lib/movie-search";
 import {
+  fetchNowPlayingMovies,
   fetchUpcomingMovies,
   resolveMovieMetadata,
   searchMovies,
@@ -35,6 +36,7 @@ import {
   generatePendingWeeklyOptions,
   generateWeeklyRecommendations,
   hasRecommendationMetadata,
+  rankNowPlayingForGroup,
   rankUpcomingReleasesForGroup
 } from "@/lib/recommendations";
 import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
@@ -45,6 +47,7 @@ import {
   ActivityItem,
   AppState,
   Movie,
+  NowPlayingSuggestion,
   RecommendationMetric,
   UpcomingReleaseSuggestion,
   User,
@@ -73,6 +76,7 @@ const STATE_CACHE_TTL_MS = 20_000;
 const PAGE_ROUTE_CACHE_TTL_MS = 1000 * 60 * 2;
 const MOVIE_DETAIL_CACHE_TTL_MS = 1000 * 60 * 2;
 const UPCOMING_RELEASES_CACHE_TTL_MS = 1000 * 60 * 15;
+const NOW_PLAYING_CACHE_TTL_MS = 1000 * 60 * 15;
 const DATABASE_READ_BACKOFF_MS = 1000 * 60;
 const DATABASE_WRITE_BACKOFF_MS = 1000 * 60;
 const DATABASE_QUOTA_BACKOFF_MS = 1000 * 60 * 30;
@@ -207,6 +211,7 @@ let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 let snapshotUsersWithAvatarsMemoryCache: TimedCache<User[]> | null = null;
 const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedStateCollections>>();
 let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null = null;
+let nowPlayingMemoryCache: TimedCache<NowPlayingSuggestion[]> | null = null;
 let databaseReadBackoffUntil = 0;
 let databaseWriteBackoffUntil = 0;
 let liveStateMemoryCache: TimedCache<AppState> | null = null;
@@ -274,6 +279,7 @@ function invalidatePersistentStateCache() {
   snapshotUsersWithAvatarsMemoryCache = null;
   normalizedCollectionsCache.clear();
   upcomingReleasesMemoryCache = null;
+  nowPlayingMemoryCache = null;
   groupPageDataMemoryCache = null;
   profilePageDataMemoryCache.clear();
   movieDetailDataMemoryCache.clear();
@@ -1944,6 +1950,36 @@ async function buildUpcomingDashboardReleases(state: AppState) {
   return ranked;
 }
 
+async function buildNowPlayingDashboardSuggestions(state: AppState) {
+  const cached = readTimedCache(nowPlayingMemoryCache);
+  if (cached) {
+    return cached;
+  }
+
+  const rawNowPlaying = await fetchNowPlayingMovies("ES", 18);
+  if (rawNowPlaying.length === 0) {
+    return [];
+  }
+
+  const indexes = getStateIndexes(state);
+  const knownTmdbIds = new Set(
+    [...state.pendingMovieIds, ...state.watchEntries.map((entry) => entry.movieId)]
+      .map((movieId) => indexes.moviesById.get(movieId)?.sourceIds?.tmdb)
+      .filter((value): value is string => Boolean(value))
+  );
+  const candidates = rawNowPlaying
+    .filter((movie) => !(movie.sourceIds?.tmdb && knownTmdbIds.has(movie.sourceIds.tmdb)))
+    .slice(0, 10);
+  const enrichedMovies = await Promise.all(candidates.map((movie) => resolveMovieMetadata(movie)));
+  const ranked = rankNowPlayingForGroup(state, enrichedMovies, 3);
+
+  nowPlayingMemoryCache = {
+    value: cloneState(ranked),
+    expiresAt: Date.now() + NOW_PLAYING_CACHE_TTL_MS
+  };
+  return ranked;
+}
+
 async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | null> {
   if (!shouldAttemptDatabaseRead()) {
     return null;
@@ -2863,6 +2899,11 @@ export async function getDashboardOverviewHydrated() {
 export async function getUpcomingDashboardReleasesHydrated() {
   const state = await loadAppState();
   return buildUpcomingDashboardReleases(state);
+}
+
+export async function getNowPlayingDashboardSuggestionsHydrated() {
+  const state = await loadAppState();
+  return buildNowPlayingDashboardSuggestions(state);
 }
 
 export async function getDashboardDataHydrated() {

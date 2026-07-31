@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 import { CinematicStage } from "@/components/cinematic-stage";
+import { NowPlayingPanel, NowPlayingPanelFallback } from "@/components/now-playing-panel";
 import { UpcomingReleasesPanel, UpcomingReleasesPanelFallback } from "@/components/upcoming-releases-panel";
 import { getDashboardOverviewHydrated } from "@/lib/store";
 import { formatScore } from "@/lib/utils";
@@ -108,13 +109,23 @@ export default async function HomePage() {
           </article>
         </div>
 
-        <a className="cinema-scroll-cue" href="#proximamente" aria-label="Ir a próximos estrenos">
-          <span>Estrenos</span>
+        <a className="cinema-scroll-cue" href="#cartelera" aria-label="Ir a películas en cartelera">
+          <span>Cartelera</span>
           <i />
         </a>
       </CinematicStage>
 
-      <section id="proximamente" className="cinema-home-program" aria-label="Próximos estrenos">
+      <section id="cartelera" className="cinema-home-program cinema-home-now-playing" aria-label="Ahora en cines">
+        <Suspense fallback={<NowPlayingPanelFallback />}>
+          <NowPlayingPanel />
+        </Suspense>
+        <a className="cinema-scroll-cue cinema-program-cue" href="#proximamente" aria-label="Ir a próximos estrenos">
+          <span>Próximamente</span>
+          <i />
+        </a>
+      </section>
+
+      <section id="proximamente" className="cinema-home-program cinema-home-upcoming" aria-label="Próximos estrenos">
         <Suspense fallback={<UpcomingReleasesPanelFallback />}>
           <UpcomingReleasesPanel />
         </Suspense>
