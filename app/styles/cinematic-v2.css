@@ -3807,14 +3807,14 @@ html:has(.cinema-home) {
 @media (min-width: 821px) and (prefers-reduced-motion: no-preference) {
   .cinema-opening {
     position: sticky;
-    top: 6.45rem;
+    top: 4.85rem;
     z-index: 0;
   }
 }
 
 @media (min-width: 821px) {
   .cinema-opening {
-    min-height: calc(100dvh - 6.45rem);
+    min-height: calc(100dvh - 4.85rem);
   }
 
   .cinema-home-program + .cinema-home-program {
