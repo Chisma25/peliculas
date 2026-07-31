@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
 import { MoviePoster } from "@/components/movie-poster";
 import { UserAvatar } from "@/components/user-avatar";
 import { Movie, User, UserRating } from "@/lib/types";
@@ -12,13 +13,7 @@ type HydratedProfile = {
   topThree: Array<UserRating & { movie: Movie }>;
   bottomThree: Array<UserRating & { movie: Movie }>;
   bestScore: number;
-  distribution: Array<{
-    value: number;
-    label: string;
-    count: number;
-    ratio: number;
-    axisLabel: string;
-  }>;
+  distribution: Array<{ value: number; label: string; count: number; ratio: number; axisLabel: string }>;
 };
 
 type ProfileOverviewProps = {
@@ -31,18 +26,17 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
   const hasEnoughForExtremes = profile.ratingsCount >= 6;
   const earlyRatings = [...profile.topThree, ...profile.bottomThree]
     .filter((item, index, items) => items.findIndex((candidate) => candidate.movie.id === item.movie.id) === index)
-    .slice(0, 3);
+    .slice(0, 5);
   const averageMarker = Math.max(0, Math.min(100, (profile.averageScore / 10) * 100));
   const dominantBand = [...profile.distribution].sort((left, right) => right.count - left.count || right.value - left.value)[0];
   const occupiedBands = profile.distribution.filter((item) => item.count > 0).length;
   const title = isSelf ? "Tu perfil" : profile.user.name;
-  const subtitle = isSelf
-    ? "Tus notas y estadísticas."
-    : `Notas y estadísticas de ${profile.user.name}.`;
 
   return (
-    <div className="profile-overview">
-      <section className="profile-command-panel" aria-labelledby="profile-title">
+    <div className="profile-overview profile-editorial">
+      <DirectionalChapterAssist />
+
+      <section id="perfil-portada" className="profile-command-panel" data-scroll-chapter aria-labelledby="profile-title">
         <div className="profile-command-portrait">
           <UserAvatar user={profile.user} size="lg" />
           <span aria-hidden="true">{String(profile.ratingsCount).padStart(2, "0")}</span>
@@ -50,7 +44,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
         <div className="profile-command-copy">
           <p className="cinema-kicker">{isSelf ? "Mi perfil" : "Perfil"}</p>
           <h1 id="profile-title">{title}</h1>
-          <p>{subtitle}</p>
+          <p className="profile-command-handle">@{profile.user.username}</p>
         </div>
 
         <div className="profile-command-ledger" aria-label="Resumen de puntuaciones">
@@ -70,116 +64,76 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
             <small>activos</small>
           </article>
         </div>
+        <ChapterNav down="#valoraciones-destacadas" downLabel="Bajar a valoraciones destacadas" />
       </section>
 
       {hasEnoughForExtremes ? (
-        <section className="profile-picks-panel" aria-label="Películas destacadas del perfil">
-          <ProfilePickColumn
-            eyebrow={isSelf ? "Tu top 3" : "Top 3"}
-            title="Mejor valoradas"
-            items={profile.topThree}
-            emptyText={isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}
-          />
-          <ProfilePickColumn
-            eyebrow={isSelf ? "Tu bottom 3" : "Bottom 3"}
-            title="Peor valoradas"
-            items={profile.bottomThree}
-            emptyText={isSelf ? "Todavía no has valorado películas." : "Todavía no ha valorado películas."}
-            muted
-          />
+        <section id="valoraciones-destacadas" className="profile-picks-panel" data-scroll-chapter aria-label="Películas destacadas del perfil">
+          <div className="profile-chapter-heading">
+            <p className="cinema-kicker">Valoraciones</p>
+            <h2>Mejores y peores</h2>
+          </div>
+          <ProfilePickColumn eyebrow="Top 3" title="Mejor valoradas" items={profile.topThree} emptyText="Sin valoraciones." />
+          <ProfilePickColumn eyebrow="Bottom 3" title="Peor valoradas" items={profile.bottomThree} emptyText="Sin valoraciones." muted />
+          <ChapterNav up="#perfil-portada" upLabel="Subir al perfil" down="#distribucion-notas" downLabel="Bajar a distribución de notas" />
         </section>
       ) : (
-        <section className="profile-early-panel" aria-label="Primeras valoraciones del perfil">
+        <section id="valoraciones-destacadas" className="profile-early-panel" data-scroll-chapter aria-label="Primeras valoraciones del perfil">
           <div className="profile-section-heading">
             <div>
-              <p className="eyebrow">{profile.ratingsCount > 0 ? "Primeras valoraciones" : "Perfil por estrenar"}</p>
-              <h2>{profile.ratingsCount > 0 ? "Todavía hay pocas valoraciones" : "Aún no hay notas"}</h2>
+              <p className="cinema-kicker">Valoraciones</p>
+              <h2>{profile.ratingsCount > 0 ? `${formatCount(profile.ratingsCount, "película")} valoradas` : "Sin valoraciones"}</h2>
             </div>
             <p>
               {profile.ratingsCount > 0
-                ? `${formatCount(profile.ratingsCount, "nota")} todavía es pronto para separar mejores y peores películas.`
+                ? "Las primeras notas del perfil."
                 : isSelf
-                  ? "Cuando valores tu primera película, este espacio empezará a dibujar tu perfil."
-                  : `${profile.user.name} todavía no ha dejado ninguna valoración.`}
+                  ? "Todavía no has puntuado ninguna película."
+                  : `${profile.user.name} todavía no ha puntuado ninguna película.`}
             </p>
           </div>
-
           {earlyRatings.length > 0 ? (
             <ProfilePosterGrid items={earlyRatings} />
           ) : isSelf ? (
             <div className="profile-early-empty">
-              <p>Tu primera nota está a una película de distancia.</p>
-              <Link href="/explorar" className="primary-button">
-                Explorar películas
-              </Link>
+              <Link href="/explorar" className="primary-button">Explorar películas</Link>
             </div>
           ) : null}
+          <ChapterNav up="#perfil-portada" upLabel="Subir al perfil" down="#distribucion-notas" downLabel="Bajar a distribución de notas" />
         </section>
       )}
 
-      <section className="profile-distribution-panel" aria-label="Distribución de notas">
+      <section id="distribucion-notas" className="profile-distribution-panel" data-scroll-chapter aria-label="Distribución de notas">
         <div className="profile-section-heading">
           <div>
-            <p className="eyebrow">Distribución de notas</p>
-            <h2>{isSelf ? "Cómo puntúas" : `Cómo puntúa ${profile.user.name}`}</h2>
+            <p className="cinema-kicker">Distribución</p>
+            <h2>{isSelf ? "Tus notas" : `Notas de ${profile.user.name}`}</h2>
           </div>
-          <p>
-            {isSelf
-              ? "Intervalos de 0,5 puntos para resumir tus notas."
-              : "Intervalos de 0,5 puntos para resumir sus notas."}
-          </p>
         </div>
 
         <div className="rating-distribution-shell profile-distribution-shell">
           <div className="rating-distribution-summary">
-            <article className="rating-distribution-stat">
-              <small>Media</small>
-              <strong>{profile.ratingsCount > 0 ? formatScore(profile.averageScore) : "-"}</strong>
-            </article>
-            <article className="rating-distribution-stat">
-              <small>Tramo dominante</small>
-              <strong>{dominantBand?.count ? formatScore(dominantBand.value) : "-"}</strong>
-            </article>
-            <article className="rating-distribution-stat">
-              <small>Tramos activos</small>
-              <strong>{occupiedBands}</strong>
-            </article>
+            <article className="rating-distribution-stat"><small>Media</small><strong>{profile.ratingsCount > 0 ? formatScore(profile.averageScore) : "-"}</strong></article>
+            <article className="rating-distribution-stat"><small>Tramo dominante</small><strong>{dominantBand?.count ? formatScore(dominantBand.value) : "-"}</strong></article>
+            <article className="rating-distribution-stat"><small>Tramos activos</small><strong>{occupiedBands}</strong></article>
           </div>
-
           <div className="rating-distribution-frame">
-            <div className="rating-distribution-grid" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
-
+            <div className="rating-distribution-grid" aria-hidden="true"><span /><span /><span /><span /></div>
             <div className="rating-distribution-columns">
               {profile.distribution.map((item) => (
-                <div
-                  key={item.label}
-                  className="rating-distribution-column"
-                  title={`${formatScore(item.value)}: ${formatCount(item.count, "nota")}`}
-                >
+                <div key={item.label} className="rating-distribution-column" title={`${formatScore(item.value)}: ${formatCount(item.count, "nota")}`}>
                   <div className="rating-distribution-count">{item.count > 0 ? item.count : ""}</div>
                   <div className="rating-distribution-track">
-                    <div
-                      className={`rating-distribution-bar ${item.count > 0 ? "rating-distribution-bar-active" : ""}`}
-                      style={{ height: `${Math.max(item.ratio * 100, item.count > 0 ? 7 : 2)}%` }}
-                    />
+                    <div className={`rating-distribution-bar ${item.count > 0 ? "rating-distribution-bar-active" : ""}`} style={{ height: `${Math.max(item.ratio * 100, item.count > 0 ? 7 : 2)}%` }} />
                   </div>
                 </div>
               ))}
             </div>
           </div>
-
           <div className="rating-distribution-axis-shell">
             <div className="rating-distribution-axis">
-              {profile.distribution.map((item) => (
-                <span key={item.label}>{item.axisLabel ? formatScore(item.value) : ""}</span>
-              ))}
+              {profile.distribution.map((item) => <span key={item.label}>{item.axisLabel ? formatScore(item.value) : ""}</span>)}
             </div>
-
             {profile.ratingsCount > 0 ? (
               <div className="rating-distribution-average-chip" style={{ left: `${averageMarker}%` }}>
                 <span className="rating-distribution-average-dot" aria-hidden="true" />
@@ -188,51 +142,31 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
             ) : null}
           </div>
         </div>
+        <ChapterNav up="#valoraciones-destacadas" upLabel="Subir a valoraciones destacadas" down={isSelf ? "#ajustes-perfil" : undefined} downLabel="Bajar a ajustes del perfil" />
       </section>
     </div>
   );
 }
 
-function ProfilePickColumn({
-  eyebrow,
-  title,
-  items,
-  emptyText,
-  muted = false
-}: {
-  eyebrow: string;
-  title: string;
-  items: Array<UserRating & { movie: Movie }>;
-  emptyText: string;
-  muted?: boolean;
-}) {
+function ChapterNav({ up, upLabel, down, downLabel }: { up?: string; upLabel?: string; down?: string; downLabel?: string }) {
+  return (
+    <nav className="cinema-chapter-nav" aria-label="Navegación entre secciones">
+      {up ? <a href={up} aria-label={upLabel}>↑</a> : null}
+      {down ? <a href={down} aria-label={downLabel}>↓</a> : null}
+    </nav>
+  );
+}
+
+function ProfilePickColumn({ eyebrow, title, items, emptyText, muted = false }: { eyebrow: string; title: string; items: Array<UserRating & { movie: Movie }>; emptyText: string; muted?: boolean }) {
   return (
     <div className="profile-pick-column">
-      <div className="profile-section-heading profile-pick-heading">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h2>{title}</h2>
-        </div>
-      </div>
-
-      {items.length > 0 ? (
-        <ProfilePosterGrid items={items} muted={muted} />
-      ) : (
-        <div className="profile-empty-state">
-          <p>{emptyText}</p>
-        </div>
-      )}
+      <div className="profile-section-heading profile-pick-heading"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div></div>
+      {items.length > 0 ? <ProfilePosterGrid items={items} muted={muted} /> : <div className="profile-empty-state"><p>{emptyText}</p></div>}
     </div>
   );
 }
 
-function ProfilePosterGrid({
-  items,
-  muted = false
-}: {
-  items: Array<UserRating & { movie: Movie }>;
-  muted?: boolean;
-}) {
+function ProfilePosterGrid({ items, muted = false }: { items: Array<UserRating & { movie: Movie }>; muted?: boolean }) {
   return (
     <div className="profile-poster-grid" data-count={items.length}>
       {items.map((item, index) => (

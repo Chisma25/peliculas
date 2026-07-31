@@ -75,13 +75,12 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
   }
 
   return (
-    <section className="profile-settings-panel" aria-labelledby="profile-settings-title">
+    <section id="ajustes-perfil" className="profile-settings-panel" data-scroll-chapter aria-labelledby="profile-settings-title">
       <div className="profile-section-heading">
         <div>
-          <p className="eyebrow">Tu perfil</p>
-          <h2 id="profile-settings-title">Cuenta y avatar</h2>
+          <p className="cinema-kicker">Ajustes</p>
+          <h2 id="profile-settings-title">Perfil y acceso</h2>
         </div>
-        <p>Actualiza cómo apareces en el grupo sin tocar tus notas antiguas.</p>
       </div>
 
       <form
@@ -104,7 +103,7 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
               Imagen de avatar
               <input type="file" accept="image/*" onChange={handleAvatarChange} />
             </label>
-            <p className="muted-copy">Usa una imagen pequeña para que cargue rápido.</p>
+            <p className="muted-copy">PNG o JPG de hasta 1,2 MB.</p>
             {avatarPreview ? (
               <button type="button" className="ghost-button" onClick={removeAvatar}>
                 Quitar avatar
@@ -146,6 +145,9 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
           <strong>{message}</strong>
         </div>
       ) : null}
+      <nav className="cinema-chapter-nav" aria-label="Navegación entre secciones">
+        <a href="#distribucion-notas" aria-label="Subir a distribución de notas">↑</a>
+      </nav>
     </section>
   );
 }
