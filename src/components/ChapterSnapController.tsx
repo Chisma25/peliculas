@@ -12,6 +12,7 @@ export function ChapterSnapController({ targets }: ChapterSnapControllerProps) {
     const desktop = window.matchMedia("(min-width: 821px)");
     let settling = false;
     let releaseTimer: number | undefined;
+    let scrollIdleTimer: number | undefined;
 
     const settleOnNearestChapter = () => {
       if (settling || reducedMotion.matches || !desktop.matches) {
@@ -54,11 +55,32 @@ export function ChapterSnapController({ targets }: ChapterSnapControllerProps) {
       }, 650);
     };
 
-    window.addEventListener("scrollend", settleOnNearestChapter);
+    const queueSettlement = () => {
+      if (settling) {
+        return;
+      }
+
+      window.clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = window.setTimeout(settleOnNearestChapter, 160);
+    };
+
+    const supportsScrollEnd = "onscrollend" in window;
+
+    if (supportsScrollEnd) {
+      window.addEventListener("scrollend", settleOnNearestChapter);
+    } else {
+      window.addEventListener("scroll", queueSettlement, { passive: true });
+    }
 
     return () => {
-      window.removeEventListener("scrollend", settleOnNearestChapter);
+      if (supportsScrollEnd) {
+        window.removeEventListener("scrollend", settleOnNearestChapter);
+      } else {
+        window.removeEventListener("scroll", queueSettlement);
+      }
+
       window.clearTimeout(releaseTimer);
+      window.clearTimeout(scrollIdleTimer);
     };
   }, [targets]);
 
