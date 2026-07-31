@@ -11,7 +11,7 @@ import { buildPaginationItems, formatCount } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 16;
 
 type PendingPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -93,9 +93,8 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       {batch && weeklyOptions.length > 0 ? (
         <section className="pending-radar-panel" aria-label="Recomendaciones semanales">
           <div className="pending-radar-heading">
-            <p className="cinema-section-number">01 / Selección breve</p>
+            <p className="cinema-kicker">Selección semanal</p>
             <h2>Para esta semana</h2>
-            <p>Una primera criba dentro de vuestra lista.</p>
           </div>
 
           <div
@@ -146,10 +145,9 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       <section id="lista-pendientes" className="pending-archive-panel" aria-label="Archivo de pendientes">
         <div className="pending-archive-heading">
           <div>
-            <p className="cinema-section-number">02 / Archivo completo</p>
+            <p className="cinema-kicker">Archivo completo</p>
             <h2>La lista</h2>
           </div>
-          <p>Busca, filtra o elige directamente cualquier película.</p>
         </div>
         {totalPendingCount > 0 || hasActiveFilters ? (
           <form action="/pendientes" method="get" className="pending-filter-panel">
@@ -226,17 +224,16 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           <>
             <div className={`pending-movie-grid ${pagedPending.length <= 2 ? "pending-movie-grid-tight" : ""}`}>
               {pagedPending.map((movie, index) => {
-                const featured = index === 0 || index === 7;
                 const archiveNumber = (safePage - 1) * PAGE_SIZE + index + 1;
 
                 return (
-                  <article key={movie.id} className={`pending-movie-card ${featured ? "is-featured" : ""}`}>
-                  <PrefetchLink href={`/peliculas/${movie.slug}`} className="pending-movie-link">
-                    <div className="pending-movie-poster">
-                      <PosterImage src={featured ? movie.backdrop ?? movie.posterUrl : movie.posterUrl} />
-                      <span className="pending-archive-number">{String(archiveNumber).padStart(2, "0")}</span>
-                      <span className="pending-external-score">{movie.externalRating.source} {movie.externalRating.value}</span>
-                    </div>
+                  <article key={movie.id} className="pending-movie-card">
+                    <PrefetchLink href={`/peliculas/${movie.slug}`} className="pending-movie-link">
+                      <div className="pending-movie-poster">
+                        <PosterImage src={movie.posterUrl} />
+                        <span className="pending-archive-number">{String(archiveNumber).padStart(2, "0")}</span>
+                        <span className="pending-external-score">{movie.externalRating.source} {movie.externalRating.value}</span>
+                      </div>
 
                     <div className="pending-movie-copy">
                       <div>
@@ -250,9 +247,8 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                           ))}
                         </div>
                       ) : null}
-                      {featured && movie.synopsis ? <p className="pending-feature-summary">{movie.synopsis}</p> : null}
                     </div>
-                  </PrefetchLink>
+                    </PrefetchLink>
 
                   <div className="pending-movie-actions">
                     <form action="/api/pending/remove" method="post">

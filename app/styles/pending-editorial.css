@@ -1,10 +1,23 @@
 /* Pendientes - editorial film library */
 
+html:has(.pending-page) {
+  scroll-padding-top: 4.85rem;
+  scroll-snap-type: y proximity;
+}
+
+.pending-page-intro,
+.pending-radar-panel,
+.pending-archive-panel {
+  min-height: calc(100dvh - 4.85rem);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
 .pending-page-intro {
   isolation: isolate;
   position: relative;
-  min-height: clamp(31rem, 68vh, 48rem);
   align-items: end;
+  padding-inline: clamp(2rem, 4.2vw, 5rem);
   overflow: hidden;
   border-bottom: 1px solid var(--cinema-line);
 }
@@ -50,7 +63,7 @@
 
 .pending-page-intro-copy h1 {
   max-width: none;
-  font-size: clamp(5rem, 11vw, 11.5rem);
+  font-size: clamp(5rem, 9vw, 9rem);
   letter-spacing: -0.075em;
   line-height: 0.7;
 }
@@ -109,11 +122,18 @@
 }
 
 .pending-radar-panel {
-  padding-block: clamp(4.5rem, 8vw, 8rem);
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: center;
+  padding-block: clamp(3.5rem, 6vw, 6rem);
+}
+
+.pending-radar-heading {
+  grid-template-columns: 1fr;
+  margin-bottom: clamp(2rem, 4vw, 4rem);
 }
 
 .pending-radar-heading h2 {
-  max-width: 9ch;
+  max-width: none;
 }
 
 .pending-radar-grid {
@@ -168,7 +188,17 @@
 }
 
 .pending-archive-panel {
-  padding-top: clamp(5rem, 9vw, 9rem);
+  align-content: start;
+  padding-top: clamp(2.75rem, 4.5vw, 4.5rem);
+}
+
+.pending-archive-heading {
+  grid-template-columns: 1fr;
+  margin-bottom: clamp(1.75rem, 3vw, 3rem);
+}
+
+.pending-archive-heading h2 {
+  font-size: clamp(3rem, 5vw, 5rem);
 }
 
 .pending-filter-panel {
@@ -182,25 +212,13 @@
 
 .pending-movie-grid {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: clamp(3rem, 5vw, 6rem) clamp(0.8rem, 1.45vw, 1.5rem);
-  padding-top: clamp(1.5rem, 3vw, 3rem);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(3rem, 5vw, 5rem) clamp(0.8rem, 1.35vw, 1.4rem);
+  padding-top: clamp(1.25rem, 2vw, 2rem);
 }
 
 .pending-movie-card {
-  grid-column: span 3;
-}
-
-.pending-movie-card.is-featured {
-  grid-column: span 6;
-}
-
-.pending-movie-card.is-featured .pending-movie-poster {
-  aspect-ratio: 16 / 9;
-}
-
-.pending-movie-card.is-featured .pending-card-title {
-  font-size: clamp(1.8rem, 3vw, 3.3rem);
+  grid-column: auto;
 }
 
 .pending-movie-poster .pending-external-score {
@@ -212,18 +230,6 @@
   font-weight: 750;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-}
-
-.pending-feature-summary {
-  display: -webkit-box;
-  max-width: 58ch;
-  margin: 0;
-  overflow: hidden;
-  color: var(--cinema-paper-dim);
-  font-size: 0.8rem;
-  line-height: 1.55;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .pending-movie-actions {
@@ -250,17 +256,18 @@
   }
 
   .pending-movie-card {
-    grid-column: span 4;
+    grid-column: auto;
   }
 
-  .pending-movie-card.is-featured {
-    grid-column: span 8;
+  .pending-movie-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 820px) {
   .pending-page-intro {
     min-height: calc(100svh - 5.6rem);
+    padding-inline: 1rem;
   }
 
   .pending-page-intro-copy {
@@ -326,21 +333,8 @@
     gap: 3.5rem 0.85rem;
   }
 
-  .pending-movie-card,
-  .pending-movie-card.is-featured {
+  .pending-movie-card {
     grid-column: span 1;
-  }
-
-  .pending-movie-card.is-featured .pending-movie-poster {
-    aspect-ratio: 2 / 3;
-  }
-
-  .pending-movie-card.is-featured .pending-card-title {
-    font-size: clamp(1.15rem, 5vw, 1.55rem);
-  }
-
-  .pending-feature-summary {
-    display: none;
   }
 
   .pending-movie-actions {
@@ -359,12 +353,24 @@
     gap: 4rem;
   }
 
-  .pending-movie-card.is-featured .pending-movie-poster,
   .pending-movie-poster {
     aspect-ratio: 4 / 5;
   }
 
   .pending-movie-card .poster-image {
     object-position: center 24%;
+  }
+}
+
+@media (max-width: 820px) {
+  html:has(.pending-page) {
+    scroll-padding-top: 5.6rem;
+    scroll-snap-type: none;
+  }
+
+  .pending-radar-panel,
+  .pending-archive-panel {
+    min-height: auto;
+    scroll-snap-align: none;
   }
 }
