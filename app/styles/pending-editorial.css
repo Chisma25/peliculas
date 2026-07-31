@@ -22,6 +22,14 @@ html:has(.pending-page) {
   scroll-snap-align: none;
 }
 
+.pending-radar-panel,
+.pending-archive-panel {
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid var(--cinema-line);
+  background: #11120f;
+}
+
 .pending-page-intro {
   isolation: isolate;
   position: relative;
