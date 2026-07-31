@@ -221,14 +221,137 @@ html:has(.profile-editorial) {
   line-height: 0.84;
 }
 
-/* Selección editorial */
+/* Selección coral */
 
-.profile-selections-layout {
+.profile-ensemble {
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(24rem, 0.82fr);
-  gap: clamp(2rem, 4vw, 5rem);
-  align-items: stretch;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  min-width: 0;
   min-height: 0;
+  border-top: 1px solid var(--profile-line);
+  border-left: 1px solid var(--profile-line);
+}
+
+.profile-ensemble-item {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: clamp(23rem, 53vh, 37rem);
+  overflow: hidden;
+  border-right: 1px solid var(--profile-line);
+  border-bottom: 1px solid var(--profile-line);
+  color: var(--profile-paper);
+  text-decoration: none;
+  animation: profileEnsembleIn 520ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--ensemble-index) * 55ms) both;
+}
+
+.profile-ensemble-item[data-group="low"] {
+  border-top: 1px solid rgba(233, 226, 213, 0.08);
+}
+
+.profile-ensemble-item .poster-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.82) contrast(1.03);
+  transition: transform 650ms cubic-bezier(0.16, 1, 0.3, 1), filter 260ms ease;
+}
+
+.profile-ensemble-item:hover .poster-image,
+.profile-ensemble-item:focus-visible .poster-image {
+  transform: scale(1.035);
+  filter: saturate(1) contrast(1.04);
+}
+
+.profile-ensemble-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(13, 14, 12, 0.52) 0%, transparent 32%),
+    linear-gradient(180deg, transparent 38%, rgba(13, 14, 12, 0.94) 100%);
+  transition: background-color 260ms ease;
+}
+
+.profile-ensemble-topline {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+.profile-ensemble-topline span {
+  overflow: hidden;
+  color: var(--profile-accent);
+  font-size: 0.57rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.profile-ensemble-topline b {
+  color: rgba(233, 226, 213, 0.76);
+  font-family: var(--cinema-display);
+  font-size: 0.8rem;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.profile-ensemble-copy {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.profile-ensemble-copy h3 {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--cinema-display);
+  font-size: clamp(1.25rem, 1.8vw, 2.2rem);
+  font-weight: 590;
+  letter-spacing: -0.055em;
+  line-height: 0.92;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.profile-ensemble-copy > div {
+  display: flex;
+  gap: 0.7rem;
+  align-items: baseline;
+}
+
+.profile-ensemble-copy strong {
+  color: var(--profile-accent);
+  font-family: var(--cinema-display);
+  font-size: 1.75rem;
+  font-weight: 560;
+}
+
+.profile-ensemble-copy small {
+  color: var(--profile-muted);
+  font-size: 0.68rem;
+}
+
+@keyframes profileEnsembleIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .profile-selection-featured {
@@ -498,8 +621,16 @@ html:has(.profile-editorial) {
     width: min(100%, 48rem);
   }
 
-  .profile-selections-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.75fr);
+  .profile-ensemble {
+    grid-template-columns: repeat(6, minmax(11rem, 1fr));
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+
+  .profile-ensemble-item {
+    scroll-snap-align: start;
   }
 
   .profile-early-selection {
@@ -533,7 +664,6 @@ html:has(.profile-editorial) {
   }
 
   .profile-command-identity,
-  .profile-selections-layout,
   .profile-editorial .profile-early-panel,
   .profile-page-stack > .profile-settings-panel .profile-settings-form {
     grid-template-columns: 1fr;
@@ -573,6 +703,15 @@ html:has(.profile-editorial) {
     min-height: 28rem;
   }
 
+  .profile-ensemble {
+    grid-template-columns: repeat(6, minmax(72vw, 1fr));
+    margin-right: -1rem;
+  }
+
+  .profile-ensemble-item {
+    min-height: 30rem;
+  }
+
   .profile-page-stack > .profile-settings-panel .profile-avatar-editor {
     min-height: auto;
     padding-bottom: 1.5rem;
@@ -606,8 +745,11 @@ html:has(.profile-editorial) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .profile-ensemble-item,
+  .profile-ensemble-item .poster-image,
   .profile-selection-featured .poster-image,
   .profile-selection-row {
+    animation: none;
     transition: none;
   }
 }

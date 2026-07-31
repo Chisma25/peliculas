@@ -122,32 +122,34 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
 }
 
 function ProfileSelections({ top, bottom }: { top: RatedMovie[]; bottom: RatedMovie[] }) {
-  const featured = top[0];
-  if (!featured) return null;
+  const items = [
+    ...top.map((item, index) => ({ item, group: "Entre las favoritas", rank: index + 1 })),
+    ...bottom.map((item, index) => ({ item, group: "En la parte baja", rank: index + 1 }))
+  ];
 
   return (
-    <div className="profile-selections-layout">
-      <Link href={`/peliculas/${featured.movie.slug}`} className="profile-selection-featured">
-        <PosterImage src={featured.movie.backdrop || featured.movie.posterUrl} loading="eager" />
-        <div className="profile-selection-featured-shade" />
-        <div className="profile-selection-featured-copy">
-          <span>Mejor valorada</span>
-          <h3>{featured.movie.title}</h3>
-          <div><strong>{formatScore(featured.score)}</strong><small>{featured.movie.year}</small></div>
-        </div>
-      </Link>
-
-      <div className="profile-selection-ledger">
-        <div className="profile-selection-group">
-          <p>Entre las favoritas</p>
-          {top.slice(1).map((item, index) => <SelectionRow key={item.id} item={item} index={index + 2} />)}
-        </div>
-        <div className="profile-selection-group profile-selection-group-low">
-          <p>En la parte baja</p>
-          {bottom.map((item, index) => <SelectionRow key={item.id} item={item} index={index + 1} />)}
-        </div>
+    <div className="profile-ensemble" data-count={items.length}>
+      {items.map(({ item, group, rank }, index) => (
+        <Link
+          key={`${group}-${item.id}`}
+          href={`/peliculas/${item.movie.slug}`}
+          className="profile-ensemble-item"
+          data-group={index < 3 ? "high" : "low"}
+          style={{ "--ensemble-index": index } as CSSProperties}
+        >
+          <PosterImage src={item.movie.backdrop || item.movie.posterUrl} loading={index < 3 ? "eager" : "lazy"} />
+          <div className="profile-ensemble-shade" />
+          <div className="profile-ensemble-topline">
+            <span>{group}</span>
+            <b>{String(rank).padStart(2, "0")}</b>
+          </div>
+          <div className="profile-ensemble-copy">
+            <h3>{item.movie.title}</h3>
+            <div><strong>{formatScore(item.score)}</strong><small>{item.movie.year}</small></div>
+          </div>
+        </Link>
+      ))}
       </div>
-    </div>
   );
 }
 
