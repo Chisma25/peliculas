@@ -2,12 +2,13 @@
 
 html:has(.pending-page) {
   scroll-padding-top: 4.85rem;
-  scroll-snap-type: y proximity;
+  scroll-snap-type: y mandatory;
 }
 
 .pending-page-intro,
 .pending-radar-panel,
 .pending-archive-panel {
+  box-sizing: border-box;
   min-height: calc(100dvh - 4.85rem);
   scroll-snap-align: start;
   scroll-snap-stop: always;
