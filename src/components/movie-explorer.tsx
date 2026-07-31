@@ -41,6 +41,8 @@ type ToastState = {
   body: string;
 } | null;
 
+const SEARCH_STARTERS = ["Dune", "La Haine", "El padrino", "Perfect Days"];
+
 function getButtonLabel(status: PendingResultStatus) {
   switch (status) {
     case "confirming":
@@ -56,7 +58,7 @@ function getButtonLabel(status: PendingResultStatus) {
     case "error":
       return "Reintentar";
     default:
-      return "Añadir";
+      return "Añadir a pendientes";
   }
 }
 
@@ -88,6 +90,12 @@ export function MovieExplorer() {
   const [toast, setToast] = useState<ToastState>(null);
   const [movieStates, setMovieStates] = useState<Record<string, PendingResultStatus>>({});
   const searchCache = useRef(new Map<string, SearchMovie[]>());
+
+  function updateQuery(nextQuery: string) {
+    setQuery(nextQuery);
+    setRetryCount(0);
+    setMovieStates({});
+  }
 
   useEffect(() => {
     if (!toast) {
@@ -216,9 +224,9 @@ export function MovieExplorer() {
   return (
     <section className={`explore-page ${query ? "explore-page-active" : "explore-page-idle"}`}>
       <header className="explore-cinematic-intro">
-        <p className="cinema-kicker">TMDb</p>
+        <p className="cinema-kicker">Explorar TMDb</p>
         <h1>Buscar películas</h1>
-        <p>Busca un título y añádelo a pendientes.</p>
+        <p>Encuentra el título correcto y añádelo a pendientes.</p>
       </header>
 
       <form className="explore-search-panel" role="search" onSubmit={(event) => event.preventDefault()}>
@@ -227,51 +235,50 @@ export function MovieExplorer() {
           <input
             type="search"
             value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setRetryCount(0);
-              setMovieStates({});
-            }}
+            onChange={(event) => updateQuery(event.target.value)}
             placeholder="Interstellar, Whiplash, La Haine..."
             autoComplete="off"
           />
         </label>
         {query ? (
-          <button type="button" className="ghost-button explore-clear-button" onClick={() => setQuery("")}>
+          <button type="button" className="ghost-button explore-clear-button" onClick={() => updateQuery("")}>
             Limpiar
           </button>
         ) : null}
       </form>
 
-      <div className="explore-results-strip">
-        <p className={`status-text ${searchStatus === "error" ? "status-text-error" : ""}`} role="status" aria-live="polite">
-          {status}
-        </p>
-        {searchStatus === "error" ? (
-          <button type="button" className="secondary-button explore-retry-button" onClick={() => setRetryCount((value) => value + 1)}>
-            Reintentar
-          </button>
-        ) : null}
-      </div>
+      {query ? (
+        <div className="explore-results-strip">
+          <p className={`status-text ${searchStatus === "error" ? "status-text-error" : ""}`} role="status" aria-live="polite">
+            {status}
+          </p>
+          {searchStatus === "error" ? (
+            <button type="button" className="secondary-button explore-retry-button" onClick={() => setRetryCount((value) => value + 1)}>
+              Reintentar
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="sr-only" role="status" aria-live="polite">{status}</p>
+      )}
 
       {!query ? (
-        <div className="explore-idle-stage" aria-hidden="true">
-          <div className="explore-idle-track">
-            <span>Películas</span>
-            <i />
-            <span>Directores</span>
-            <i />
-            <span>Estrenos</span>
-            <i />
-            <span>Clásicos</span>
+        <div className="explore-idle-stage">
+          <p className="cinema-kicker">Prueba una búsqueda</p>
+          <div className="explore-starter-list">
+            {SEARCH_STARTERS.map((starter, index) => (
+              <button type="button" key={starter} onClick={() => updateQuery(starter)}>
+                <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                {starter}
+              </button>
+            ))}
           </div>
-          <p>Escribe al menos dos letras para buscar.</p>
         </div>
       ) : null}
 
       {searchStatus === "loading" ? (
         <div className="explore-grid explore-skeleton-grid" aria-label="Cargando resultados">
-          {Array.from({ length: 5 }, (_, index) => (
+          {Array.from({ length: 4 }, (_, index) => (
             <article className="explorer-card explorer-card-skeleton" key={index} aria-hidden="true">
               <div className="search-poster skeleton-block" />
               <div className="explorer-card-copy">
@@ -285,7 +292,7 @@ export function MovieExplorer() {
         </div>
       ) : (
         <div className={`explore-grid ${results.length > 0 && results.length < 5 ? "explore-grid-tight" : ""}`}>
-          {results.map((movie) => {
+          {results.map((movie, index) => {
             const pendingState = movieStates[movie.id] ?? movie.collectionStatus ?? "idle";
             const limitedMetadata = hasLimitedMetadata(movie);
             const isActionDisabled =
@@ -302,25 +309,19 @@ export function MovieExplorer() {
               <article key={movie.id} className="explorer-card">
                 <div className="search-poster">
                   <PosterImage src={movie.posterUrl} />
+                  <span className="explorer-card-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="explorer-card-rating">
+                    {movie.externalRating.source} {movie.externalRating.value}
+                  </span>
                 </div>
 
                 <div className="explorer-card-copy">
                   <div className="explorer-card-meta">
                     <p>{movie.year > 0 ? movie.year : "Año pendiente"}</p>
-                    <span>
-                      {movie.externalRating.source}: {movie.externalRating.value}
-                    </span>
+                    <span>{visibleGenres.length > 0 ? visibleGenres.join(" / ") : "Metadatos al añadir"}</span>
                   </div>
 
                   <strong className="explorer-card-title">{movie.title}</strong>
-
-                  <div className="chips explorer-genres explorer-genres-compact">
-                    {visibleGenres.length > 0 ? (
-                      visibleGenres.map((genre) => <span key={`${movie.id}-${genre}`}>{genre}</span>)
-                    ) : (
-                      <span className="chip-placeholder">Metadatos al añadir</span>
-                    )}
-                  </div>
 
                   <p className="body-copy explorer-card-synopsis">{formatSynopsis(movie.synopsis)}</p>
                   {limitedMetadata ? (
