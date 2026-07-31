@@ -1,0 +1,162 @@
+/* Editorial catalog filters */
+
+.filter-dropdown {
+  isolation: isolate;
+  font-family: var(--cinema-ui);
+}
+
+.seen-field .filter-dropdown-trigger,
+.pending-filter-field .filter-dropdown-trigger {
+  min-height: 3.25rem;
+  padding: 0.8rem 0.15rem 0.75rem;
+  border: 0;
+  border-bottom: 1px solid rgba(233, 226, 213, 0.24);
+  border-radius: 0;
+  background: transparent;
+  color: var(--cinema-paper);
+  box-shadow: none;
+  font-family: var(--cinema-ui);
+  font-size: clamp(1rem, 0.94rem + 0.14vw, 1.08rem);
+  font-weight: 610;
+  letter-spacing: -0.015em;
+  transition:
+    border-color 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.seen-field .filter-dropdown-trigger:hover,
+.pending-filter-field .filter-dropdown-trigger:hover {
+  transform: none;
+  border-bottom-color: rgba(233, 226, 213, 0.52);
+}
+
+.seen-field .filter-dropdown-trigger:focus-visible,
+.pending-filter-field .filter-dropdown-trigger:focus-visible,
+.seen-field .filter-dropdown-open .filter-dropdown-trigger,
+.pending-filter-field .filter-dropdown-open .filter-dropdown-trigger {
+  outline: none;
+  border-bottom-color: var(--cinema-accent-soft);
+  background: transparent;
+  box-shadow: 0 1px 0 var(--cinema-accent-soft);
+}
+
+.filter-dropdown-trigger-label,
+.filter-dropdown-trigger-label.is-selected {
+  color: var(--cinema-paper);
+  line-height: 1.2;
+}
+
+.filter-dropdown-trigger-icon {
+  width: 0.62rem;
+  height: 0.62rem;
+  margin-right: 0.25rem;
+  border-right: 1px solid var(--cinema-accent-soft);
+  border-bottom: 1px solid var(--cinema-accent-soft);
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.filter-dropdown-menu,
+.seen-field .filter-dropdown-menu {
+  top: calc(100% + 0.7rem);
+  right: auto;
+  width: max(100%, 17rem);
+  max-height: min(25rem, 58vh);
+  gap: 0;
+  padding: 0.5rem 0.7rem;
+  overflow-y: auto;
+  border: 1px solid rgba(233, 226, 213, 0.16);
+  border-radius: 0.35rem;
+  background:
+    linear-gradient(135deg, rgba(235, 168, 103, 0.055), transparent 38%),
+    rgba(18, 18, 16, 0.97);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 28px 65px rgba(3, 3, 3, 0.42);
+  backdrop-filter: blur(22px) saturate(0.82);
+  scrollbar-color: rgba(224, 170, 112, 0.5) transparent;
+}
+
+.filter-dropdown-option {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) 1.25rem;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 3.3rem;
+  padding: 0.55rem 0.35rem;
+  border: 0;
+  border-bottom: 1px solid rgba(233, 226, 213, 0.08);
+  border-radius: 0;
+  background: transparent;
+  color: rgba(247, 242, 232, 0.78);
+  font-family: var(--cinema-ui);
+  font-size: 1rem;
+  font-weight: 560;
+  letter-spacing: -0.012em;
+  text-align: left;
+  transition:
+    color 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    padding 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.filter-dropdown-option:last-child {
+  border-bottom: 0;
+}
+
+.filter-dropdown-option:hover,
+.filter-dropdown-option:focus-visible {
+  transform: none;
+  outline: none;
+  border-color: rgba(233, 226, 213, 0.08);
+  background: rgba(233, 226, 213, 0.045);
+  color: var(--cinema-paper);
+  padding-left: 0.55rem;
+}
+
+.filter-dropdown-option-active {
+  border-color: rgba(233, 226, 213, 0.08);
+  background: rgba(224, 150, 84, 0.09);
+  color: var(--cinema-paper);
+}
+
+.filter-dropdown-option-index {
+  color: rgba(224, 170, 112, 0.6);
+  font-size: 0.62rem;
+  font-weight: 760;
+  letter-spacing: 0.12em;
+}
+
+.filter-dropdown-option-check {
+  display: grid;
+  width: 1.15rem;
+  height: 1.15rem;
+  place-items: center;
+  justify-self: end;
+  border: 1px solid rgba(224, 170, 112, 0.45);
+  border-radius: 50%;
+  color: var(--cinema-accent-soft);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+@media (max-width: 620px) {
+  .filter-dropdown-menu,
+  .seen-field .filter-dropdown-menu {
+    right: 0;
+    width: 100%;
+    max-height: min(22rem, 52vh);
+  }
+
+  .filter-dropdown-option {
+    min-height: 3.45rem;
+    font-size: 1.02rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-dropdown-trigger,
+  .filter-dropdown-trigger-icon,
+  .filter-dropdown-option {
+    transition: none;
+  }
+}

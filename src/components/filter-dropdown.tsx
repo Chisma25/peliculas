@@ -74,7 +74,7 @@ export function FilterDropdown({ name, value, options, placeholder, ariaLabel, s
 
       {open ? (
         <div className="filter-dropdown-menu" role="listbox" aria-label={ariaLabel}>
-          {options.map((option) => {
+          {options.map((option, optionIndex) => {
             const isActive = option.value === selectedValue;
 
             return (
@@ -92,6 +92,9 @@ export function FilterDropdown({ name, value, options, placeholder, ariaLabel, s
                   }
                 }}
               >
+                <span className="filter-dropdown-option-index" aria-hidden="true">
+                  {String(optionIndex + 1).padStart(2, "0")}
+                </span>
                 <span>{option.label}</span>
                 {isActive ? <span className="filter-dropdown-option-check">✓</span> : null}
               </button>
