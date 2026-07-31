@@ -16,6 +16,7 @@
     "heading heading"
     "cast ledger";
   gap: clamp(2rem, 4vw, 4.5rem);
+  align-content: center;
   min-height: calc(100dvh - 6.45rem);
   padding: clamp(2.5rem, 6vh, 5rem) 0 clamp(2.5rem, 5vh, 4rem);
   border-bottom: 1px solid var(--group-line);

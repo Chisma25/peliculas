@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 import { User } from "@/lib/types";
 
 type UserAvatarProps = {
@@ -20,13 +24,22 @@ function getInitials(name: string) {
 }
 
 export function UserAvatar({ user, size = "md", className = "" }: UserAvatarProps) {
+  const [imageFailed, setImageFailed] = useState(false);
   const classes = ["user-avatar", `user-avatar-${size}`, className].filter(Boolean).join(" ");
 
-  if (user.avatarUrl) {
+  if (user.avatarUrl && !imageFailed) {
     return (
       // The authenticated avatar endpoint is intentionally loaded by the browser rather than Next's server-side image optimizer.
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={user.avatarUrl} alt={`Avatar de ${user.name}`} className={classes} width={86} height={86} loading="lazy" />
+      <img
+        src={user.avatarUrl}
+        alt={`Avatar de ${user.name}`}
+        className={classes}
+        width={86}
+        height={86}
+        loading="lazy"
+        onError={() => setImageFailed(true)}
+      />
     );
   }
 
