@@ -146,7 +146,7 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
         </div>
       ) : null}
       <nav className="cinema-chapter-nav" aria-label="Navegación entre secciones">
-        <a href="#distribucion-notas" aria-label="Subir a distribución de notas">↑</a>
+        <a href="#valoraciones-destacadas" aria-label="Subir a valoraciones destacadas">↑</a>
       </nav>
     </section>
   );

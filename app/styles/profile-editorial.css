@@ -170,7 +170,6 @@ html:has(.profile-editorial) {
 
 .profile-selections-panel,
 .profile-editorial .profile-early-panel,
-.profile-scale-panel,
 .profile-page-stack > .profile-settings-panel {
   margin-top: clamp(4.5rem, 9vh, 7rem);
   padding: clamp(1.8rem, 3.5vh, 3.2rem) clamp(1.25rem, 3vw, 3rem);
@@ -186,7 +185,6 @@ html:has(.profile-editorial) {
 
 .profile-selections-panel::after,
 .profile-editorial .profile-early-panel::after,
-.profile-scale-panel::after,
 .profile-page-stack > .profile-settings-panel::after {
   content: "";
   position: absolute;
@@ -198,7 +196,6 @@ html:has(.profile-editorial) {
 }
 
 .profile-selections-panel,
-.profile-scale-panel,
 .profile-page-stack > .profile-settings-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -417,77 +414,6 @@ html:has(.profile-editorial) {
   justify-self: start;
 }
 
-/* Escala tipográfica */
-
-.profile-scale-layout {
-  display: grid;
-  grid-template-columns: minmax(16rem, 0.36fr) minmax(0, 1fr);
-  gap: clamp(3rem, 7vw, 8rem);
-  align-items: center;
-}
-
-.profile-scale-average {
-  display: grid;
-  gap: 0.6rem;
-  align-content: center;
-  min-height: 20rem;
-  padding-right: clamp(2rem, 4vw, 4rem);
-  border-right: 1px solid var(--profile-line-strong);
-}
-
-.profile-scale-average span,
-.profile-scale-average small {
-  color: var(--profile-muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.profile-scale-average strong {
-  color: var(--profile-accent);
-  font-family: var(--cinema-display);
-  font-size: clamp(5.5rem, 10vw, 10rem);
-  font-weight: 520;
-  letter-spacing: -0.08em;
-  line-height: 0.78;
-}
-
-.profile-scale-bands {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-top: 1px solid var(--profile-line);
-  border-left: 1px solid var(--profile-line);
-}
-
-.profile-scale-bands article {
-  display: grid;
-  gap: 0.45rem;
-  min-height: clamp(7.5rem, 16vh, 10rem);
-  align-content: end;
-  padding: 1rem;
-  border-right: 1px solid var(--profile-line);
-  border-bottom: 1px solid var(--profile-line);
-}
-
-.profile-scale-bands article strong {
-  font-family: var(--cinema-display);
-  font-size: clamp(2.1rem, 3.8vw, 4rem);
-  font-weight: 520;
-  letter-spacing: -0.06em;
-  line-height: 0.82;
-}
-
-.profile-scale-bands article span {
-  color: var(--profile-muted);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-}
-
-.profile-scale-empty {
-  color: var(--profile-muted);
-}
-
 /* Ajustes del perfil propio */
 
 .profile-page-stack > .profile-settings-panel {
@@ -609,7 +535,6 @@ html:has(.profile-editorial) {
   .profile-command-identity,
   .profile-selections-layout,
   .profile-editorial .profile-early-panel,
-  .profile-scale-layout,
   .profile-page-stack > .profile-settings-panel .profile-settings-form {
     grid-template-columns: 1fr;
   }
@@ -638,7 +563,6 @@ html:has(.profile-editorial) {
 
   .profile-selections-panel,
   .profile-editorial .profile-early-panel,
-  .profile-scale-panel,
   .profile-page-stack > .profile-settings-panel {
     margin-top: 3.5rem;
     padding: 1.5rem 1rem 2.5rem;
@@ -647,17 +571,6 @@ html:has(.profile-editorial) {
   .profile-selection-featured,
   .profile-early-selection > .profile-selection-featured {
     min-height: 28rem;
-  }
-
-  .profile-scale-average {
-    min-height: auto;
-    padding: 1.5rem 0 2rem;
-    border-right: 0;
-    border-bottom: 1px solid var(--profile-line-strong);
-  }
-
-  .profile-scale-bands {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .profile-page-stack > .profile-settings-panel .profile-avatar-editor {

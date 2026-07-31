@@ -30,7 +30,6 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
   const earlyRatings = [...profile.topThree, ...profile.bottomThree]
     .filter((item, index, items) => items.findIndex((candidate) => candidate.movie.id === item.movie.id) === index)
     .slice(0, 5);
-  const occupiedDistribution = profile.distribution.filter((item) => item.count > 0);
   const title = isSelf ? "Tu perfil" : profile.user.name;
   const heroMovie = profile.topThree[0]?.movie;
   const heroArtwork = heroMovie?.backdrop || heroMovie?.posterUrl;
@@ -84,7 +83,12 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
             <h2>{isSelf ? "Tus valoraciones" : `Las valoraciones de ${profile.user.name}`}</h2>
           </div>
           <ProfileSelections top={profile.topThree} bottom={profile.bottomThree} />
-          <ChapterNav up="#perfil-portada" upLabel="Subir al perfil" down="#distribucion-notas" downLabel="Bajar al rango de notas" />
+          <ChapterNav
+            up="#perfil-portada"
+            upLabel="Subir al perfil"
+            down={isSelf ? "#ajustes-perfil" : undefined}
+            downLabel="Bajar a ajustes del perfil"
+          />
         </section>
       ) : (
         <section id="valoraciones-destacadas" className="profile-early-panel" data-scroll-chapter aria-label="Primeras valoraciones del perfil">
@@ -105,32 +109,14 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
               <Link href="/explorar" className="primary-button">Explorar películas</Link>
             </div>
           ) : null}
-          <ChapterNav up="#perfil-portada" upLabel="Subir al perfil" down="#distribucion-notas" downLabel="Bajar al rango de notas" />
+          <ChapterNav
+            up="#perfil-portada"
+            upLabel="Subir al perfil"
+            down={isSelf ? "#ajustes-perfil" : undefined}
+            downLabel="Bajar a ajustes del perfil"
+          />
         </section>
       )}
-
-      <section id="distribucion-notas" className="profile-scale-panel" data-scroll-chapter aria-label="Rango de notas">
-        <div className="profile-chapter-heading">
-          <p className="cinema-kicker">Escala</p>
-          <h2>{isSelf ? "Cómo puntúas" : `Cómo puntúa ${profile.user.name}`}</h2>
-        </div>
-        <div className="profile-scale-layout">
-          <div className="profile-scale-average">
-            <span>Nota media</span>
-            <strong>{profile.ratingsCount > 0 ? formatScore(profile.averageScore) : "-"}</strong>
-            <small>{formatCount(profile.ratingsCount, "nota")}</small>
-          </div>
-          <div className="profile-scale-bands" aria-label="Notas utilizadas">
-            {occupiedDistribution.length > 0 ? occupiedDistribution.map((item) => (
-              <article key={item.label}>
-                <strong>{formatScore(item.value)}</strong>
-                <span>{formatCount(item.count, "película")}</span>
-              </article>
-            )) : <p className="profile-scale-empty">Aún no hay notas.</p>}
-          </div>
-        </div>
-        <ChapterNav up="#valoraciones-destacadas" upLabel="Subir a valoraciones destacadas" down={isSelf ? "#ajustes-perfil" : undefined} downLabel="Bajar a ajustes del perfil" />
-      </section>
     </div>
   );
 }
