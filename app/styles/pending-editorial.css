@@ -10,9 +10,16 @@ html:has(.pending-page) {
 .pending-archive-panel {
   box-sizing: border-box;
   min-height: calc(100dvh - 4.85rem);
-  scroll-margin-top: 4.85rem;
-  scroll-snap-align: start;
   scroll-snap-stop: always;
+}
+
+.pending-page-intro,
+.pending-radar-panel {
+  scroll-snap-align: end;
+}
+
+.pending-archive-panel {
+  scroll-snap-align: none;
 }
 
 .pending-page-intro {
@@ -197,6 +204,9 @@ html:has(.pending-page) {
 .pending-archive-heading {
   grid-template-columns: 1fr;
   margin-bottom: clamp(1.75rem, 3vw, 3rem);
+  scroll-margin-top: 4.85rem;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .pending-archive-heading h2 {
@@ -373,7 +383,10 @@ html:has(.pending-page) {
   .pending-radar-panel,
   .pending-archive-panel {
     min-height: auto;
-    scroll-margin-top: 0;
+    scroll-snap-align: none;
+  }
+
+  .pending-archive-heading {
     scroll-snap-align: none;
   }
 }
