@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 import { CinematicStage } from "@/components/cinematic-stage";
+import { ChapterSnapController } from "@/components/ChapterSnapController";
 import { NowPlayingPanel, NowPlayingPanelFallback } from "@/components/now-playing-panel";
 import { UpcomingReleasesPanel, UpcomingReleasesPanelFallback } from "@/components/upcoming-releases-panel";
 import { getDashboardOverviewHydrated } from "@/lib/store";
@@ -19,6 +20,7 @@ export default async function HomePage() {
 
   return (
     <div className="cinema-home">
+      <ChapterSnapController mode="nearby" targets={["#semana", "#cartelera", "#proximamente"]} />
       <div id="semana" className="cinema-home-snap-start" aria-hidden="true" />
       <CinematicStage
         className={`cinema-opening ${selectedMovie ? "cinema-opening-selected" : "cinema-opening-empty"}`}

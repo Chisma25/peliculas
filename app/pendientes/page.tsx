@@ -79,6 +79,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   return (
     <section className="pending-page">
       <ChapterSnapController
+        releaseAfterLast
         targets={["#pendientes-portada", "#seleccion-semanal", "#lista-pendientes"]}
       />
       <PendingFreshness />

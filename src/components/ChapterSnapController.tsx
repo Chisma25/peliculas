@@ -3,10 +3,16 @@
 import { useEffect } from "react";
 
 type ChapterSnapControllerProps = {
+  mode?: "nearest" | "nearby";
+  releaseAfterLast?: boolean;
   targets: string[];
 };
 
-export function ChapterSnapController({ targets }: ChapterSnapControllerProps) {
+export function ChapterSnapController({
+  mode = "nearest",
+  releaseAfterLast = false,
+  targets
+}: ChapterSnapControllerProps) {
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const desktop = window.matchMedia("(min-width: 821px)");
@@ -35,7 +41,7 @@ export function ChapterSnapController({ targets }: ChapterSnapControllerProps) {
 
       // The archive is intentionally taller than one viewport. Once the user is
       // reading it, snapping must not pull the page back to its opening frame.
-      if (window.scrollY > archiveStart + window.innerHeight * 0.4) {
+      if (releaseAfterLast && window.scrollY > archiveStart + window.innerHeight * 0.4) {
         return;
       }
 
@@ -44,6 +50,10 @@ export function ChapterSnapController({ targets }: ChapterSnapControllerProps) {
       );
 
       if (Math.abs(nearestPoint - window.scrollY) < 2) {
+        return;
+      }
+
+      if (mode === "nearby" && Math.abs(nearestPoint - window.scrollY) > window.innerHeight * 0.16) {
         return;
       }
 
@@ -82,7 +92,7 @@ export function ChapterSnapController({ targets }: ChapterSnapControllerProps) {
       window.clearTimeout(releaseTimer);
       window.clearTimeout(scrollIdleTimer);
     };
-  }, [targets]);
+  }, [mode, releaseAfterLast, targets]);
 
   return null;
 }
