@@ -161,7 +161,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
         </div>
 
         {totalHistoryCount > 0 || hasActiveFilters ? (
-          <form action="/vistas" method="get" className="seen-toolbar">
+          <form action="/vistas#archivo-vistas" method="get" className="seen-toolbar">
             <div className="seen-filter-grid">
               <label className="seen-field seen-field-wide">
                 Buscar por título
