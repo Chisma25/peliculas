@@ -82,7 +82,11 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
           <div className="profile-section-heading">
             <div>
               <p className="cinema-kicker">Valoraciones</p>
-              <h2>{profile.ratingsCount > 0 ? `${formatCount(profile.ratingsCount, "película")} valoradas` : "Sin valoraciones"}</h2>
+              <h2>
+                {profile.ratingsCount > 0
+                  ? `${formatCount(profile.ratingsCount, "película")} ${profile.ratingsCount === 1 ? "valorada" : "valoradas"}`
+                  : "Sin valoraciones"}
+              </h2>
             </div>
             <p>
               {profile.ratingsCount > 0

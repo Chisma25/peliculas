@@ -100,7 +100,7 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
           </div>
           <div className="profile-avatar-controls">
             <label className="avatar-upload-label">
-              Imagen de avatar
+              <span>Elegir imagen</span>
               <input type="file" accept="image/*" onChange={handleAvatarChange} />
             </label>
             <p className="muted-copy">PNG o JPG de hasta 1,2 MB.</p>
