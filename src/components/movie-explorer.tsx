@@ -258,9 +258,7 @@ export function MovieExplorer() {
             </button>
           ) : null}
         </div>
-      ) : (
-        <p className="sr-only" role="status" aria-live="polite">{status}</p>
-      )}
+      ) : null}
 
       {!query ? (
         <div className="explore-idle-stage">
