@@ -1532,7 +1532,7 @@ body {
 
 .cinema-detail-back {
   position: absolute;
-  top: calc(4.85rem + clamp(1.35rem, 3vw, 3.5rem));
+  top: clamp(1.35rem, 3vw, 3.5rem);
   left: clamp(1.35rem, 3vw, 3.5rem);
   appearance: none;
   padding: 0.45rem 0.75rem 0.45rem 0.45rem;
@@ -1802,7 +1802,7 @@ body {
   }
 
   .cinema-detail-back {
-    top: calc(5.6rem + 1rem);
+    top: 1rem;
     left: 1rem;
   }
 
