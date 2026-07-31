@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { PendingFreshness } from "@/components/pending-freshness";
 import { PrefetchLink } from "@/components/prefetch-link";
@@ -67,27 +69,33 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
 
   const paginationItems = buildPaginationItems(safePage, totalPages);
   const hasActiveFilters = Boolean(search || activeGenre);
+  const heroMovie = weeklyOptions[0]?.movie ?? pagedPending[0];
+  const heroStyle = heroMovie?.backdrop
+    ? ({ "--pending-hero-image": `url("${heroMovie.backdrop}")` } as CSSProperties)
+    : undefined;
 
   return (
     <section className="pending-page">
       <PendingFreshness />
-      <header className="cinema-page-intro pending-page-intro">
-        <div>
-          <p className="cinema-kicker">Lista del grupo</p>
+      <header className="cinema-page-intro pending-page-intro" style={heroStyle}>
+        <div className="pending-page-intro-copy">
+          <p className="cinema-kicker">Filmoteca por ver</p>
           <h1>Pendientes</h1>
+          <p className="pending-page-intro-note">La lista de la que sale la próxima sesión.</p>
         </div>
-        <div className="cinema-page-intro-aside">
-          <strong>{totalPendingCount}</strong>
-          <p>Películas guardadas para ver más adelante.</p>
+        <div className="pending-page-intro-ledger">
+          <span>En archivo</span>
+          <strong>{String(totalPendingCount).padStart(2, "0")}</strong>
+          <PrefetchLink href="/explorar">Añadir películas <span aria-hidden="true">↗</span></PrefetchLink>
         </div>
       </header>
 
       {batch && weeklyOptions.length > 0 ? (
         <section className="pending-radar-panel" aria-label="Recomendaciones semanales">
           <div className="pending-radar-heading">
-            <p className="cinema-section-number">01 / Radar semanal</p>
-            <h2>Recomendaciones</h2>
-            <p>Cinco opciones para empezar.</p>
+            <p className="cinema-section-number">01 / Selección breve</p>
+            <h2>Para esta semana</h2>
+            <p>Una primera criba dentro de vuestra lista.</p>
           </div>
 
           <div
@@ -100,11 +108,14 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               const primaryGenre = item.movie.genres.find((genre) => genre !== "Pendiente");
 
               return (
-                <article key={item.id} className={`pending-radar-card ${selected ? "is-selected" : ""}`}>
+                <article
+                  key={item.id}
+                  className={`pending-radar-card ${index === 0 ? "is-lead" : ""} ${selected ? "is-selected" : ""}`}
+                >
                   <PrefetchLink href={`/peliculas/${item.movie.slug}`} className="pending-radar-link">
                     <div className="pending-radar-poster">
-                      <PosterImage src={item.movie.posterUrl} />
-                      <span className="pending-radar-rank">#{index + 1}</span>
+                      <PosterImage src={index === 0 ? item.movie.backdrop ?? item.movie.posterUrl : item.movie.posterUrl} />
+                      <span className="pending-radar-rank">{String(index + 1).padStart(2, "0")}</span>
                     </div>
 
                     <div className="pending-radar-copy">
@@ -135,10 +146,10 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       <section id="lista-pendientes" className="pending-archive-panel" aria-label="Archivo de pendientes">
         <div className="pending-archive-heading">
           <div>
-            <p className="cinema-section-number">02 / Lista completa</p>
-            <h2>Todas las pendientes</h2>
+            <p className="cinema-section-number">02 / Archivo completo</p>
+            <h2>La lista</h2>
           </div>
-          <p>También podéis elegir directamente cualquier película.</p>
+          <p>Busca, filtra o elige directamente cualquier película.</p>
         </div>
         {totalPendingCount > 0 || hasActiveFilters ? (
           <form action="/pendientes" method="get" className="pending-filter-panel">
@@ -214,12 +225,17 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         ) : (
           <>
             <div className={`pending-movie-grid ${pagedPending.length <= 2 ? "pending-movie-grid-tight" : ""}`}>
-              {pagedPending.map((movie) => (
-                <article key={movie.id} className="pending-movie-card">
+              {pagedPending.map((movie, index) => {
+                const featured = index === 0 || index === 7;
+                const archiveNumber = (safePage - 1) * PAGE_SIZE + index + 1;
+
+                return (
+                  <article key={movie.id} className={`pending-movie-card ${featured ? "is-featured" : ""}`}>
                   <PrefetchLink href={`/peliculas/${movie.slug}`} className="pending-movie-link">
                     <div className="pending-movie-poster">
-                      <PosterImage src={movie.posterUrl} />
-                      <span>{movie.externalRating.source} {movie.externalRating.value}</span>
+                      <PosterImage src={featured ? movie.backdrop ?? movie.posterUrl : movie.posterUrl} />
+                      <span className="pending-archive-number">{String(archiveNumber).padStart(2, "0")}</span>
+                      <span className="pending-external-score">{movie.externalRating.source} {movie.externalRating.value}</span>
                     </div>
 
                     <div className="pending-movie-copy">
@@ -234,6 +250,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                           ))}
                         </div>
                       ) : null}
+                      {featured && movie.synopsis ? <p className="pending-feature-summary">{movie.synopsis}</p> : null}
                     </div>
                   </PrefetchLink>
 
@@ -253,8 +270,9 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                       </form>
                     ) : null}
                   </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
 
             {totalPages > 1 ? (
