@@ -5,6 +5,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 
 import { SiteHeader } from "@/components/site-header";
+import { NavigationMemory } from "@/components/navigation-memory";
 import { DataUnavailableError } from "@/lib/data-availability";
 import { getDeploymentVersion } from "@/lib/deployment-version";
 import { getSessionUser } from "@/lib/store";
@@ -40,6 +41,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <div className="app-shell">
           <div className="ambient ambient-one" />
           <div className="ambient ambient-two" />
+          <NavigationMemory />
           <SiteHeader user={user} deploymentVersion={deploymentVersion} />
           <main className="page-shell">{children}</main>
         </div>
