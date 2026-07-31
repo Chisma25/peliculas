@@ -3828,6 +3828,10 @@ html:has(.cinema-home) {
     min-height: calc(100dvh - 6.45rem);
   }
 
+  .cinema-home-program + .cinema-home-program {
+    margin-top: 0;
+  }
+
   .cinema-home-program {
     height: calc(100dvh - 6.45rem);
     min-height: 0;
