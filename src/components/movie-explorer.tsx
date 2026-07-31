@@ -41,8 +41,6 @@ type ToastState = {
   body: string;
 } | null;
 
-const SEARCH_STARTERS = ["Dune", "La Haine", "El padrino", "Perfect Days"];
-
 function getButtonLabel(status: PendingResultStatus) {
   switch (status) {
     case "confirming":
@@ -256,19 +254,6 @@ export function MovieExplorer() {
               Reintentar
             </button>
           ) : null}
-        </div>
-      ) : null}
-
-      {!query ? (
-        <div className="explore-idle-stage">
-          <div className="explore-starter-list">
-            {SEARCH_STARTERS.map((starter, index) => (
-              <button type="button" key={starter} onClick={() => updateQuery(starter)}>
-                <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-                {starter}
-              </button>
-            ))}
-          </div>
         </div>
       ) : null}
 

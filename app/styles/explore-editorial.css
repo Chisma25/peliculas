@@ -90,73 +90,6 @@
   text-transform: uppercase;
 }
 
-.explore-idle-stage {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  min-height: 0;
-  padding: clamp(2.6rem, 6vw, 5.5rem) 0;
-  overflow: visible;
-}
-
-.explore-starter-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0;
-  border-top: 1px solid var(--cinema-line);
-}
-
-.explore-starter-list button {
-  display: grid;
-  grid-template-columns: 2.2rem minmax(0, 1fr);
-  gap: 0.75rem;
-  align-items: center;
-  min-height: 5rem;
-  padding: 0.75rem 0.4rem;
-  border: 0;
-  border-bottom: 1px solid var(--cinema-line);
-  background: transparent;
-  color: rgba(233, 226, 213, 0.58);
-  font-family: var(--cinema-display);
-  font-size: clamp(1.45rem, 2.2vw, 2.4rem);
-  font-weight: 560;
-  letter-spacing: -0.045em;
-  text-align: left;
-  transition:
-    color 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    padding 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    background 260ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.explore-starter-list button:nth-child(odd) {
-  padding-right: 1rem;
-}
-
-.explore-starter-list button:nth-child(even) {
-  padding-left: 1rem;
-  border-left: 1px solid var(--cinema-line);
-}
-
-.explore-starter-list button:hover,
-.explore-starter-list button:focus-visible {
-  outline: none;
-  padding-left: 0.8rem;
-  background: rgba(233, 226, 213, 0.025);
-  color: var(--cinema-paper);
-}
-
-.explore-starter-list button:active {
-  transform: translateY(1px);
-}
-
-.explore-starter-list button span {
-  color: var(--cinema-accent-soft);
-  font-family: var(--cinema-ui);
-  font-size: 0.64rem;
-  font-weight: 760;
-  letter-spacing: 0.12em;
-}
-
 .explore-grid,
 .explore-grid.explore-grid-tight {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -325,10 +258,6 @@
     margin: 0;
   }
 
-  .explore-idle-stage {
-    grid-template-columns: 1fr;
-  }
-
   .explore-grid,
   .explore-grid.explore-grid-tight {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -344,16 +273,6 @@
   .explore-search-field input {
     min-height: 3.6rem;
     font-size: clamp(1.8rem, 9vw, 2.6rem);
-  }
-
-  .explore-starter-list {
-    grid-template-columns: 1fr;
-  }
-
-  .explore-starter-list button:nth-child(odd),
-  .explore-starter-list button:nth-child(even) {
-    padding-inline: 0.3rem;
-    border-left: 0;
   }
 
   .explore-grid,
@@ -384,11 +303,5 @@
 
   .explorer-card-actions {
     grid-column: 1 / -1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .explore-starter-list button {
-    transition: none;
   }
 }
