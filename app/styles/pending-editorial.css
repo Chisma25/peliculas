@@ -125,12 +125,12 @@ html:has(.pending-page) {
 .pending-radar-panel {
   grid-template-rows: auto minmax(0, 1fr);
   align-content: center;
-  padding-block: clamp(3.5rem, 6vw, 6rem);
+  padding-block: clamp(2rem, 3vw, 3rem);
 }
 
 .pending-radar-heading {
   grid-template-columns: 1fr;
-  margin-bottom: clamp(2rem, 4vw, 4rem);
+  margin-bottom: clamp(1.5rem, 2vw, 2rem);
 }
 
 .pending-radar-heading h2 {
