@@ -15,7 +15,7 @@ html:has(.pending-page) {
 
 .pending-page-intro,
 .pending-radar-panel {
-  scroll-snap-align: end;
+  scroll-snap-align: start;
 }
 
 .pending-archive-panel {
