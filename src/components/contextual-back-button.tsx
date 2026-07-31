@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useLayoutEffect } from "react";
 
 import { LAST_APP_ROUTE_KEY } from "@/components/navigation-memory";
 
@@ -10,6 +11,10 @@ type ContextualBackButtonProps = {
 
 export function ContextualBackButton({ fallbackHref }: ContextualBackButtonProps) {
   const router = useRouter();
+
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
 
   return (
     <button
