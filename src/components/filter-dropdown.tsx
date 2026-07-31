@@ -13,16 +13,19 @@ type FilterDropdownProps = {
   options: FilterDropdownOption[];
   placeholder: string;
   ariaLabel: string;
+  submitOnSelect?: boolean;
 };
 
-export function FilterDropdown({ name, value, options, placeholder, ariaLabel }: FilterDropdownProps) {
+export function FilterDropdown({ name, value, options, placeholder, ariaLabel, submitOnSelect = false }: FilterDropdownProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [selection, setSelection] = useState({
-    sourceValue: value,
-    currentValue: value
-  });
-  const selectedValue = selection.sourceValue === value ? selection.currentValue : value;
+  const [previousValue, setPreviousValue] = useState(value);
+  const [selectedValue, setSelectedValue] = useState(value);
+
+  if (previousValue !== value) {
+    setPreviousValue(value);
+    setSelectedValue(value);
+  }
 
   useEffect(() => {
     if (!open) {
@@ -82,8 +85,11 @@ export function FilterDropdown({ name, value, options, placeholder, ariaLabel }:
                 aria-selected={isActive}
                 className={`filter-dropdown-option ${isActive ? "filter-dropdown-option-active" : ""}`}
                 onClick={() => {
-                  setSelection({ sourceValue: value, currentValue: option.value });
+                  setSelectedValue(option.value);
                   setOpen(false);
+                  if (submitOnSelect) {
+                    window.requestAnimationFrame(() => rootRef.current?.closest("form")?.requestSubmit());
+                  }
                 }}
               >
                 <span>{option.label}</span>

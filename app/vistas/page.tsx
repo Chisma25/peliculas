@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { CatalogAnchorRestorer } from "@/components/catalog-anchor-restorer";
+import { CatalogClearButton, CatalogFilterForm, CatalogTextInput } from "@/components/catalog-filter-form";
 import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { PrefetchLink } from "@/components/prefetch-link";
@@ -95,11 +95,6 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
   return (
     <section className="seen-page">
       <DirectionalChapterAssist />
-      <CatalogAnchorRestorer
-        active={hasActiveFilters || safePage > 1}
-        navigationKey={`${search}|${year}|${genre}|${activeSort}|${safePage}`}
-        targetId="archivo-vistas"
-      />
 
       <header id="vistas-portada" className="cinema-page-intro seen-page-intro" data-scroll-chapter style={heroStyle}>
         <div className="seen-page-intro-copy">
@@ -131,15 +126,15 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
         </div>
 
         {totalHistoryCount > 0 || hasActiveFilters ? (
-          <form action="/vistas#archivo-vistas" method="get" className="seen-toolbar">
+          <CatalogFilterForm anchorId="archivo-vistas" basePath="/vistas" className="seen-toolbar">
             <div className="seen-filter-grid">
               <label className="seen-field seen-field-wide">
                 Buscar por título
-                <input type="search" name="search" defaultValue={search} placeholder="Pulp Fiction, Soul, Interstellar..." />
+                <CatalogTextInput type="search" name="search" value={search} placeholder="Pulp Fiction, Soul, Interstellar..." />
               </label>
               <label className="seen-field">
                 Año
-                <input type="text" name="year" defaultValue={year} placeholder="2022" inputMode="numeric" />
+                <CatalogTextInput type="text" name="year" value={year} placeholder="2022" inputMode="numeric" />
               </label>
               <label className="seen-field">
                 Género
@@ -148,6 +143,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                   value={genre}
                   placeholder="Todos los géneros"
                   ariaLabel="Filtrar vistas por género"
+                  submitOnSelect
                   options={[{ value: "", label: "Todos los géneros" }, ...genres.map((item) => ({ value: item, label: item }))]}
                 />
               </label>
@@ -158,6 +154,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
                   value={activeSort}
                   placeholder="Ordenar"
                   ariaLabel="Ordenar películas vistas"
+                  submitOnSelect
                   options={SORT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
                 />
               </label>
@@ -165,9 +162,9 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
 
             <div className="seen-toolbar-actions">
               <button type="submit" className="primary-button">Aplicar filtros</button>
-              <PrefetchLink href="/vistas#archivo-vistas" className="ghost-button">Limpiar</PrefetchLink>
+              <CatalogClearButton anchorId="archivo-vistas" basePath="/vistas" className="ghost-button">Limpiar</CatalogClearButton>
             </div>
-          </form>
+          </CatalogFilterForm>
         ) : null}
 
         <div className="seen-list-anchor">
@@ -186,7 +183,7 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
               <h2>No hay películas vistas que encajen con esos filtros.</h2>
               <p className="body-copy">Prueba a quitar el año, el género o parte del título.</p>
               <div className="inline-actions">
-                <PrefetchLink href="/vistas#archivo-vistas" className="ghost-button">Ver todas</PrefetchLink>
+                <CatalogClearButton anchorId="archivo-vistas" basePath="/vistas" className="ghost-button">Ver todas</CatalogClearButton>
               </div>
             </div>
           ) : (

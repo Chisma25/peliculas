@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { CatalogAnchorRestorer } from "@/components/catalog-anchor-restorer";
+import { CatalogClearButton, CatalogFilterForm, CatalogTextInput } from "@/components/catalog-filter-form";
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
 import { PendingFreshness } from "@/components/pending-freshness";
@@ -79,11 +79,6 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   return (
     <section className="pending-page">
       <DirectionalChapterAssist />
-      <CatalogAnchorRestorer
-        active={hasActiveFilters || safePage > 1}
-        navigationKey={`${search}|${activeGenre}|${safePage}`}
-        targetId="lista-pendientes"
-      />
       <PendingFreshness />
       <header id="pendientes-portada" className="cinema-page-intro pending-page-intro" data-scroll-chapter style={heroStyle}>
         <div className="pending-page-intro-copy">
@@ -158,11 +153,11 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           </div>
         </div>
         {totalPendingCount > 0 || hasActiveFilters ? (
-          <form action="/pendientes#lista-pendientes" method="get" className="pending-filter-panel">
+          <CatalogFilterForm anchorId="lista-pendientes" basePath="/pendientes" className="pending-filter-panel">
             <div className="pending-filter-grid">
               <label className="pending-filter-field pending-filter-field-wide">
                 Buscar por título
-                <input type="search" name="search" defaultValue={search} placeholder="Interstellar, Toy Story, Whiplash..." />
+                <CatalogTextInput type="search" name="search" value={search} placeholder="Interstellar, Toy Story, Whiplash..." />
               </label>
 
               <label className="pending-filter-field">
@@ -172,6 +167,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                   value={activeGenre}
                   placeholder="Todos los géneros"
                   ariaLabel="Filtrar pendientes por género"
+                  submitOnSelect
                   options={[
                     { value: "", label: "Todos los géneros" },
                     ...genres.map((genre) => ({ value: genre, label: genre }))
@@ -184,11 +180,11 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               <button type="submit" className="primary-button">
                 Aplicar filtros
               </button>
-              <PrefetchLink href="/pendientes#lista-pendientes" className="ghost-button">
+              <CatalogClearButton anchorId="lista-pendientes" basePath="/pendientes" className="ghost-button">
                 Limpiar
-              </PrefetchLink>
+              </CatalogClearButton>
             </div>
-          </form>
+          </CatalogFilterForm>
         ) : null}
 
         <div className="pending-list-anchor">
@@ -222,9 +218,9 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                 Ir a explorar
               </PrefetchLink>
               {totalPendingCount > 0 ? (
-                <PrefetchLink href="/pendientes" className="ghost-button">
+                <CatalogClearButton anchorId="lista-pendientes" basePath="/pendientes" className="ghost-button">
                   Ver todas
-                </PrefetchLink>
+                </CatalogClearButton>
               ) : null}
             </div>
           </div>
