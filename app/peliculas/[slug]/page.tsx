@@ -45,7 +45,6 @@ export default async function MoviePage({ params }: MoviePageProps) {
         <ContextualBackButton fallbackHref={fallbackHref} />
 
         <div className="cinema-detail-title-block">
-          <p className="cinema-kicker">Ficha de película</p>
           <h1 id="movie-title">{movie.title}</h1>
           <p className="cinema-detail-byline">
             Dirección · <strong>{movie.director}</strong>
