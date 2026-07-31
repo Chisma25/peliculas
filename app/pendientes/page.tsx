@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 
+import { CatalogAnchorRestorer } from "@/components/catalog-anchor-restorer";
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
 import { PendingFreshness } from "@/components/pending-freshness";
@@ -78,6 +79,11 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
   return (
     <section className="pending-page">
       <DirectionalChapterAssist />
+      <CatalogAnchorRestorer
+        active={hasActiveFilters || safePage > 1}
+        navigationKey={`${search}|${activeGenre}|${safePage}`}
+        targetId="lista-pendientes"
+      />
       <PendingFreshness />
       <header id="pendientes-portada" className="cinema-page-intro pending-page-intro" data-scroll-chapter style={heroStyle}>
         <div className="pending-page-intro-copy">
@@ -152,7 +158,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
           </div>
         </div>
         {totalPendingCount > 0 || hasActiveFilters ? (
-          <form action="/pendientes" method="get" className="pending-filter-panel">
+          <form action="/pendientes#lista-pendientes" method="get" className="pending-filter-panel">
             <div className="pending-filter-grid">
               <label className="pending-filter-field pending-filter-field-wide">
                 Buscar por título
@@ -178,7 +184,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               <button type="submit" className="primary-button">
                 Aplicar filtros
               </button>
-              <PrefetchLink href="/pendientes" className="ghost-button">
+              <PrefetchLink href="/pendientes#lista-pendientes" className="ghost-button">
                 Limpiar
               </PrefetchLink>
             </div>
@@ -255,7 +261,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                   <div className="pending-movie-actions">
                     <form action="/api/pending/remove" method="post">
                       <input type="hidden" name="movieId" value={movie.id} />
-                      <input type="hidden" name="redirectTo" value={buildPendingQuery({ search, genre: activeGenre, page: safePage })} />
+                      <input type="hidden" name="redirectTo" value={buildPendingPageHref({ search, genre: activeGenre, page: safePage })} />
                       <button type="submit" className="ghost-button">
                         Quitar
                       </button>

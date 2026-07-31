@@ -183,7 +183,7 @@ body {
   z-index: -4;
   background-position: center;
   background-size: cover;
-  filter: saturate(0.76) contrast(1.04);
+  filter: saturate(0.96) contrast(1.07) brightness(1.02);
   transform: translate3d(var(--cinema-shift-x), var(--cinema-shift-y), 0) scale(1.055);
   transition: transform 1.25s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform;
@@ -194,8 +194,8 @@ body {
   inset: 0;
   z-index: -3;
   background:
-    linear-gradient(90deg, rgba(13, 13, 11, 0.98) 0%, rgba(13, 13, 11, 0.82) 42%, rgba(13, 13, 11, 0.18) 78%),
-    linear-gradient(0deg, rgba(13, 13, 11, 0.8), transparent 55%);
+    linear-gradient(90deg, rgba(13, 13, 11, 0.94) 0%, rgba(13, 13, 11, 0.68) 42%, rgba(13, 13, 11, 0.08) 78%),
+    linear-gradient(0deg, rgba(13, 13, 11, 0.7), transparent 55%);
 }
 
 .cinema-opening-grain,
@@ -1171,8 +1171,8 @@ body {
 
   .cinema-opening-shade {
     background:
-      linear-gradient(0deg, rgba(13, 13, 11, 0.98) 0%, rgba(13, 13, 11, 0.66) 58%, rgba(13, 13, 11, 0.16) 100%),
-      linear-gradient(90deg, rgba(13, 13, 11, 0.4), transparent);
+      linear-gradient(0deg, rgba(13, 13, 11, 0.94) 0%, rgba(13, 13, 11, 0.54) 58%, rgba(13, 13, 11, 0.08) 100%),
+      linear-gradient(90deg, rgba(13, 13, 11, 0.32), transparent);
   }
 
   .cinema-opening-copy {

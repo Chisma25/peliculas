@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 
+import { CatalogAnchorRestorer } from "@/components/catalog-anchor-restorer";
 import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { PrefetchLink } from "@/components/prefetch-link";
@@ -94,6 +95,11 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
   return (
     <section className="seen-page">
       <DirectionalChapterAssist />
+      <CatalogAnchorRestorer
+        active={hasActiveFilters || safePage > 1}
+        navigationKey={`${search}|${year}|${genre}|${activeSort}|${safePage}`}
+        targetId="archivo-vistas"
+      />
 
       <header id="vistas-portada" className="cinema-page-intro seen-page-intro" data-scroll-chapter style={heroStyle}>
         <div className="seen-page-intro-copy">
