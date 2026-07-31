@@ -118,7 +118,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
           <div className="profile-scale-average">
             <span>Nota media</span>
             <strong>{profile.ratingsCount > 0 ? formatScore(profile.averageScore) : "-"}</strong>
-            <small>{formatCount(profile.ratingsCount, "valoración")}</small>
+            <small>{formatCount(profile.ratingsCount, "nota")}</small>
           </div>
           <div className="profile-scale-bands" aria-label="Notas utilizadas">
             {occupiedDistribution.length > 0 ? occupiedDistribution.map((item) => (
