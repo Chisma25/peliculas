@@ -19,7 +19,7 @@ export default async function HomePage() {
 
   return (
     <div className="cinema-home">
-      <div className="cinema-home-snap-start" aria-hidden="true" />
+      <div id="semana" className="cinema-home-snap-start" aria-hidden="true" />
       <CinematicStage
         className={`cinema-opening ${selectedMovie ? "cinema-opening-selected" : "cinema-opening-empty"}`}
         labelledBy="dashboard-title"
@@ -109,26 +109,36 @@ export default async function HomePage() {
           </article>
         </div>
 
-        <a className="cinema-scroll-cue" href="#cartelera" aria-label="Ir a películas en cartelera">
-          <span>Cartelera</span>
-          <i />
-        </a>
+        <nav className="cinema-chapter-nav" aria-label="Navegación entre capítulos">
+          <a href="#cartelera" aria-label="Bajar a películas en cartelera" title="Ir a Cartelera">
+            <span aria-hidden="true">↓</span>
+          </a>
+        </nav>
       </CinematicStage>
 
       <section id="cartelera" className="cinema-home-program cinema-home-now-playing" aria-label="Ahora en cines">
         <Suspense fallback={<NowPlayingPanelFallback />}>
           <NowPlayingPanel />
         </Suspense>
-        <a className="cinema-scroll-cue cinema-program-cue" href="#proximamente" aria-label="Ir a próximos estrenos">
-          <span>Próximamente</span>
-          <i />
-        </a>
+        <nav className="cinema-chapter-nav" aria-label="Navegación entre capítulos">
+          <a href="#semana" aria-label="Subir a la película de la semana" title="Volver a la película semanal">
+            <span aria-hidden="true">↑</span>
+          </a>
+          <a href="#proximamente" aria-label="Bajar a próximos estrenos" title="Ir a Próximamente">
+            <span aria-hidden="true">↓</span>
+          </a>
+        </nav>
       </section>
 
       <section id="proximamente" className="cinema-home-program cinema-home-upcoming" aria-label="Próximos estrenos">
         <Suspense fallback={<UpcomingReleasesPanelFallback />}>
           <UpcomingReleasesPanel />
         </Suspense>
+        <nav className="cinema-chapter-nav" aria-label="Navegación entre capítulos">
+          <a href="#cartelera" aria-label="Subir a películas en cartelera" title="Volver a Cartelera">
+            <span aria-hidden="true">↑</span>
+          </a>
+        </nav>
       </section>
     </div>
   );
