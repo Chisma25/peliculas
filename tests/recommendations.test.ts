@@ -72,6 +72,33 @@ describe("recommendations engine", () => {
     }
   });
 
+  it("excludes the movie already selected for the week and refills the five options", () => {
+    const state = structuredClone(seedState);
+    state.pendingMovieIds = [
+      "movie_arrival",
+      "movie_drive_my_car",
+      "movie_memories_of_murder",
+      "movie_past_lives",
+      "movie_seven_samurai",
+      "movie_chungking_express"
+    ];
+    state.weeklyBatches = [
+      {
+        id: "batch-with-selection",
+        groupId: state.group.id,
+        weekOf: "2026-07-27T00:00:00.000Z",
+        createdAt: "2026-07-31T12:00:00.000Z",
+        items: [],
+        selectedMovieId: "movie_arrival"
+      }
+    ];
+
+    const options = generatePendingWeeklyOptions(state);
+
+    expect(options).toHaveLength(5);
+    expect(options.map((item) => item.movieId)).not.toContain("movie_arrival");
+  });
+
   it("includes the decision signals needed by the weekly radar", () => {
     const state = structuredClone(seedState);
     state.pendingMovieIds = [

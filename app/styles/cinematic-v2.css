@@ -3675,7 +3675,7 @@ textarea {
 
 html:has(.cinema-home) {
   scroll-padding-top: 4.85rem;
-  scroll-snap-type: none;
+  scroll-snap-type: y proximity;
 }
 
 .app-shell:has(.cinema-home) {

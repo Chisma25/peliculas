@@ -1,7 +1,5 @@
 import type { CSSProperties } from "react";
 
-import { ChapterSnapController } from "@/components/ChapterSnapController";
-
 import { FilterDropdown } from "@/components/filter-dropdown";
 import { PendingFreshness } from "@/components/pending-freshness";
 import { PrefetchLink } from "@/components/prefetch-link";
@@ -78,10 +76,6 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
 
   return (
     <section className="pending-page">
-      <ChapterSnapController
-        releaseAfterLast
-        targets={["#pendientes-portada", "#seleccion-semanal", "#lista-pendientes"]}
-      />
       <PendingFreshness />
       <header id="pendientes-portada" className="cinema-page-intro pending-page-intro" style={heroStyle}>
         <div className="pending-page-intro-copy">

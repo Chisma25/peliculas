@@ -1314,9 +1314,11 @@ export function generatePendingWeeklyOptions(state: AppState): WeeklyRecommendat
   const previousBatch = [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
   const previousMovieIds = new Set(previousBatch?.items.map((item) => item.movieId) ?? []);
 
-  const candidates = buildCandidatePool(state, "pending").map((movie) =>
-    scoreMovie(movie, groupProfile, userProfiles, context, feedback, "pending", previousMovieIds)
-  );
+  const candidates = buildCandidatePool(state, "pending")
+    .filter((movie) => movie.id !== previousBatch?.selectedMovieId)
+    .map((movie) =>
+      scoreMovie(movie, groupProfile, userProfiles, context, feedback, "pending", previousMovieIds)
+    );
 
   return createRecommendationItems(applyDisplayScores(pickDiverseCandidates(candidates, PENDING_COUNT), "pending"));
 }
