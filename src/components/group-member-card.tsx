@@ -38,7 +38,7 @@ export function GroupMemberCard({ member, profileSummary, profileHref, canManage
 
       <div className="member-card-metrics">
         <div className="member-metric-chip">
-          <small>Notas</small>
+          <small>Películas</small>
           <strong>{profileSummary.ratingsCount}</strong>
         </div>
         <div className="member-metric-chip">

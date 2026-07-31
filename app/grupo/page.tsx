@@ -1,3 +1,6 @@
+import type { CSSProperties } from "react";
+
+import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
 import { GroupMemberCard } from "@/components/group-member-card";
 import { PrefetchLink } from "@/components/prefetch-link";
 import { UserAvatar } from "@/components/user-avatar";
@@ -13,38 +16,28 @@ export default async function GroupPage() {
       ? ratedMembers.reduce((sum, item) => sum + item.profileSummary.averageScore * item.profileSummary.ratingsCount, 0) /
         totalRatings
       : 0;
-  const mostActiveMember = [...groupData.members].sort(
-    (left, right) => right.profileSummary.ratingsCount - left.profileSummary.ratingsCount
-  )[0];
-  const averageEligibleMembers = ratedMembers.filter((item) => item.profileSummary.ratingsCount > 10);
-  const membersByAverage = [...averageEligibleMembers].sort(
-    (left, right) => right.profileSummary.averageScore - left.profileSummary.averageScore
-  );
-  const highestAverageMember = membersByAverage[0];
-  const lowestAverageMember = membersByAverage[membersByAverage.length - 1];
-  const memberGridClassName = "group-member-grid";
 
   return (
     <section className="group-page-stack group-redesign group-editorial" aria-labelledby="group-title">
-      <header className="group-editorial-hero">
+      <DirectionalChapterAssist />
+
+      <header id="grupo-portada" className="group-editorial-hero" data-scroll-chapter>
         <div className="group-editorial-heading">
           <div className="group-editorial-title-block">
             <p className="cinema-kicker">El grupo</p>
             <h1 id="group-title">{groupData.group.name}</h1>
           </div>
-          <p className="group-editorial-intro">
-            {formatCount(groupData.members.length, "persona")} y {formatCount(totalRatings, "valoración")} compartidas.
-          </p>
+          <p className="group-editorial-intro">{formatCount(groupData.members.length, "perfil")}</p>
         </div>
 
         <div className="group-cast" aria-label="Miembros del grupo">
-          {groupData.members.map(({ member, profileSummary }, index) => (
+          {groupData.members.map(({ member }, index) => (
             <PrefetchLink
               href={`/grupo/${slugify(member.username)}`}
               className="group-cast-member"
               data-current={member.id === sessionUser?.id ? "true" : undefined}
               key={member.id}
-              style={{ "--cast-index": index } as React.CSSProperties}
+              style={{ "--cast-index": index } as CSSProperties}
             >
               <UserAvatar user={member} size="lg" />
               <span className="group-cast-index" aria-hidden="true">
@@ -52,86 +45,67 @@ export default async function GroupPage() {
               </span>
               <span className="group-cast-copy">
                 <strong>{member.name}</strong>
-                <small>
-                  {profileSummary.ratingsCount ? `${formatScore(profileSummary.averageScore)} de media` : "Sin notas"}
-                </small>
+                <small>Ver perfil</small>
               </span>
             </PrefetchLink>
           ))}
         </div>
 
-        <div className="group-editorial-ledger" aria-label="Resumen del grupo">
-          <article>
-            <span>Miembros</span>
-            <strong>{groupData.members.length}</strong>
-          </article>
-          <article>
-            <span>Valoraciones</span>
-            <strong>{totalRatings}</strong>
-          </article>
-          <article>
-            <span>Media</span>
-            <strong>{totalRatings ? formatScore(groupAverage) : "—"}</strong>
-          </article>
-        </div>
+        <nav className="cinema-chapter-nav" aria-label="Navegación entre secciones">
+          <a href="#resumen-grupo" aria-label="Bajar al resumen del grupo" title="Ir al resumen">
+            <span aria-hidden="true">↓</span>
+          </a>
+        </nav>
       </header>
 
-      <section className="group-roster-section" aria-labelledby="group-roster-title">
-        <div className="group-roster-heading">
-          <div>
-            <p className="cinema-kicker">Perfiles</p>
-            <h2 id="group-roster-title">El reparto</h2>
+      <section
+        id="resumen-grupo"
+        className="group-roster-section"
+        data-scroll-chapter
+        aria-labelledby="group-roster-title"
+      >
+        <div className="group-stats-header">
+          <div className="group-stats-title">
+            <p className="cinema-kicker">Estadísticas</p>
+            <h2 id="group-roster-title">Resumen del grupo</h2>
           </div>
-          <span>{formatCount(groupData.members.length, "perfil")}</span>
-        </div>
 
-        <div className="group-roster-layout">
-          <aside className="group-side-panel" aria-label="Resumen de actividad">
-            <p className="group-side-label">De un vistazo</p>
-
-            <div className="group-side-list">
-              <article>
-                <span>Más notas</span>
-                <strong>{mostActiveMember?.member.name ?? "Sin datos"}</strong>
-                <small>
-                  {mostActiveMember?.profileSummary.ratingsCount
-                    ? formatCount(mostActiveMember.profileSummary.ratingsCount, "valoración")
-                    : "Todavía no hay notas"}
-                </small>
-              </article>
-              <article>
-                <span>Media más alta</span>
-                <strong>{highestAverageMember?.member.name ?? "Sin datos"}</strong>
-                <small>
-                  {highestAverageMember ? formatScore(highestAverageMember.profileSummary.averageScore) : "Mínimo 10 notas"}
-                </small>
-              </article>
-              <article>
-                <span>Media más baja</span>
-                <strong>{lowestAverageMember?.member.name ?? "Sin datos"}</strong>
-                <small>
-                  {lowestAverageMember ? formatScore(lowestAverageMember.profileSummary.averageScore) : "Mínimo 10 notas"}
-                </small>
-              </article>
-            </div>
-            <p className="group-side-note">Las medias comparadas solo incluyen perfiles con más de 10 notas.</p>
-          </aside>
-
-          <div className="group-roster-panel">
-            <div className={memberGridClassName}>
-              {groupData.members.map(({ member, profileSummary }, index) => (
-                <GroupMemberCard
-                  key={member.id}
-                  member={member}
-                  profileSummary={profileSummary}
-                  profileHref={`/grupo/${slugify(member.username)}`}
-                  canManage={Boolean(sessionUser?.isAdmin)}
-                  index={index}
-                />
-              ))}
-            </div>
+          <div className="group-editorial-ledger" aria-label="Totales del grupo">
+            <article>
+              <span>Miembros</span>
+              <strong>{groupData.members.length}</strong>
+            </article>
+            <article>
+              <span>Valoraciones</span>
+              <strong>{totalRatings}</strong>
+            </article>
+            <article>
+              <span>Media</span>
+              <strong>{totalRatings ? formatScore(groupAverage) : "—"}</strong>
+            </article>
           </div>
         </div>
+
+        <div className="group-roster-panel">
+          <div className="group-member-grid">
+            {groupData.members.map(({ member, profileSummary }, index) => (
+              <GroupMemberCard
+                key={member.id}
+                member={member}
+                profileSummary={profileSummary}
+                profileHref={`/grupo/${slugify(member.username)}`}
+                canManage={Boolean(sessionUser?.isAdmin)}
+                index={index}
+              />
+            ))}
+          </div>
+        </div>
+
+        <nav className="cinema-chapter-nav" aria-label="Navegación entre secciones">
+          <a href="#grupo-portada" aria-label="Subir a los perfiles" title="Volver a los perfiles">
+            <span aria-hidden="true">↑</span>
+          </a>
+        </nav>
       </section>
     </section>
   );
