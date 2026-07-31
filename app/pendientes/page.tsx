@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 import { FilterDropdown } from "@/components/filter-dropdown";
+import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
 import { PendingFreshness } from "@/components/pending-freshness";
 import { PrefetchLink } from "@/components/prefetch-link";
 import { PosterImage } from "@/components/poster-image";
@@ -76,8 +77,9 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
 
   return (
     <section className="pending-page">
+      <DirectionalChapterAssist />
       <PendingFreshness />
-      <header id="pendientes-portada" className="cinema-page-intro pending-page-intro" style={heroStyle}>
+      <header id="pendientes-portada" className="cinema-page-intro pending-page-intro" data-scroll-chapter style={heroStyle}>
         <div className="pending-page-intro-copy">
           <p className="cinema-kicker">Filmoteca por ver</p>
           <h1>Pendientes</h1>
@@ -91,7 +93,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       </header>
 
       {batch && weeklyOptions.length > 0 ? (
-        <section id="seleccion-semanal" className="pending-radar-panel" aria-label="Recomendaciones semanales">
+        <section id="seleccion-semanal" className="pending-radar-panel" data-scroll-chapter aria-label="Recomendaciones semanales">
           <div className="pending-radar-heading">
             <p className="cinema-kicker">Selección semanal</p>
             <h2>Para esta semana</h2>
@@ -142,11 +144,11 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         </section>
       ) : null}
 
-      <section id="lista-pendientes" className="pending-archive-panel" aria-label="Archivo de pendientes">
+      <section id="lista-pendientes" className="pending-archive-panel" data-scroll-chapter aria-label="Archivo de pendientes">
         <div className="pending-archive-heading">
           <div>
             <p className="cinema-kicker">Archivo completo</p>
-            <h2>La lista</h2>
+            <h2>Todas las pendientes</h2>
           </div>
         </div>
         {totalPendingCount > 0 || hasActiveFilters ? (

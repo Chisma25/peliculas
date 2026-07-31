@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 import { CinematicStage } from "@/components/cinematic-stage";
+import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
 import { NowPlayingPanel, NowPlayingPanelFallback } from "@/components/now-playing-panel";
 import { UpcomingReleasesPanel, UpcomingReleasesPanelFallback } from "@/components/upcoming-releases-panel";
 import { getDashboardOverviewHydrated } from "@/lib/store";
@@ -19,7 +20,8 @@ export default async function HomePage() {
 
   return (
     <div className="cinema-home">
-      <div id="semana" className="cinema-home-snap-start" aria-hidden="true" />
+      <DirectionalChapterAssist />
+      <div id="semana" className="cinema-home-snap-start" data-scroll-chapter aria-hidden="true" />
       <CinematicStage
         className={`cinema-opening ${selectedMovie ? "cinema-opening-selected" : "cinema-opening-empty"}`}
         labelledBy="dashboard-title"
@@ -116,7 +118,7 @@ export default async function HomePage() {
         </nav>
       </CinematicStage>
 
-      <section id="cartelera" className="cinema-home-program cinema-home-now-playing" aria-label="Ahora en cines">
+      <section id="cartelera" className="cinema-home-program cinema-home-now-playing" data-scroll-chapter aria-label="Ahora en cines">
         <Suspense fallback={<NowPlayingPanelFallback />}>
           <NowPlayingPanel />
         </Suspense>
@@ -130,7 +132,7 @@ export default async function HomePage() {
         </nav>
       </section>
 
-      <section id="proximamente" className="cinema-home-program cinema-home-upcoming" aria-label="Próximos estrenos">
+      <section id="proximamente" className="cinema-home-program cinema-home-upcoming" data-scroll-chapter aria-label="Próximos estrenos">
         <Suspense fallback={<UpcomingReleasesPanelFallback />}>
           <UpcomingReleasesPanel />
         </Suspense>
