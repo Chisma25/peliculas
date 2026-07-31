@@ -207,12 +207,22 @@ html:has(.profile-editorial) {
 
 .profile-editorial .profile-early-panel .profile-poster-grid[data-count="1"] {
   width: min(100%, 20rem);
+  grid-template-columns: 1fr;
   justify-self: end;
 }
 
 .profile-editorial .profile-early-panel .profile-poster-grid[data-count="2"] {
   width: min(100%, 36rem);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-self: end;
+}
+
+.profile-editorial .profile-early-panel .profile-poster-grid[data-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profile-editorial .profile-early-panel .profile-poster-grid[data-count="4"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .profile-editorial .profile-distribution-panel,
