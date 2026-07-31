@@ -179,11 +179,11 @@ export default async function SeenPage({ searchParams }: SeenPageProps) {
 
           {filteredHistoryCount === 0 ? (
             <div className="seen-empty-state">
-              <p className="eyebrow">Sin resultados</p>
-              <h2>No hay películas vistas que encajen con esos filtros.</h2>
-              <p className="body-copy">Prueba a quitar el año, el género o parte del título.</p>
+              <p className="eyebrow">Sin coincidencias</p>
+              <h2>Nada encaja con esta búsqueda.</h2>
+              <p className="body-copy">Prueba con otro título, año o género.</p>
               <div className="inline-actions">
-                <CatalogClearButton anchorId="archivo-vistas" basePath="/vistas" className="ghost-button">Ver todas</CatalogClearButton>
+                <CatalogClearButton anchorId="archivo-vistas" basePath="/vistas" className="ghost-button">Limpiar filtros</CatalogClearButton>
               </div>
             </div>
           ) : (

@@ -206,22 +206,23 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
 
         {filteredPendingCount === 0 ? (
           <div className="pending-empty-state">
-            <p className="eyebrow">Sin resultados</p>
-            <h2>{totalPendingCount === 0 ? "Aún no hay películas pendientes." : "No hay pendientes con esos filtros."}</h2>
+            <p className="eyebrow">Sin coincidencias</p>
+            <h2>{totalPendingCount === 0 ? "Todavía no hay pendientes." : "Nada encaja con esta búsqueda."}</h2>
             <p className="body-copy">
               {totalPendingCount === 0
-                ? "Explorad el catálogo y guardad candidatas para tenerlas preparadas antes del próximo plan."
-                : "Prueba con otro género o limpia los filtros para volver a la lista completa."}
+                ? "Busca una película y añádela para empezar la lista."
+                : "Prueba con otro título o género."}
             </p>
             <div className="inline-actions">
-              <PrefetchLink href="/explorar" className="secondary-button">
-                Ir a explorar
-              </PrefetchLink>
-              {totalPendingCount > 0 ? (
+              {totalPendingCount === 0 ? (
+                <PrefetchLink href="/explorar" className="secondary-button">
+                  Buscar películas
+                </PrefetchLink>
+              ) : (
                 <CatalogClearButton anchorId="lista-pendientes" basePath="/pendientes" className="ghost-button">
-                  Ver todas
+                  Limpiar filtros
                 </CatalogClearButton>
-              ) : null}
+              )}
             </div>
           </div>
         ) : (
