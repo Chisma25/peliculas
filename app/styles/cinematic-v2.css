@@ -3718,6 +3718,10 @@ html:has(.cinema-home) {
   overflow: clip;
 }
 
+.page-shell:has(.cinema-home) {
+  padding-bottom: 0;
+}
+
 .cinema-home {
   gap: 0;
 }
@@ -3791,9 +3795,56 @@ html:has(.cinema-home) {
   }
 }
 
+@media (min-width: 821px) {
+  .cinema-opening {
+    min-height: calc(100dvh - 6.45rem);
+  }
+
+  .cinema-home-program {
+    height: calc(100dvh - 6.45rem);
+    min-height: 0;
+    padding: clamp(1.5rem, 3.2dvh, 3rem) clamp(1.25rem, 3vw, 3rem);
+    overflow: hidden;
+  }
+
+  .cinema-home-program .cinema-releases {
+    height: 100%;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: clamp(1.25rem, 2.5dvh, 2.5rem);
+  }
+
+  .cinema-home-program .cinema-release-grid {
+    --release-offset: clamp(2.5rem, 7dvh, 5.5rem);
+    height: 100%;
+    min-height: 0;
+  }
+
+  .cinema-home-program .cinema-release-card {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .cinema-home-program .cinema-release-card-2,
+  .cinema-home-program .cinema-release-card-3 {
+    height: calc(100% - var(--release-offset));
+  }
+
+  .cinema-home-program .cinema-release-card-2 {
+    margin-top: var(--release-offset);
+  }
+
+  .cinema-home-program .cinema-release-card-3 {
+    margin-bottom: var(--release-offset);
+  }
+}
+
 @media (max-width: 820px) {
   html:has(.cinema-home) {
     scroll-padding-top: 5.6rem;
+  }
+
+  .cinema-opening {
+    min-height: calc(100dvh - 5.6rem);
   }
 
   .cinema-home-program {
