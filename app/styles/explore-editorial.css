@@ -19,16 +19,11 @@
 }
 
 .explore-cinematic-intro h1 {
+  grid-column: 1 / -1;
   max-width: none;
   font-size: clamp(3.8rem, 7vw, 7rem);
   font-weight: 580;
   line-height: 0.86;
-}
-
-.explore-cinematic-intro > p:last-child {
-  max-width: 26ch;
-  margin-bottom: 0.2rem;
-  font-size: 0.96rem;
 }
 
 .explore-page-active .explore-cinematic-intro {
@@ -97,8 +92,7 @@
 
 .explore-idle-stage {
   display: grid;
-  grid-template-columns: minmax(9rem, 0.28fr) minmax(0, 1fr);
-  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   min-height: 0;
   padding: clamp(2.6rem, 6vw, 5.5rem) 0;
@@ -345,10 +339,6 @@
   .explore-cinematic-intro {
     gap: 0.8rem;
     padding-bottom: 1.6rem;
-  }
-
-  .explore-cinematic-intro > p:last-child {
-    font-size: 0.88rem;
   }
 
   .explore-search-field input {

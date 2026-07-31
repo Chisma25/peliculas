@@ -226,7 +226,6 @@ export function MovieExplorer() {
       <header className="explore-cinematic-intro">
         <p className="cinema-kicker">Explorar TMDb</p>
         <h1>Buscar películas</h1>
-        <p>Encuentra el título correcto y añádelo a pendientes.</p>
       </header>
 
       <form className="explore-search-panel" role="search" onSubmit={(event) => event.preventDefault()}>
@@ -262,7 +261,6 @@ export function MovieExplorer() {
 
       {!query ? (
         <div className="explore-idle-stage">
-          <p className="cinema-kicker">Prueba una búsqueda</p>
           <div className="explore-starter-list">
             {SEARCH_STARTERS.map((starter, index) => (
               <button type="button" key={starter} onClick={() => updateQuery(starter)}>
