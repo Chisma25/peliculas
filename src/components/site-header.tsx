@@ -13,9 +13,16 @@ type SiteHeaderProps = {
   deploymentVersion: DeploymentVersion;
 };
 
+const confirmedAvatarUrls = new Map<string, string | undefined>();
+
 export function SiteHeader({ user, deploymentVersion }: SiteHeaderProps) {
   const userMenuRef = useRef<HTMLDetailsElement>(null);
-  const [avatarOverride, setAvatarOverride] = useState<{ active: boolean; avatarUrl?: string }>({ active: false });
+  const [avatarOverride, setAvatarOverride] = useState<{ active: boolean; avatarUrl?: string }>(() => {
+    if (user && confirmedAvatarUrls.has(user.id)) {
+      return { active: true, avatarUrl: confirmedAvatarUrls.get(user.id) };
+    }
+    return { active: false };
+  });
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -33,6 +40,9 @@ export function SiteHeader({ user, deploymentVersion }: SiteHeaderProps) {
 
     function handleAvatarUpdated(event: Event) {
       const detail = (event as CustomEvent<{ avatarUrl?: string | null }>).detail;
+      if (user) {
+        confirmedAvatarUrls.set(user.id, detail?.avatarUrl ?? undefined);
+      }
       setAvatarOverride({
         active: true,
         avatarUrl: detail?.avatarUrl ?? undefined
@@ -47,7 +57,7 @@ export function SiteHeader({ user, deploymentVersion }: SiteHeaderProps) {
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("cine-semanal:avatar-updated", handleAvatarUpdated);
     };
-  }, []);
+  }, [user]);
 
   function closeUserMenu() {
     userMenuRef.current?.removeAttribute("open");
