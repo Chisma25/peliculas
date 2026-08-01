@@ -183,6 +183,7 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
               className={`profile-form-message ${isError ? "error-card" : "success-card"}`}
               role={isError ? "alert" : "status"}
             >
+              <span>{isError ? "No se pudieron guardar los cambios" : "Cambios guardados"}</span>
               <strong>{message}</strong>
             </div>
           ) : null}

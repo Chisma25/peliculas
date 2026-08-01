@@ -643,6 +643,49 @@ html:has(.profile-editorial) {
   border: 0;
 }
 
+.profile-page-stack > .profile-settings-panel .profile-form-message {
+  position: relative;
+  display: grid;
+  gap: 0.38rem;
+  padding: 1.1rem 0 0 1rem;
+  border: 0;
+  border-top: 1px solid var(--profile-line-strong);
+  border-radius: 0;
+  background: transparent;
+}
+
+.profile-page-stack > .profile-settings-panel .profile-form-message::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 4.5rem;
+  height: 1px;
+  background: var(--cinema-accent);
+}
+
+.profile-page-stack > .profile-settings-panel .profile-form-message > span {
+  color: var(--cinema-accent-soft);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.profile-page-stack > .profile-settings-panel .profile-form-message > strong {
+  color: var(--cinema-paper);
+  font-size: 0.95rem;
+  font-weight: 560;
+}
+
+.profile-page-stack > .profile-settings-panel .profile-form-message.error-card::before {
+  background: #c77968;
+}
+
+.profile-page-stack > .profile-settings-panel .profile-form-message.error-card > span {
+  color: #d99a8b;
+}
+
 .profile-editorial > section > .cinema-chapter-nav,
 .profile-page-stack > .profile-settings-panel > .cinema-chapter-nav {
   right: clamp(1.25rem, 3vw, 3rem);

@@ -231,6 +231,55 @@
   font-weight: 580;
 }
 
+.explore-page .explorer-toast {
+  right: clamp(1rem, 2.4vw, 2.5rem);
+  bottom: clamp(1rem, 2.4vw, 2.5rem);
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 1.15rem 1.25rem 1.2rem;
+  border: 1px solid rgba(224, 150, 84, 0.34);
+  border-radius: 0;
+  background: rgba(16, 17, 15, 0.96);
+  box-shadow: 0 1.25rem 3rem rgba(5, 6, 5, 0.3);
+  backdrop-filter: blur(18px);
+}
+
+.explore-page .explorer-toast::before {
+  content: "";
+  position: absolute;
+  inset: -1px auto -1px -1px;
+  width: 3px;
+  background: var(--cinema-accent);
+}
+
+.explore-page .explorer-toast-label {
+  display: block;
+  margin-bottom: 0.42rem;
+  color: var(--cinema-accent-soft);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.explore-page .explorer-toast strong {
+  display: block;
+  color: var(--cinema-paper);
+  font-family: var(--cinema-display);
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  font-weight: 590;
+  line-height: 1.15;
+}
+
+.explore-page .explorer-toast p {
+  margin-top: 0.55rem;
+  color: var(--cinema-paper-dim);
+  font-size: 0.9rem;
+}
+
+.explore-page .explorer-toast-error::before {
+  background: #c77968;
+}
+
 @media (max-width: 1100px) {
   .explore-grid,
   .explore-grid.explore-grid-tight {

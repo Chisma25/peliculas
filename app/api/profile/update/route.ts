@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({
-      message: `Perfil actualizado. Ahora entras como ${user.username}.`,
+      message: "Perfil actualizado.",
       avatarUrl: user.avatarUrl ? getAvatarDeliveryUrl(user.id, user.avatarUrl) : null
     });
   } catch (error) {

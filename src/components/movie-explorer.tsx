@@ -37,8 +37,9 @@ type SearchStatus = "idle" | "loading" | "success" | "error";
 
 type ToastState = {
   tone: "success" | "info" | "error";
+  label: string;
   title: string;
-  body: string;
+  body?: string;
 } | null;
 
 function getButtonLabel(status: PendingResultStatus) {
@@ -194,24 +195,24 @@ export function MovieExplorer() {
             : nextStatus === "already_pending" || nextStatus === "already_watched"
               ? "info"
               : "error",
-        title:
+        label:
           nextStatus === "added"
-            ? `${movie.title} añadida a pendientes`
+            ? "Añadida a pendientes"
             : nextStatus === "already_pending"
-              ? "Esa película ya estaba guardada"
+              ? "Ya estaba en pendientes"
               : nextStatus === "already_watched"
-                ? "Esa película ya figura en vistas"
-                : "No se pudo añadir la película",
-        body:
-          payload.message ??
-          payload.error ??
-          (nextStatus === "added" ? "La hemos dejado preparada en pendientes." : "Prueba otra vez dentro de un momento.")
+                ? "Ya está en vistas"
+                : "No se pudo añadir",
+        title:
+          movie.title,
+        body: nextStatus === "error" ? payload.error ?? payload.message ?? "Prueba otra vez dentro de un momento." : undefined
       });
     } catch {
       setMovieStates((current) => ({ ...current, [movie.id]: "error" }));
       setToast({
         tone: "error",
-        title: "No se pudo añadir la película",
+        label: "No se pudo añadir",
+        title: movie.title,
         body: "Ha fallado la conexión justo al guardarla. Prueba otra vez."
       });
     } finally {
@@ -299,7 +300,7 @@ export function MovieExplorer() {
                 <div className="explorer-card-copy">
                   <div className="explorer-card-meta">
                     <p>{movie.year > 0 ? movie.year : "Año pendiente"}</p>
-                    <span>{visibleGenres.length > 0 ? visibleGenres.join(" / ") : "Metadatos al añadir"}</span>
+                    {visibleGenres.length > 0 ? <span>{visibleGenres.join(" / ")}</span> : null}
                   </div>
 
                   <strong className="explorer-card-title">{movie.title}</strong>
@@ -357,8 +358,9 @@ export function MovieExplorer() {
 
       {toast ? (
         <div className={`explorer-toast explorer-toast-${toast.tone}`} role="status" aria-live="polite">
+          <span className="explorer-toast-label">{toast.label}</span>
           <strong>{toast.title}</strong>
-          <p>{toast.body}</p>
+          {toast.body ? <p>{toast.body}</p> : null}
         </div>
       ) : null}
     </section>
