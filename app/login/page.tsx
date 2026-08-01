@@ -1,5 +1,3 @@
-import "../styles/auth.css";
-
 import { LoginPanel } from "@/components/login-panel";
 
 type LoginPageProps = {

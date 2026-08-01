@@ -1,6 +1,3 @@
-import "../styles/profile.css";
-import "../styles/profile-editorial.css";
-
 import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/components/profile-form";
