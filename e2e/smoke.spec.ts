@@ -25,6 +25,17 @@ test("login stays focused and hides authenticated navigation", async ({ page }) 
   await expect(page.getByRole("link", { name: "Ir al dashboard de Cine Semanal" })).toBeVisible();
 });
 
+test("keeps recovery links comfortably tappable on mobile", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("mobile"), "This check targets the compact mobile layout.");
+
+  await page.goto("/reset-credenciales");
+  const recoveryLink = page.locator('a[href="/login"]');
+  const box = await recoveryLink.boundingBox();
+
+  expect(box).not.toBeNull();
+  expect(box?.height).toBeGreaterThanOrEqual(40);
+});
+
 test("exposes a public, non-cached deployment identity", async ({ request }) => {
   const response = await request.get("/api/version");
   const payload = await response.json();

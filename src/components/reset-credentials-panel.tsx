@@ -9,14 +9,19 @@ export function ResetCredentialsPanel() {
   const [isPending, startTransition] = useTransition();
 
   async function submitReset(formData: FormData) {
-    const response = await fetch("/api/auth/reset-credentials", {
-      method: "POST",
-      body: formData
-    });
+    try {
+      const response = await fetch("/api/auth/reset-credentials", {
+        method: "POST",
+        body: formData
+      });
 
-    const payload = (await response.json()) as { error?: string; message?: string };
-    setIsError(!response.ok);
-    setMessage(payload.message ?? payload.error ?? "Acceso restablecido.");
+      const payload = (await response.json()) as { error?: string; message?: string };
+      setIsError(!response.ok);
+      setMessage(payload.message ?? payload.error ?? "Acceso restablecido.");
+    } catch {
+      setIsError(true);
+      setMessage("No se pudo contactar con el servidor. Inténtalo de nuevo.");
+    }
   }
 
   return (
@@ -67,7 +72,11 @@ export function ResetCredentialsPanel() {
         </form>
 
         {message ? (
-          <div className={`inline-card ${isError ? "error-card" : "success-card"}`}>
+          <div
+            className={`inline-card ${isError ? "error-card" : "success-card"}`}
+            role={isError ? "alert" : "status"}
+            aria-live="polite"
+          >
             <strong>{message}</strong>
           </div>
         ) : null}

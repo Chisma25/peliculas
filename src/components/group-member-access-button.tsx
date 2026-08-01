@@ -1,10 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createPortal } from "react-dom";
 import { useState, useTransition } from "react";
 
-import { useMounted } from "@/lib/use-mounted";
+import { AccessibleDialog } from "@/components/accessible-dialog";
 
 type GroupMemberAccessButtonProps = {
   member: {
@@ -18,44 +17,58 @@ type GroupMemberAccessButtonProps = {
 export function GroupMemberAccessButton({ member }: GroupMemberAccessButtonProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const mounted = useMounted();
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   async function submitUpdate(formData: FormData) {
-    const response = await fetch("/api/admin/users/update", {
-      method: "POST",
-      body: formData
-    });
+    try {
+      const response = await fetch("/api/admin/users/update", {
+        method: "POST",
+        body: formData
+      });
 
-    const payload = (await response.json()) as { error?: string; message?: string };
-    const nextMessage = payload.message ?? payload.error ?? "Acceso actualizado.";
+      const payload = (await response.json()) as { error?: string; message?: string };
+      const nextMessage = payload.message ?? payload.error ?? "Acceso actualizado.";
 
-    setIsError(!response.ok);
-    setMessage(nextMessage);
+      setIsError(!response.ok);
+      setMessage(nextMessage);
 
-    if (response.ok) {
+      if (response.ok) {
+        setIsOpen(false);
+        router.refresh();
+      }
+    } catch {
+      setIsError(true);
+      setMessage("No se pudo contactar con el servidor. Inténtalo de nuevo.");
+    }
+  }
+
+  function closeDialog() {
+    if (!isPending) {
       setIsOpen(false);
-      router.refresh();
     }
   }
 
   const modal =
-    isOpen && mounted
-      ? createPortal(
-          <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby={`member-access-${member.id}`}>
-            <section className="modal-card account-modal-card">
+    isOpen
+      ? (
+          <AccessibleDialog
+            labelledBy={`member-access-${member.id}`}
+            describedBy={`member-access-description-${member.id}`}
+            className="account-modal-card"
+            onClose={closeDialog}
+          >
               <div className="account-modal-header">
                 <div className="account-modal-copy">
                   <p className="eyebrow">Gestión del acceso</p>
                   <h2 id={`member-access-${member.id}`}>{member.name}</h2>
-                  <p className="body-copy">
+                  <p className="body-copy" id={`member-access-description-${member.id}`}>
                     Ajusta el usuario con el que entra y, si hace falta, fija una contraseña nueva sin tocar el resto
                     de su perfil.
                   </p>
                 </div>
-                <button type="button" className="ghost-button" onClick={() => setIsOpen(false)}>
+                <button type="button" className="ghost-button" onClick={closeDialog} disabled={isPending}>
                   Cerrar
                 </button>
               </div>
@@ -83,7 +96,7 @@ export function GroupMemberAccessButton({ member }: GroupMemberAccessButtonProps
                   <input type="password" name="password" placeholder="Solo si quieres cambiarla" autoComplete="new-password" />
                 </label>
                 <div className="modal-actions">
-                  <button type="button" className="secondary-button" onClick={() => setIsOpen(false)}>
+                  <button type="button" className="secondary-button" onClick={closeDialog} disabled={isPending}>
                     Cancelar
                   </button>
                   <button type="submit" className="primary-button" disabled={isPending}>
@@ -93,19 +106,29 @@ export function GroupMemberAccessButton({ member }: GroupMemberAccessButtonProps
               </form>
 
               {message ? (
-                <div className={`inline-card member-card-feedback ${isError ? "error-card" : "success-card"}`}>
+                <div
+                  className={`inline-card member-card-feedback ${isError ? "error-card" : "success-card"}`}
+                  role={isError ? "alert" : "status"}
+                  aria-live="polite"
+                >
                   <strong>{message}</strong>
                 </div>
               ) : null}
-            </section>
-          </div>,
-          document.body
+          </AccessibleDialog>
         )
       : null;
 
   return (
     <>
-      <button type="button" className="ghost-button" onClick={() => setIsOpen(true)}>
+      <button
+        type="button"
+        className="ghost-button"
+        onClick={() => {
+          setMessage("");
+          setIsError(false);
+          setIsOpen(true);
+        }}
+      >
         Gestionar acceso
       </button>
       {modal}

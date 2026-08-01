@@ -23,27 +23,32 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
   const [avatarPreview, setAvatarPreview] = useState(initialAvatarUrl ?? "");
 
   async function submitProfile(formData: FormData) {
-    const response = await fetch("/api/profile/update", {
-      method: "POST",
-      body: formData
-    });
+    try {
+      const response = await fetch("/api/profile/update", {
+        method: "POST",
+        body: formData
+      });
 
-    const payload = (await response.json()) as { avatarUrl?: string | null; error?: string; message?: string };
-    setIsError(!response.ok);
-    setMessage(payload.message ?? payload.error ?? "Perfil actualizado.");
+      const payload = (await response.json()) as { avatarUrl?: string | null; error?: string; message?: string };
+      setIsError(!response.ok);
+      setMessage(payload.message ?? payload.error ?? "Perfil actualizado.");
 
-    if (response.ok) {
-      setAvatarAction("keep");
-      setAvatarDataUrl("");
-      if (avatarInputRef.current) {
-        avatarInputRef.current.value = "";
+      if (response.ok) {
+        setAvatarAction("keep");
+        setAvatarDataUrl("");
+        if (avatarInputRef.current) {
+          avatarInputRef.current.value = "";
+        }
+        window.dispatchEvent(
+          new CustomEvent("cine-semanal:avatar-updated", {
+            detail: { avatarUrl: payload.avatarUrl ?? null }
+          })
+        );
+        router.refresh();
       }
-      window.dispatchEvent(
-        new CustomEvent("cine-semanal:avatar-updated", {
-          detail: { avatarUrl: payload.avatarUrl ?? null }
-        })
-      );
-      router.refresh();
+    } catch {
+      setIsError(true);
+      setMessage("No se pudo contactar con el servidor. Inténtalo de nuevo.");
     }
   }
 

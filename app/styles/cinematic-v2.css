@@ -4390,6 +4390,11 @@ html:has(.cinema-home) {
     display: none;
   }
 
+  .cinema-text-link {
+    min-height: 2.75rem;
+    align-items: center;
+  }
+
   .cinema-opening {
     min-height: calc(100dvh - 5.6rem);
   }

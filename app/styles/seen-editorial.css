@@ -540,6 +540,9 @@ html:has(.seen-page) {
   }
 
   .seen-page-intro-ledger a {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
     justify-self: end;
     margin: 0 0 0.45rem;
   }
