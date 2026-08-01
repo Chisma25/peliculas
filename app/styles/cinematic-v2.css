@@ -1827,7 +1827,7 @@ html:has(.cinema-detail) {
 
 @media (max-width: 680px) {
   .cinema-detail-hero {
-    min-height: calc(100dvh - 5.6rem);
+    min-height: calc(100dvh - 4.65rem);
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 0.42fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -1895,15 +1895,15 @@ html:has(.cinema-detail) {
   .cinema-detail-community {
     min-height: auto;
     padding: 4rem 0.35rem;
-    scroll-margin-top: 5.6rem;
+    scroll-margin-top: 4.65rem;
   }
 
   html:has(.cinema-detail) {
-    scroll-padding-top: 5.6rem;
+    scroll-padding-top: 4.65rem;
   }
 
   .page-shell:has(.cinema-detail) {
-    padding-top: 5.6rem;
+    padding-top: 4.65rem;
   }
 
   .cinema-detail-section-heading,
