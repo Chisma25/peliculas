@@ -176,6 +176,17 @@ test.describe("authenticated Preview smoke tests", () => {
     }
   });
 
+  test("starts a newly selected primary page at the top", async ({ page }) => {
+    await page.goto("/pendientes");
+    await page.evaluate(() => window.scrollTo({ top: 700, behavior: "auto" }));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Vistas" }).click();
+    await page.waitForURL(/\/vistas(?:\?|$)/);
+
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
+
   test("keeps keyboard focus inside the rating dialog and restores it on close", async ({ page }) => {
     await page.goto("/vistas");
     await page.locator('a[href^="/peliculas/"]').first().click();
