@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { CinematicStage } from "@/components/cinematic-stage";
 import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
+import { MarkWatchedControl } from "@/components/mark-watched-control";
 import { NowPlayingPanel, NowPlayingPanelFallback } from "@/components/now-playing-panel";
 import { UpcomingReleasesPanel, UpcomingReleasesPanelFallback } from "@/components/upcoming-releases-panel";
 import { getDashboardOverviewHydrated } from "@/lib/store";
@@ -76,13 +77,7 @@ export default async function HomePage() {
                 {hasWatchedSelection ? (
                   <span className="cinema-viewed-status">Vista por el grupo</span>
                 ) : (
-                  <form action="/api/watch/mark-watched" method="post">
-                    <input type="hidden" name="movieId" value={selectedMovie.id} />
-                    <input type="hidden" name="redirectTo" value="/" />
-                    <button type="submit" className="cinema-secondary-action">
-                      Marcar como vista
-                    </button>
-                  </form>
+                  <MarkWatchedControl movieId={selectedMovie.id} movieTitle={selectedMovie.title} />
                 )}
               </>
             ) : (

@@ -72,7 +72,6 @@ import {
 import { average, formatScore, isQuarterPointScore, safeId, slugify } from "@/lib/utils";
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
-const STATE_CACHE_TTL_MS = 20_000;
 const PAGE_ROUTE_CACHE_TTL_MS = 1000 * 60 * 2;
 const MOVIE_DETAIL_CACHE_TTL_MS = 1000 * 60 * 2;
 const UPCOMING_RELEASES_CACHE_TTL_MS = 1000 * 60 * 15;
@@ -206,10 +205,8 @@ const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
 const profileDataCache = new WeakMap<AppState, Map<string, ProfileData | null>>();
 const profileSummaryCache = new WeakMap<AppState, Map<string, ProfileSummary>>();
 const profileOverviewCache = new WeakMap<AppState, Map<string, ProfileOverview>>();
-let snapshotMemoryCache: TimedCache<AppState | null> | null = null;
 let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 let snapshotUsersWithAvatarsMemoryCache: TimedCache<User[]> | null = null;
-const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedStateCollections>>();
 let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null = null;
 let nowPlayingMemoryCache: TimedCache<NowPlayingSuggestion[]> | null = null;
 let databaseReadBackoffUntil = 0;
@@ -259,13 +256,6 @@ function readTimedCache<T>(entry: TimedCache<T> | null | undefined) {
   return cloneState(entry.value);
 }
 
-function writeTimedCache<T>(value: T): TimedCache<T> {
-  return {
-    value: cloneState(value),
-    expiresAt: Date.now() + STATE_CACHE_TTL_MS
-  };
-}
-
 function writeTimedCacheWithTtl<T>(value: T, ttlMs: number): TimedCache<T> {
   return {
     value: cloneState(value),
@@ -274,10 +264,8 @@ function writeTimedCacheWithTtl<T>(value: T, ttlMs: number): TimedCache<T> {
 }
 
 function invalidatePersistentStateCache() {
-  snapshotMemoryCache = null;
   snapshotUsersMemoryCache = null;
   snapshotUsersWithAvatarsMemoryCache = null;
-  normalizedCollectionsCache.clear();
   upcomingReleasesMemoryCache = null;
   nowPlayingMemoryCache = null;
   groupPageDataMemoryCache = null;
@@ -1441,30 +1429,6 @@ async function loadSnapshotStateUncached() {
   }
 }
 
-async function loadSnapshotStateCached() {
-  const cached = readTimedCache(snapshotMemoryCache);
-  if (cached) {
-    return cached;
-  }
-
-  const snapshot = await loadSnapshotStateUncached();
-  snapshotMemoryCache = writeTimedCache(snapshot);
-  return snapshot ? cloneState(snapshot) : null;
-}
-
-const loadSnapshotStateForRequest = cache(async () => loadSnapshotStateCached());
-
-async function loadNormalizedCollectionsCached(groupId: string) {
-  const cached = readTimedCache(normalizedCollectionsCache.get(groupId));
-  if (cached) {
-    return cached;
-  }
-
-  const collections = await loadNormalizedStateCollections(groupId);
-  normalizedCollectionsCache.set(groupId, writeTimedCache(collections));
-  return cloneState(collections);
-}
-
 async function loadDatabaseStateUncached() {
   if (!shouldAttemptDatabaseRead()) {
     return null;
@@ -1486,31 +1450,6 @@ async function loadDatabaseStateUncached() {
     return ensureStateIntegrity(mergeNormalizedState(baseState, normalizedCollections));
   } catch (error) {
     markDatabaseReadFailure("normalized state bootstrap", error);
-    return null;
-  }
-}
-
-async function loadDatabaseState() {
-  if (!shouldAttemptDatabaseRead()) {
-    return null;
-  }
-
-  try {
-    await ensurePreviewDataHygiene();
-    const snapshotState = await loadSnapshotStateForRequest();
-    if (!snapshotState && shouldFailClosedOnDatabaseError()) {
-      failClosedAfterDatabaseReadError();
-    }
-    const baseState = snapshotState ?? loadFallbackState();
-    const normalizedCollections = await loadNormalizedCollectionsCached(baseState.group.id);
-    if (!snapshotState && !hasNormalizedDatabaseState(normalizedCollections)) {
-      return null;
-    }
-    markDatabaseReadHealthy();
-
-    return ensureStateIntegrity(mergeNormalizedState(cloneState(baseState), normalizedCollections));
-  } catch (error) {
-    markDatabaseReadFailure("normalized state read", error);
     return null;
   }
 }
@@ -1580,17 +1519,25 @@ async function loadAppStateUncached() {
 }
 
 async function loadAppStateForRead() {
-  const liveState = readTimedCache(liveStateMemoryCache);
-  if (liveState) {
-    return liveState;
+  const usesDatabase = shouldUseDatabase();
+  const shouldUseMemoryCache = shouldUseProcessLocalMutableCache(usesDatabase);
+
+  if (shouldUseMemoryCache) {
+    const liveState = readTimedCache(liveStateMemoryCache);
+    if (liveState) {
+      return liveState;
+    }
   }
 
   if (shouldAttemptDatabaseWrite()) {
     await flushDeferredDatabaseWrites();
   }
 
-  if (shouldUseDatabase()) {
-    const databaseState = await loadDatabaseState();
+  if (usesDatabase) {
+    // A mutation and its following render can land on different Vercel
+    // instances. Read the shared database once per request so an instance's
+    // process-local cache can never keep the weekly selection stale.
+    const databaseState = await loadDatabaseStateUncached();
     if (databaseState) {
       rememberLiveState(databaseState);
       return databaseState;

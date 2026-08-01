@@ -32,6 +32,9 @@ export async function POST(request: Request) {
     revalidatePath("/");
     revalidatePath("/vistas");
     revalidatePath("/pendientes");
+    if (request.headers.get("accept")?.includes("application/json")) {
+      return NextResponse.json({ status: "watched" });
+    }
     return NextResponse.redirect(new URL(redirectTo, request.url), 303);
   } catch (error) {
     return operationalErrorResponse(error, {

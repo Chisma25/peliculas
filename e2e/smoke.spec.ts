@@ -220,6 +220,23 @@ test.describe("authenticated Preview smoke tests", () => {
     expect(routeRequests).toEqual([]);
   });
 
+  test("confirms a watched weekly movie without leaving the dashboard unchanged", async ({ page }) => {
+    await page.route("**/api/watch/mark-watched", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "watched" })
+      });
+    });
+
+    await page.goto("/");
+    const markWatchedButton = page.getByRole("button", { name: /^Marcar .+ como vista$/ });
+    test.skip((await markWatchedButton.count()) === 0, "The current weekly selection is already watched or empty.");
+
+    await markWatchedButton.click();
+    await expect(page.getByText("Vista por el grupo", { exact: true })).toBeVisible();
+  });
+
   test("keeps keyboard focus inside the rating dialog and restores it on close", async ({ page }) => {
     await page.goto("/vistas");
     await page.locator('a[href^="/peliculas/"]').first().click();

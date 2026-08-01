@@ -388,6 +388,12 @@ body {
   display: inline-flex;
 }
 
+.cinema-watch-control {
+  display: inline-grid;
+  justify-items: start;
+  gap: 0.65rem;
+}
+
 .cinema-primary-action,
 .cinema-secondary-action {
   min-height: 3.2rem;
@@ -437,6 +443,21 @@ body {
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
+}
+
+.cinema-watch-error {
+  max-width: 32rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid #c77968;
+  color: #d9aaa0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.cinema-secondary-action:disabled {
+  cursor: wait;
+  opacity: 0.62;
+  transform: none;
 }
 
 .cinema-opening-ledger {
@@ -1411,6 +1432,7 @@ body {
   .cinema-opening-actions,
   .cinema-opening-actions > *,
   .cinema-opening-actions form,
+  .cinema-watch-control,
   .cinema-opening-actions button {
     width: 100%;
   }
