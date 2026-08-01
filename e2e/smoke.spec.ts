@@ -153,11 +153,17 @@ test.describe("authenticated Preview smoke tests", () => {
     await page.getByLabel("Abrir menÃº de usuario").click();
 
     const headerBox = await page.locator(".site-header").boundingBox();
-    const menuBox = await page.locator(".user-chip-actions").boundingBox();
+    const menu = page.locator(".user-chip-actions");
+    const menuBox = await menu.boundingBox();
     const edgeDelta = (menuBox?.y ?? 0) - ((headerBox?.y ?? 0) + (headerBox?.height ?? 0));
 
     expect(edgeDelta).toBeGreaterThanOrEqual(-2);
     expect(edgeDelta).toBeLessThanOrEqual(0);
+
+    await page.waitForTimeout(250);
+    const settledMenuBox = await menu.boundingBox();
+    expect(settledMenuBox?.x).toBeCloseTo(menuBox?.x ?? 0, 1);
+    expect(settledMenuBox?.y).toBeCloseTo(menuBox?.y ?? 0, 1);
   });
 
   test("uses native lazy-loaded images for poster collections", async ({ page }) => {

@@ -86,6 +86,8 @@ body {
   box-shadow: none;
 }
 
+.site-header .user-menu,
+.site-header .user-menu:hover,
 .site-header .user-menu[open] {
   transform: none;
 }
