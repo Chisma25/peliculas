@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ChangeEvent, useState, useTransition } from "react";
+import { ChangeEvent, useRef, useState, useTransition } from "react";
 
 import { UserAvatar } from "@/components/user-avatar";
 
@@ -13,6 +13,7 @@ type ProfileFormProps = {
 
 export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: ProfileFormProps) {
   const router = useRouter();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -34,6 +35,9 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
     if (response.ok) {
       setAvatarAction("keep");
       setAvatarDataUrl("");
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = "";
+      }
       window.dispatchEvent(
         new CustomEvent("cine-semanal:avatar-updated", {
           detail: { avatarUrl: payload.avatarUrl ?? null }
@@ -108,7 +112,15 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
           <div className="profile-avatar-controls">
             <label className="avatar-upload-label">
               <span>Elegir imagen</span>
-              <input type="file" accept="image/*" onChange={handleAvatarChange} />
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onClick={(event) => {
+                  event.currentTarget.value = "";
+                }}
+                onChange={handleAvatarChange}
+              />
             </label>
             <p className="muted-copy">PNG o JPG de hasta 1,2 MB.</p>
             {avatarAction !== "keep" ? (

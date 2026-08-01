@@ -428,7 +428,7 @@ video {
 
 .user-chip-actions {
   position: fixed;
-  top: 4.85rem;
+  top: 4.35rem;
   right: clamp(0.35rem, 0.8vw, 0.75rem);
   z-index: 30;
   display: none;
