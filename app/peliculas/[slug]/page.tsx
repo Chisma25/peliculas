@@ -35,7 +35,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
     <article className="cinema-detail">
       <DirectionalChapterAssist />
 
-      <CinematicStage className="cinema-detail-hero" labelledBy="movie-title">
+      <CinematicStage id="pelicula-portada" className="cinema-detail-hero" labelledBy="movie-title" data-scroll-chapter>
         {artwork ? (
           <div className="cinema-detail-backdrop" style={{ backgroundImage: `url(${artwork})` }} aria-hidden="true" />
         ) : null}
@@ -124,19 +124,9 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 </a>
               ) : null}
             </div>
-          </aside>
 
-          <div className="cinema-detail-story">
-            <div className="cinema-detail-synopsis">
-              <p className="cinema-section-number">Sinopsis</p>
-              <p>{movie.synopsis}</p>
-            </div>
-
-            <div className="cinema-detail-context">
-              <div>
-                <p className="cinema-section-number">Reparto principal</p>
-                <h3>En pantalla</h3>
-              </div>
+            <div className="cinema-detail-cast-block">
+              <p className="cinema-section-number">Reparto principal</p>
               <div className="cinema-detail-cast" aria-label="Reparto">
                 {movie.cast.length > 0 ? (
                   movie.cast.map((member, index) => (
@@ -150,6 +140,14 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 )}
               </div>
             </div>
+          </aside>
+
+          <div className="cinema-detail-story">
+            <div className="cinema-detail-synopsis">
+              <p className="cinema-section-number">Sinopsis</p>
+              <p>{movie.synopsis}</p>
+            </div>
+
           </div>
         </div>
       </section>

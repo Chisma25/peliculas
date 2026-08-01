@@ -1516,12 +1516,22 @@ body {
   gap: 0;
 }
 
+html:has(.cinema-detail) {
+  scroll-padding-top: 4.85rem;
+}
+
+.page-shell:has(.cinema-detail) {
+  padding-top: 4.85rem;
+  padding-bottom: 0;
+}
+
 .cinema-detail-hero {
-  min-height: 100dvh;
+  min-height: calc(100dvh - 4.85rem);
   grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.34fr);
   grid-template-rows: auto minmax(0, 1fr);
-  padding: calc(4.85rem + clamp(1.35rem, 3vw, 3.5rem)) clamp(1.35rem, 3vw, 3.5rem) clamp(1.35rem, 3vw, 3.5rem);
+  padding: clamp(1.35rem, 3vw, 3.5rem);
   border-bottom: 1px solid var(--cinema-line);
+  scroll-margin-top: 4.85rem;
 }
 
 .cinema-detail-shade {
@@ -1684,14 +1694,32 @@ body {
   border-top: 1px solid var(--cinema-line);
 }
 
+.cinema-detail-cast-block {
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--cinema-line);
+}
+
+.cinema-detail-cast-block .cinema-detail-cast {
+  grid-template-columns: 1fr;
+  margin-top: 0.9rem;
+}
+
+.cinema-detail-cast-block .cinema-detail-cast span:nth-child(odd),
+.cinema-detail-cast-block .cinema-detail-cast span:nth-child(even) {
+  padding-right: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+
 .cinema-detail-story {
   gap: clamp(4rem, 8vw, 7rem);
 }
 
 .cinema-detail-synopsis > p:last-child {
-  max-width: 31ch;
-  font-size: clamp(1.8rem, 3.25vw, 3.2rem);
-  line-height: 1.17;
+  max-width: 46ch;
+  font-size: clamp(1.4rem, 2vw, 2.05rem);
+  line-height: 1.4;
 }
 
 .cinema-detail-context {
@@ -1799,11 +1827,11 @@ body {
 
 @media (max-width: 680px) {
   .cinema-detail-hero {
-    min-height: 100dvh;
+    min-height: calc(100dvh - 5.6rem);
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 0.42fr);
     grid-template-rows: auto minmax(0, 1fr);
-    padding: calc(5.6rem + 1rem) 1rem 1rem;
+    padding: 1rem;
   }
 
   .cinema-detail-back {
@@ -1868,6 +1896,14 @@ body {
     min-height: auto;
     padding: 4rem 0.35rem;
     scroll-margin-top: 5.6rem;
+  }
+
+  html:has(.cinema-detail) {
+    scroll-padding-top: 5.6rem;
+  }
+
+  .page-shell:has(.cinema-detail) {
+    padding-top: 5.6rem;
   }
 
   .cinema-detail-section-heading,

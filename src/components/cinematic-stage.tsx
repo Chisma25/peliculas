@@ -1,15 +1,15 @@
 "use client";
 
-import type { PointerEvent, ReactNode } from "react";
+import type { ComponentPropsWithoutRef, PointerEvent, ReactNode } from "react";
 import { useRef } from "react";
 
 type CinematicStageProps = {
   children: ReactNode;
   className?: string;
   labelledBy?: string;
-};
+} & Omit<ComponentPropsWithoutRef<"section">, "children" | "className" | "aria-labelledby">;
 
-export function CinematicStage({ children, className = "", labelledBy }: CinematicStageProps) {
+export function CinematicStage({ children, className = "", labelledBy, ...sectionProps }: CinematicStageProps) {
   const stageRef = useRef<HTMLElement>(null);
 
   function handlePointerMove(event: PointerEvent<HTMLElement>) {
@@ -37,6 +37,7 @@ export function CinematicStage({ children, className = "", labelledBy }: Cinemat
 
   return (
     <section
+      {...sectionProps}
       ref={stageRef}
       className={className}
       aria-labelledby={labelledBy}
