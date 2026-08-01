@@ -38,6 +38,17 @@ describe("directional chapter assistance", () => {
     ).toBeNull();
   });
 
+  it("corrects a short overshoot after crossing a chapter boundary", () => {
+    expect(
+      getDirectionalSnapTarget({
+        currentPosition: 688,
+        direction: 1,
+        snapPoints,
+        threshold: 110
+      })
+    ).toBe(640);
+  });
+
   it("only assists upwards when the previous chapter is already close", () => {
     expect(
       getDirectionalSnapTarget({
