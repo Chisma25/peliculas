@@ -1564,6 +1564,8 @@ html:has(.cinema-detail) {
 }
 
 .cinema-detail-title-block {
+  grid-column: 1;
+  grid-row: 2;
   max-width: min(68rem, 74vw);
   padding-bottom: clamp(1rem, 3.5vw, 4rem);
 }
@@ -1609,9 +1611,11 @@ html:has(.cinema-detail) {
   width: min(100%, 20rem);
   height: auto;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 0.25rem 1rem;
-  padding: 1rem 0 0.2rem;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0.7rem 1.25rem;
+  min-height: 6.25rem;
+  padding: 1rem 0.25rem 0.85rem 0;
   border: 0;
   border-top: 1px solid rgba(233, 226, 213, 0.25);
   border-radius: 0;
@@ -1621,19 +1625,23 @@ html:has(.cinema-detail) {
 }
 
 .cinema-detail-score span {
-  align-self: center;
+  align-self: end;
   font-size: 0.62rem;
 }
 
 .cinema-detail-score strong {
   grid-column: 2;
   grid-row: 1 / 3;
+  align-self: center;
+  padding-right: 0.08em;
   font-size: clamp(3rem, 5vw, 5.5rem);
   letter-spacing: -0.07em;
+  line-height: 0.86;
 }
 
 .cinema-detail-score small {
   grid-column: 1;
+  align-self: start;
   font-size: 0.58rem;
 }
 
@@ -1748,7 +1756,10 @@ html:has(.cinema-detail) {
 .cinema-detail-ratings-summary {
   display: grid;
   justify-items: end;
-  gap: 0.25rem;
+  align-content: center;
+  gap: 0.8rem;
+  min-width: 14rem;
+  padding: 0.35rem 0.45rem 0.3rem 1.5rem;
 }
 
 .cinema-detail-ratings-summary strong {
@@ -1757,7 +1768,8 @@ html:has(.cinema-detail) {
   font-size: clamp(3.5rem, 6vw, 6.5rem);
   font-weight: 400;
   letter-spacing: -0.07em;
-  line-height: 0.78;
+  padding-right: 0.08em;
+  line-height: 0.86;
 }
 
 .cinema-detail-ratings-summary span {
