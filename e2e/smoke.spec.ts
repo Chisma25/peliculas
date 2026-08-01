@@ -148,6 +148,18 @@ test.describe("authenticated Preview smoke tests", () => {
     expect(headingBox?.y ?? 0).toBeGreaterThan(headerBox?.y ? headerBox.y + headerBox.height : headerBox?.height ?? 0);
   });
 
+  test("attaches the user menu to the lower edge of the header", async ({ page }) => {
+    await page.goto("/perfil");
+    await page.getByLabel("Abrir menÃº de usuario").click();
+
+    const headerBox = await page.locator(".site-header").boundingBox();
+    const menuBox = await page.locator(".user-chip-actions").boundingBox();
+    const edgeDelta = (menuBox?.y ?? 0) - ((headerBox?.y ?? 0) + (headerBox?.height ?? 0));
+
+    expect(edgeDelta).toBeGreaterThanOrEqual(-2);
+    expect(edgeDelta).toBeLessThanOrEqual(0);
+  });
+
   test("uses native lazy-loaded images for poster collections", async ({ page }) => {
     await page.goto("/pendientes");
 

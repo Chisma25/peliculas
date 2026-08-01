@@ -37,6 +37,7 @@ body {
 }
 
 .site-header {
+  --cinema-header-height: 4.91rem;
   padding: 0.65rem clamp(0.8rem, 2vw, 2rem);
   border-bottom-color: rgba(233, 226, 213, 0.12);
   background: rgba(15, 15, 13, 0.78);
@@ -85,7 +86,12 @@ body {
   box-shadow: none;
 }
 
+.site-header .user-menu[open] {
+  transform: none;
+}
+
 .site-header .user-chip-actions {
+  top: calc(var(--cinema-header-height) - 1px);
   width: min(21rem, calc(100vw - 1rem));
   padding: 1.1rem 1.2rem 1rem;
   border-color: rgba(233, 226, 213, 0.17);
@@ -97,6 +103,12 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.045),
     0 1.5rem 4.5rem rgba(5, 5, 4, 0.46);
   backdrop-filter: blur(20px) saturate(0.72);
+}
+
+@media (max-width: 960px) {
+  .site-header {
+    --cinema-header-height: 4.65rem;
+  }
 }
 
 .site-header .user-menu-card-copy,
