@@ -687,6 +687,13 @@ body {
     linear-gradient(0deg, rgba(12, 12, 10, 0.8), transparent 62%);
 }
 
+.cinema-detail-backdrop--poster-fallback {
+  inset: -10%;
+  background-position: center 38%;
+  filter: blur(42px) saturate(0.7) contrast(1.04) brightness(0.74);
+  transform: translate3d(var(--cinema-shift-x), var(--cinema-shift-y), 0) scale(1.22);
+}
+
 .cinema-detail-hero::after {
   content: "";
   position: absolute;

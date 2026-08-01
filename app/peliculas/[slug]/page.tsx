@@ -7,6 +7,7 @@ import { DirectionalChapterAssist } from "@/components/directional-chapter-assis
 import { PosterImage } from "@/components/poster-image";
 import { RatingPanel } from "@/components/rating-panel";
 import { UserAvatar } from "@/components/user-avatar";
+import { getMovieDetailArtwork } from "@/lib/movie-artwork";
 import { getMovieDetailDataHydrated, getSessionUser } from "@/lib/store";
 import { formatLongDate, formatMovieCountry, formatMovieLanguage, formatScore } from "@/lib/utils";
 
@@ -28,7 +29,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
   const ratingByUserId = new Map(ratings.map((rating) => [rating.userId, rating]));
   const ratedMembers = members.filter((member) => ratingByUserId.has(member.id));
   const unratedMembers = members.filter((member) => !ratingByUserId.has(member.id));
-  const artwork = movie.backdrop || movie.posterUrl;
+  const artwork = getMovieDetailArtwork(movie);
   const fallbackHref = watchEntry ? "/vistas" : "/pendientes";
 
   return (
@@ -36,8 +37,12 @@ export default async function MoviePage({ params }: MoviePageProps) {
       <DirectionalChapterAssist />
 
       <CinematicStage id="pelicula-portada" className="cinema-detail-hero" labelledBy="movie-title" data-scroll-chapter>
-        {artwork ? (
-          <div className="cinema-detail-backdrop" style={{ backgroundImage: `url(${artwork})` }} aria-hidden="true" />
+        {artwork.backdrop ? (
+          <div
+            className={`cinema-detail-backdrop${artwork.usesPosterFallback ? " cinema-detail-backdrop--poster-fallback" : ""}`}
+            style={{ backgroundImage: `url(${artwork.backdrop})` }}
+            aria-hidden="true"
+          />
         ) : null}
         <div className="cinema-detail-shade" />
         <div className="cinema-detail-grain" aria-hidden="true" />
@@ -58,7 +63,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
 
         <div className="cinema-detail-art">
           <figure className="cinema-detail-poster">
-            <PosterImage src={movie.posterUrl || movie.backdrop} loading="eager" />
+            <PosterImage src={artwork.poster} loading="eager" />
             <figcaption>{movie.title}</figcaption>
           </figure>
 

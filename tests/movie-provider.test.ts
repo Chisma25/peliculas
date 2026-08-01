@@ -17,7 +17,7 @@ describe("TMDb movie mapping", () => {
     expect(movie).toMatchObject({
       originalTitle: "Perfect Days",
       language: "Japonés",
-      metadataVersion: 2,
+      metadataVersion: 3,
       popularity: 27.4,
       voteCount: 1_400
     });
@@ -35,6 +35,6 @@ describe("TMDb movie mapping", () => {
       ]
     });
 
-    expect(movie).toMatchObject({ language: "Inglés", metadataVersion: 2 });
+    expect(movie).toMatchObject({ language: "Inglés", metadataVersion: 3 });
   });
 });

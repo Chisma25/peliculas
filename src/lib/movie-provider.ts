@@ -8,7 +8,7 @@ const TMDB_SEARCH_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const TMDB_DETAILS_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const TMDB_UPCOMING_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const TMDB_NOW_PLAYING_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
-export const TMDB_METADATA_VERSION = 2;
+export const TMDB_METADATA_VERSION = 3;
 const tmdbMemoryCache = new Map<string, { payload: unknown; expiresAt: number }>();
 
 const TITLE_SEARCH_OVERRIDES: Record<string, { tmdbId?: string; search?: string; year?: number }> = {
