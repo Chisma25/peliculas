@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { PrefetchLink } from "@/components/prefetch-link";
 import { PrimaryNav } from "@/components/primary-nav";
@@ -15,6 +15,7 @@ type SiteHeaderProps = {
 
 export function SiteHeader({ user, deploymentVersion }: SiteHeaderProps) {
   const userMenuRef = useRef<HTMLDetailsElement>(null);
+  const [avatarOverride, setAvatarOverride] = useState<{ active: boolean; avatarUrl?: string }>({ active: false });
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -30,11 +31,21 @@ export function SiteHeader({ user, deploymentVersion }: SiteHeaderProps) {
       }
     }
 
+    function handleAvatarUpdated(event: Event) {
+      const detail = (event as CustomEvent<{ avatarUrl?: string | null }>).detail;
+      setAvatarOverride({
+        active: true,
+        avatarUrl: detail?.avatarUrl ?? undefined
+      });
+    }
+
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("cine-semanal:avatar-updated", handleAvatarUpdated);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("cine-semanal:avatar-updated", handleAvatarUpdated);
     };
   }, []);
 
@@ -60,7 +71,14 @@ export function SiteHeader({ user, deploymentVersion }: SiteHeaderProps) {
 
           <details ref={userMenuRef} className="user-chip user-menu">
             <summary className="user-menu-summary" aria-label="Abrir menú de usuario">
-              <UserAvatar user={{ name: user.name, avatarUrl: user.avatarUrl }} size="sm" className="user-chip-avatar" />
+              <UserAvatar
+                user={{
+                  name: user.name,
+                  avatarUrl: avatarOverride.active ? avatarOverride.avatarUrl : user.avatarUrl
+                }}
+                size="sm"
+                className="user-chip-avatar"
+              />
               <span className="user-menu-status" aria-hidden="true" />
             </summary>
             <div className="user-chip-actions">

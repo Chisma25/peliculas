@@ -27,13 +27,18 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
       body: formData
     });
 
-    const payload = (await response.json()) as { error?: string; message?: string };
+    const payload = (await response.json()) as { avatarUrl?: string | null; error?: string; message?: string };
     setIsError(!response.ok);
     setMessage(payload.message ?? payload.error ?? "Perfil actualizado.");
 
     if (response.ok) {
       setAvatarAction("keep");
       setAvatarDataUrl("");
+      window.dispatchEvent(
+        new CustomEvent("cine-semanal:avatar-updated", {
+          detail: { avatarUrl: payload.avatarUrl ?? null }
+        })
+      );
       router.refresh();
     }
   }
@@ -155,14 +160,17 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
               {isPending ? "Guardando..." : "Guardar cambios"}
             </button>
           </div>
+
+          {message ? (
+            <div
+              className={`profile-form-message ${isError ? "error-card" : "success-card"}`}
+              role={isError ? "alert" : "status"}
+            >
+              <strong>{message}</strong>
+            </div>
+          ) : null}
         </div>
       </form>
-
-      {message ? (
-        <div className={`profile-form-message ${isError ? "error-card" : "success-card"}`}>
-          <strong>{message}</strong>
-        </div>
-      ) : null}
       <nav className="cinema-chapter-nav" aria-label="Navegación entre secciones">
         <a href="#valoraciones-destacadas" aria-label="Subir a valoraciones destacadas">↑</a>
       </nav>

@@ -3200,8 +3200,12 @@ export async function updateUserProfile(
   user.avatarSeed = slugify(nextName);
   if (input.avatarAction === "remove") {
     user.avatarUrl = undefined;
-  } else if (input.avatarAction === "replace" && input.avatarDataUrl?.trim()) {
-    user.avatarUrl = sanitizeAvatarDataUrl(input.avatarDataUrl);
+  } else if (input.avatarAction === "replace") {
+    const nextAvatar = sanitizeAvatarDataUrl(input.avatarDataUrl);
+    if (!nextAvatar) {
+      throw new Error("No se recibió la nueva imagen del avatar.");
+    }
+    user.avatarUrl = nextAvatar;
   }
   if (input.password?.trim()) {
     validatePassword(input.password.trim());
