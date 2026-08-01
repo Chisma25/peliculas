@@ -50,9 +50,9 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
   return (
     <section className="login-screen" aria-labelledby="login-title">
       <div className="login-cinema-copy" aria-hidden="true">
-        <p className="cinema-kicker">Acceso privado</p>
+        <p className="cinema-kicker">Filmoteca privada</p>
         <h2>Cine Semanal</h2>
-        <p>Películas, notas y planes del grupo.</p>
+        <p>Películas, notas y pendientes del grupo.</p>
         <div className="login-cinema-reel">
           <span>Películas</span>
           <i />
@@ -66,7 +66,7 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
         <div className="login-form-heading">
           <span className="login-form-led" aria-hidden="true" />
           <div>
-            <p className="eyebrow">Acceso del grupo</p>
+            <p className="eyebrow">Tu cuenta</p>
             <h1 id="login-title">Iniciar sesión</h1>
           </div>
         </div>
@@ -75,13 +75,11 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
           {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
           <label>
             <span>Usuario</span>
-            <input type="text" name="username" required autoComplete="username" />
-            <small>Usa tu usuario asignado o tu nombre visible.</small>
+            <input type="text" name="username" placeholder="Tu usuario" required autoComplete="username" />
           </label>
           <label>
             <span>Contraseña</span>
-            <input type="password" name="password" required autoComplete="current-password" />
-            <small>Mínimo 8 caracteres si la cambias desde el perfil.</small>
+            <input type="password" name="password" placeholder="Tu contraseña" required autoComplete="current-password" />
           </label>
           <button type="submit" className="primary-button" disabled={isPending}>
             {isPending ? "Entrando..." : "Entrar"}
@@ -96,7 +94,7 @@ export function LoginPanel({ nextPath }: LoginPanelProps) {
 
         <div className="login-panel-reset">
           <Link href="/reset-credenciales" className="ghost-button">
-            Reset de emergencia
+            ¿No puedes entrar?
           </Link>
         </div>
       </div>

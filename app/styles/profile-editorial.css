@@ -557,6 +557,34 @@ html:has(.profile-editorial) {
   align-items: center;
 }
 
+.profile-page-stack > .profile-settings-panel .profile-form-body {
+  display: grid;
+  gap: clamp(1.5rem, 3vh, 2.5rem);
+  align-self: stretch;
+  align-content: center;
+}
+
+.profile-page-stack > .profile-settings-panel .profile-form-group {
+  display: grid;
+  gap: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--profile-line);
+}
+
+.profile-page-stack > .profile-settings-panel .profile-form-group-title {
+  margin: 0;
+  color: var(--profile-accent);
+  font-size: 0.67rem;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.profile-page-stack > .profile-settings-panel .profile-form-grid input {
+  color: var(--profile-paper);
+  font-size: 1rem;
+}
+
 .profile-page-stack > .profile-settings-panel .profile-avatar-editor {
   display: grid;
   grid-template-columns: 1fr;
@@ -569,7 +597,8 @@ html:has(.profile-editorial) {
 }
 
 .profile-page-stack > .profile-settings-panel .profile-form-actions {
-  grid-column: 2;
+  grid-column: auto;
+  justify-content: flex-start;
 }
 
 .profile-page-stack > .profile-settings-panel .avatar-upload-label {

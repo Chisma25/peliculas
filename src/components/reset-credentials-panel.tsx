@@ -22,13 +22,12 @@ export function ResetCredentialsPanel() {
   return (
     <section className="reset-screen" aria-labelledby="reset-title">
       <header className="reset-cinema-copy">
-        <p className="cinema-kicker">Recuperar cuenta</p>
-        <h1 id="reset-title">Restablecer acceso</h1>
+        <p className="cinema-kicker">Acceso</p>
+        <h1 id="reset-title">Recuperar cuenta</h1>
         <p className="body-copy">
-          Esta pantalla es solo para emergencias. Necesitas el código de administración del grupo para fijar un nuevo
-          usuario y una nueva contraseña.
+          Usa el código de administración del grupo para elegir un nuevo usuario y una nueva contraseña.
         </p>
-        <span>Uso excepcional</span>
+        <span>Solo miembros del grupo</span>
       </header>
 
       <div className="reset-form-panel">
@@ -40,22 +39,28 @@ export function ResetCredentialsPanel() {
             })
           }
         >
-          <label>
-            Código de administración
-            <input type="password" name="adminCode" placeholder="Código del grupo" required autoComplete="one-time-code" />
-          </label>
-          <label>
-            Usuario actual o nombre visible
-            <input type="text" name="identifier" placeholder="Isma o Ismael Díaz" required />
-          </label>
-          <label>
-            Nuevo usuario
-            <input type="text" name="username" placeholder="isma" required autoComplete="username" />
-          </label>
-          <label>
-            Nueva contraseña
-            <input type="password" name="password" placeholder="Nueva contraseña" required autoComplete="new-password" />
-          </label>
+          <div className="reset-form-group">
+            <p className="reset-form-step">Identifica tu cuenta</p>
+            <label>
+              Código de administración
+              <input type="password" name="adminCode" placeholder="Código del grupo" required autoComplete="one-time-code" />
+            </label>
+            <label>
+              Usuario actual o nombre visible
+              <input type="text" name="identifier" placeholder="Tu usuario o nombre" required />
+            </label>
+          </div>
+          <div className="reset-form-group">
+            <p className="reset-form-step">Nuevas credenciales</p>
+            <label>
+              Nuevo usuario
+              <input type="text" name="username" placeholder="Nuevo usuario" required autoComplete="username" />
+            </label>
+            <label>
+              Nueva contraseña
+              <input type="password" name="password" placeholder="Nueva contraseña" required autoComplete="new-password" />
+            </label>
+          </div>
           <button type="submit" className="primary-button" disabled={isPending}>
             {isPending ? "Restableciendo..." : "Restablecer acceso"}
           </button>

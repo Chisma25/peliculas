@@ -79,7 +79,7 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
       <div className="profile-section-heading">
         <div>
           <p className="cinema-kicker">Ajustes</p>
-          <h2 id="profile-settings-title">Perfil y acceso</h2>
+          <h2 id="profile-settings-title">Editar perfil</h2>
         </div>
       </div>
 
@@ -112,31 +112,42 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
           </div>
         </div>
 
-        <div className="profile-form-grid">
-          <label>
-            Nombre visible
-            <input
-              type="text"
-              name="name"
-              value={draftName}
-              onChange={(event) => setDraftName(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Usuario
-            <input type="text" name="username" defaultValue={initialUsername} required autoComplete="username" />
-          </label>
-          <label className="profile-form-wide">
-            Nueva contraseña
-            <input type="password" name="password" placeholder="Solo si quieres cambiarla" autoComplete="new-password" />
-          </label>
-        </div>
+        <div className="profile-form-body">
+          <div className="profile-form-group">
+            <p className="profile-form-group-title">Identidad</p>
+            <div className="profile-form-grid">
+              <label>
+                Nombre visible
+                <input
+                  type="text"
+                  name="name"
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Usuario
+                <input type="text" name="username" defaultValue={initialUsername} required autoComplete="username" />
+              </label>
+            </div>
+          </div>
 
-        <div className="profile-form-actions">
-          <button type="submit" className="primary-button" disabled={isPending}>
-            {isPending ? "Guardando..." : "Guardar cambios"}
-          </button>
+          <div className="profile-form-group">
+            <p className="profile-form-group-title">Acceso</p>
+            <div className="profile-form-grid">
+              <label className="profile-form-wide">
+                Nueva contraseña
+                <input type="password" name="password" placeholder="Déjalo vacío para mantener la actual" autoComplete="new-password" />
+              </label>
+            </div>
+          </div>
+
+          <div className="profile-form-actions">
+            <button type="submit" className="primary-button" disabled={isPending}>
+              {isPending ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </div>
         </div>
       </form>
 

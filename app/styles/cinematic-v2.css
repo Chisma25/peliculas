@@ -2319,6 +2319,8 @@ textarea {
   color: var(--cinema-paper-soft);
   font-size: 0.76rem;
   font-weight: 680;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .login-form label small {
@@ -2336,6 +2338,14 @@ textarea {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+  color: var(--cinema-paper);
+  font-size: 1rem;
+  text-transform: none;
+}
+
+.login-form input::placeholder,
+.reset-form input::placeholder {
+  color: rgba(233, 226, 213, 0.28);
 }
 
 .login-form input:focus {
@@ -2357,6 +2367,10 @@ textarea {
   font-size: 0.65rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.login-panel-reset .ghost-button:hover {
+  color: var(--cinema-accent-soft);
 }
 
 .reset-screen {
@@ -2433,7 +2447,24 @@ textarea {
 .reset-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.5rem 1rem;
+  gap: clamp(1.5rem, 4vw, 4rem);
+}
+
+.reset-form-group {
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+  padding-top: 1rem;
+  border-top: 1px solid var(--cinema-line);
+}
+
+.reset-form-step {
+  margin: 0 0 0.35rem;
+  color: var(--cinema-accent-soft);
+  font-size: 0.64rem;
+  font-weight: 750;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
 }
 
 .reset-form label {
@@ -2454,6 +2485,10 @@ textarea {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+  color: var(--cinema-paper);
+  font-size: 1rem;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .reset-form input:focus {
@@ -2467,6 +2502,12 @@ textarea {
 
 .reset-form-panel > .cinema-text-link {
   width: fit-content;
+}
+
+@media (max-width: 760px) {
+  .reset-form {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Watched archive */
