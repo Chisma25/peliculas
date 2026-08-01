@@ -1,3 +1,7 @@
+import "../styles/seen-editorial.css";
+import "../styles/catalog-filters.css";
+import "../styles/catalog-states.css";
+
 import type { CSSProperties } from "react";
 
 import { CatalogClearButton, CatalogFilterForm, CatalogTextInput } from "@/components/catalog-filter-form";

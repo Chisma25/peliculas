@@ -205,6 +205,21 @@ test.describe("authenticated Preview smoke tests", () => {
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
 
+  test("does not preload every primary screen while navigation is idle", async ({ page }) => {
+    const routeRequests: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.searchParams.has("_rsc") && ["/vistas", "/pendientes", "/explorar", "/grupo"].includes(url.pathname)) {
+        routeRequests.push(url.pathname);
+      }
+    });
+
+    await page.goto("/");
+    await page.waitForTimeout(1_500);
+
+    expect(routeRequests).toEqual([]);
+  });
+
   test("keeps keyboard focus inside the rating dialog and restores it on close", async ({ page }) => {
     await page.goto("/vistas");
     await page.locator('a[href^="/peliculas/"]').first().click();

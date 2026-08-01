@@ -1,3 +1,6 @@
+import "../../styles/profile.css";
+import "../../styles/profile-editorial.css";
+
 import { notFound } from "next/navigation";
 
 import { ProfileOverview } from "@/components/profile-overview";

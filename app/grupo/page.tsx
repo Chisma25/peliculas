@@ -1,3 +1,5 @@
+import "../styles/group-editorial.css";
+
 import type { CSSProperties } from "react";
 
 import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";

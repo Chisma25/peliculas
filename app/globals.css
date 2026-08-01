@@ -1,13 +1,2 @@
 @import "./styles/base.css";
-@import "./styles/pending.css";
-@import "./styles/explore.css";
-@import "./styles/auth.css";
-@import "./styles/profile.css";
 @import "./styles/cinematic-v2.css";
-@import "./styles/pending-editorial.css";
-@import "./styles/seen-editorial.css";
-@import "./styles/catalog-filters.css";
-@import "./styles/explore-editorial.css";
-@import "./styles/catalog-states.css";
-@import "./styles/group-editorial.css";
-@import "./styles/profile-editorial.css";

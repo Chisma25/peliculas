@@ -1981,80 +1981,6 @@ async function buildNowPlayingDashboardSuggestions(state: AppState) {
   return ranked;
 }
 
-async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | null> {
-  if (!shouldAttemptDatabaseRead()) {
-    return null;
-  }
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    const groupId = getDatabaseReadGroup().id;
-
-    const [pendingRows, watchedRows, latestBatch] = await Promise.all([
-      prisma.pendingMovie.findMany({
-        where: { groupId },
-        select: { movieId: true }
-      }),
-      prisma.watchEntryRecord.findMany({
-        where: { groupId },
-        select: { movieId: true }
-      }),
-      prisma.weeklyBatchRecord.findFirst({
-        where: { groupId },
-        orderBy: { createdAt: "desc" },
-        select: { selectedMovieId: true }
-      })
-    ]);
-
-    const pendingMovieIds = pendingRows.map((entry) => entry.movieId);
-    const watchedMovieIds = watchedRows.map((entry) => entry.movieId);
-    const [selectedWatchRecord, movieAverageRows, knownMoviesById] = await Promise.all([
-      latestBatch?.selectedMovieId
-        ? prisma.watchEntryRecord.findUnique({
-            where: { movieId: latestBatch.selectedMovieId }
-          })
-        : Promise.resolve(null),
-      watchedMovieIds.length > 0
-        ? prisma.ratingRecord.groupBy({
-            by: ["movieId"],
-            where: { movieId: { in: watchedMovieIds } },
-            _avg: { score: true }
-          })
-        : Promise.resolve([]),
-      loadMoviesByIdsFromDatabase([...watchedMovieIds, ...pendingMovieIds])
-    ]);
-    const watchedCount = watchedMovieIds.filter((movieId) => knownMoviesById.has(movieId)).length;
-    const pendingCount = pendingMovieIds.filter((movieId) => knownMoviesById.has(movieId)).length;
-
-    const averageScore = average(
-      movieAverageRows
-        .map((entry) => entry._avg.score ?? 0)
-        .filter((value) => value > 0)
-    );
-
-    const selectedMovie = latestBatch?.selectedMovieId
-      ? knownMoviesById.get(latestBatch.selectedMovieId) ??
-        (await loadMoviesByIdsFromDatabase([latestBatch.selectedMovieId])).get(latestBatch.selectedMovieId) ??
-        null
-      : null;
-    const dashboardData = {
-      selectedMovie,
-      selectedWatchEntry: selectedWatchRecord ? mapWatchRecordsToStateEntries([selectedWatchRecord])[0] ?? null : null,
-      stats: {
-        watchedCount,
-        averageScore,
-        pendingCount
-      }
-    } satisfies DashboardOverviewData;
-
-    markDatabaseReadHealthy();
-    return cloneState(dashboardData);
-  } catch (error) {
-    markDatabaseReadFailure("dashboard aggregate", error);
-    return null;
-  }
-}
-
 function listMembersFromState(state: AppState) {
   const { usersById } = getStateIndexes(state);
   return state.group.memberIds.map((memberId) => usersById.get(memberId)).filter((user): user is User => Boolean(user));
@@ -2908,16 +2834,8 @@ export async function getDashboardData() {
 }
 
 export async function getDashboardOverviewHydrated() {
-  if (shouldUseDatabase()) {
-    const databaseDashboard = await loadDashboardDataFromDatabase();
-    if (databaseDashboard) {
-      return databaseDashboard;
-    }
-  }
-
   const state = await loadAppState();
-  const dashboardData = buildDashboardDataFromState(state);
-  return dashboardData;
+  return buildDashboardDataFromState(state);
 }
 
 export async function getUpcomingDashboardReleasesHydrated() {
