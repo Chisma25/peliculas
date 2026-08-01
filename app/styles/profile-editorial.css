@@ -624,6 +624,14 @@ html:has(.profile-editorial) {
   background: rgba(231, 173, 114, 0.08);
 }
 
+.profile-page-stack > .profile-settings-panel .profile-avatar-pending {
+  max-width: 24ch;
+  margin: 0.25rem 0 0;
+  color: var(--profile-accent);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
 .profile-page-stack > .profile-settings-panel .avatar-upload-label input {
   position: absolute;
   width: 1px;

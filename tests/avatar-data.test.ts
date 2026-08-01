@@ -22,6 +22,16 @@ describe("avatar delivery", () => {
     expect(getAvatarDeliveryUrl("member/with spaces")).toBe("/api/users/member%2Fwith%20spaces/avatar");
   });
 
+  it("versions delivery paths when the stored avatar changes", () => {
+    const first = getAvatarDeliveryUrl("member", "data:image/png;base64,Zmlyc3Q=");
+    const repeated = getAvatarDeliveryUrl("member", "data:image/png;base64,Zmlyc3Q=");
+    const second = getAvatarDeliveryUrl("member", "data:image/png;base64,c2Vjb25k");
+
+    expect(first).toBe(repeated);
+    expect(first).toMatch(/^\/api\/users\/member\/avatar\?v=/);
+    expect(second).not.toBe(first);
+  });
+
   it("delivers avatars as compact square WebP images", async () => {
     const original = await sharp({
       create: {

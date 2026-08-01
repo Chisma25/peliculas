@@ -473,6 +473,7 @@ async function loadSnapshotUsersCached() {
 }
 
 const loadSnapshotUsersForRequest = cache(async () => loadUsersForRead());
+const loadSessionUsersForRequest = cache(async () => loadUsersForRead({ includeAvatarUrls: true }));
 
 const USER_RECORD_SELECT = {
   id: true,
@@ -744,7 +745,7 @@ function mapUserRecordsToStateUsers(records: Array<{
     };
 
     if (entry.avatarUrl) {
-      user.avatarUrl = useDeliveryUrls ? getAvatarDeliveryUrl(entry.id) : entry.avatarUrl;
+      user.avatarUrl = useDeliveryUrls ? getAvatarDeliveryUrl(entry.id, entry.avatarUrl) : entry.avatarUrl;
     }
 
     return ensureUserCredentials(user);
@@ -2716,7 +2717,7 @@ function buildProfileFromState(state: AppState, userId: string): ProfileData | n
   const profile = {
     user: {
       ...user,
-      avatarUrl: user.avatarUrl ? getAvatarDeliveryUrl(user.id) : undefined
+      avatarUrl: user.avatarUrl ? getAvatarDeliveryUrl(user.id, user.avatarUrl) : undefined
     },
     ratingsCount: summary.ratingsCount,
     averageScore: summary.averageScore,
@@ -2745,7 +2746,7 @@ const getSessionUserForRequest = cache(async () => {
     return null;
   }
 
-  const users = await loadSnapshotUsersForRequest();
+  const users = await loadSessionUsersForRequest();
   return users.find((user) => user.id === userId) ?? null;
 });
 
@@ -2960,7 +2961,7 @@ export async function getGroupPageData() {
     members: listMembersFromState(state).map((member) => ({
       member: {
         ...member,
-        avatarUrl: member.avatarUrl ? getAvatarDeliveryUrl(member.id) : undefined
+        avatarUrl: member.avatarUrl ? getAvatarDeliveryUrl(member.id, member.avatarUrl) : undefined
       },
       profileSummary: getProfileSummaryFromState(state, member.id)
     }))

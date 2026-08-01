@@ -10,7 +10,7 @@ type AvatarRouteProps = {
   }>;
 };
 
-export async function GET(_request: Request, { params }: AvatarRouteProps) {
+export async function GET(request: Request, { params }: AvatarRouteProps) {
   const { id } = await params;
   try {
     const { prisma } = await import("@/lib/prisma");
@@ -27,9 +27,11 @@ export async function GET(_request: Request, { params }: AvatarRouteProps) {
     const optimizedAvatar = await optimizeAvatarImage(avatar.bytes);
     const body = optimizedAvatar.bytes.slice().buffer as ArrayBuffer;
 
+    const isVersioned = new URL(request.url).searchParams.has("v");
+
     return new Response(body, {
       headers: {
-        "Cache-Control": "private, max-age=86400, stale-while-revalidate=604800",
+        "Cache-Control": isVersioned ? "private, max-age=31536000, immutable" : "private, no-store",
         "Content-Length": String(optimizedAvatar.bytes.byteLength),
         "Content-Type": optimizedAvatar.contentType,
         "Last-Modified": user?.updatedAt.toUTCString() ?? new Date().toUTCString(),

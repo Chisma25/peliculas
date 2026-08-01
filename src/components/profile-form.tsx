@@ -32,6 +32,8 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
     setMessage(payload.message ?? payload.error ?? "Perfil actualizado.");
 
     if (response.ok) {
+      setAvatarAction("keep");
+      setAvatarDataUrl("");
       router.refresh();
     }
   }
@@ -104,6 +106,11 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
               <input type="file" accept="image/*" onChange={handleAvatarChange} />
             </label>
             <p className="muted-copy">PNG o JPG de hasta 1,2 MB.</p>
+            {avatarAction !== "keep" ? (
+              <p className="profile-avatar-pending" role="status">
+                Cambio preparado. Pulsa «Guardar cambios» para aplicarlo.
+              </p>
+            ) : null}
             {avatarPreview ? (
               <button type="button" className="ghost-button" onClick={removeAvatar}>
                 Quitar avatar

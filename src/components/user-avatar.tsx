@@ -24,17 +24,17 @@ function getInitials(name: string) {
 }
 
 export function UserAvatar({ user, size = "md", className = "" }: UserAvatarProps) {
-  const [imageFailed, setImageFailed] = useState(false);
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
   const classes = ["user-avatar", `user-avatar-${size}`, className].filter(Boolean).join(" ");
 
-  if (user.avatarUrl && !imageFailed) {
+  if (user.avatarUrl && failedAvatarUrl !== user.avatarUrl) {
     return (
       // The authenticated avatar endpoint is intentionally loaded by the browser rather than Next's server-side image optimizer.
       // eslint-disable-next-line @next/next/no-img-element
       <img
         ref={(image) => {
           if (image?.complete && image.naturalWidth === 0) {
-            setImageFailed(true);
+            setFailedAvatarUrl(user.avatarUrl ?? null);
           }
         }}
         src={user.avatarUrl}
@@ -43,7 +43,7 @@ export function UserAvatar({ user, size = "md", className = "" }: UserAvatarProp
         width={86}
         height={86}
         loading="lazy"
-        onError={() => setImageFailed(true)}
+        onError={() => setFailedAvatarUrl(user.avatarUrl ?? null)}
       />
     );
   }

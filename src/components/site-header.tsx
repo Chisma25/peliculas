@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { PrefetchLink } from "@/components/prefetch-link";
 import { PrimaryNav } from "@/components/primary-nav";
@@ -15,6 +15,28 @@ type SiteHeaderProps = {
 
 export function SiteHeader({ user, deploymentVersion }: SiteHeaderProps) {
   const userMenuRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      const menu = userMenuRef.current;
+      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) {
+        menu.removeAttribute("open");
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        userMenuRef.current?.removeAttribute("open");
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   function closeUserMenu() {
     userMenuRef.current?.removeAttribute("open");
