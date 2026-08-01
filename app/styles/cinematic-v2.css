@@ -1902,7 +1902,7 @@ html:has(.cinema-detail) {
     scroll-padding-top: 4.65rem;
   }
 
-  .page-shell:has(.cinema-detail) {
+  .site-header:not(.site-header-public) + .page-shell:has(.cinema-detail) {
     padding-top: 4.65rem;
   }
 
