@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getAvatarDeliveryUrl, parseAvatarDataUrl } from "@/lib/avatar-data";
+import { getAvatarDeliveryUrl, parseAvatarDataUrl, toExactAvatarArrayBuffer } from "@/lib/avatar-data";
 import { optimizeAvatarImage } from "@/lib/avatar-image";
 import sharp from "sharp";
 
@@ -30,6 +30,16 @@ describe("avatar delivery", () => {
     expect(first).toBe(repeated);
     expect(first).toMatch(/^\/api\/users\/member\/avatar\?v=/);
     expect(second).not.toBe(first);
+  });
+
+  it("copies only the avatar bytes when the source uses a larger backing buffer", () => {
+    const backingBuffer = Uint8Array.from([99, 99, 1, 2, 3, 99]).buffer;
+    const avatarView = new Uint8Array(backingBuffer, 2, 3);
+
+    const responseBuffer = toExactAvatarArrayBuffer(avatarView);
+
+    expect(responseBuffer.byteLength).toBe(3);
+    expect(Array.from(new Uint8Array(responseBuffer))).toEqual([1, 2, 3]);
   });
 
   it("delivers avatars as compact square WebP images", async () => {

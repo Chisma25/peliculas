@@ -18,6 +18,10 @@ export function getAvatarDeliveryUrl(userId: string, avatarDataUrl?: string | nu
   return avatarDataUrl ? `${path}?v=${getAvatarVersion(avatarDataUrl)}` : path;
 }
 
+export function toExactAvatarArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return Uint8Array.from(bytes).buffer;
+}
+
 export function parseAvatarDataUrl(value: string | null | undefined): ParsedAvatarData | null {
   const match = value?.trim().match(AVATAR_DATA_URL_PATTERN);
   if (!match) {

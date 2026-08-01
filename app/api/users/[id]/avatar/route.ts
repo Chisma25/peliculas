@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { parseAvatarDataUrl } from "@/lib/avatar-data";
+import { parseAvatarDataUrl, toExactAvatarArrayBuffer } from "@/lib/avatar-data";
 import { optimizeAvatarImage } from "@/lib/avatar-image";
 import { operationalErrorResponse } from "@/lib/operational-errors";
 
@@ -25,7 +25,7 @@ export async function GET(request: Request, { params }: AvatarRouteProps) {
     }
 
     const optimizedAvatar = await optimizeAvatarImage(avatar.bytes);
-    const body = optimizedAvatar.bytes.slice().buffer as ArrayBuffer;
+    const body = toExactAvatarArrayBuffer(optimizedAvatar.bytes);
 
     const isVersioned = new URL(request.url).searchParams.has("v");
 
