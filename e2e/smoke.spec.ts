@@ -124,7 +124,7 @@ test.describe("authenticated Preview smoke tests", () => {
     test.skip(!testInfo.project.name.startsWith("mobile"), "Mobile-only layout assertion.");
     await page.goto("/");
 
-    const headerBox = await page.locator("header").boundingBox();
+    const headerBox = await page.locator(".site-header").boundingBox();
     const headingBox = await page.locator("main h1").first().boundingBox();
 
     expect(headerBox?.height ?? 999).toBeLessThan(100);
@@ -136,7 +136,7 @@ test.describe("authenticated Preview smoke tests", () => {
     await page.setViewportSize({ width: 768, height: 1024 });
     await page.goto("/grupo");
 
-    const headerBox = await page.locator("header").boundingBox();
+    const headerBox = await page.locator(".site-header").boundingBox();
     const brandBox = await page.getByRole("link", { name: "Ir al dashboard de Cine Semanal" }).boundingBox();
     const navigationBox = await page.getByRole("navigation", { name: "Principal" }).boundingBox();
     const profileBox = await page.locator(".user-chip").boundingBox();
@@ -150,7 +150,7 @@ test.describe("authenticated Preview smoke tests", () => {
 
   test("attaches the user menu to the lower edge of the header", async ({ page }) => {
     await page.goto("/perfil");
-    await page.getByLabel("Abrir menÃº de usuario").click();
+    await page.locator(".user-menu-summary").click();
 
     const headerBox = await page.locator(".site-header").boundingBox();
     const menu = page.locator(".user-chip-actions");
@@ -266,20 +266,20 @@ test.describe("authenticated Preview smoke tests", () => {
         body: JSON.stringify({
           results: [
             {
-              id: "tmdb_157336",
-              slug: "interstellar",
-              title: "Interstellar",
-              year: 2014,
-              synopsis: "Un grupo de exploradores viaja más allá de nuestra galaxia.",
-              durationMinutes: 169,
+              id: "tmdb_999999991",
+              slug: "prueba-de-escritura-pendiente",
+              title: "Prueba de escritura pendiente",
+              year: 2026,
+              synopsis: "Una película sintética reservada para comprobar este flujo.",
+              durationMinutes: 101,
               genres: ["Ciencia ficción"],
-              director: "Christopher Nolan",
+              director: "Codex QA",
               cast: [],
               language: "EN",
               country: "Estados Unidos",
               posterUrl: "/icon.svg",
               externalRating: { source: "TMDb", value: "84%" },
-              sourceIds: { tmdb: "157336" }
+              sourceIds: { tmdb: "999999991" }
             }
           ]
         })
@@ -295,7 +295,7 @@ test.describe("authenticated Preview smoke tests", () => {
     });
 
     await page.goto("/explorar");
-    await page.getByRole("searchbox", { name: "Buscar por título" }).fill("Interstellar");
+    await page.getByRole("searchbox", { name: "Buscar por título" }).fill("Prueba de escritura pendiente");
     const addButton = page.getByRole("button", { name: "Añadir", exact: true });
     await expect(addButton).toBeVisible();
     await addButton.click();
@@ -347,7 +347,7 @@ test.describe("authenticated Preview smoke tests", () => {
     await page.goto("/pendientes");
 
     const radar = page.getByRole("region", { name: "Recomendaciones semanales" });
-    const radarCount = await radar.count();
+    const radarCount = await radar.locator(".pending-radar-card").count();
     test.skip(radarCount === 0, "The current environment has no weekly radar.");
 
     await expect(radar.getByRole("heading", { name: "Recomendaciones" })).toBeVisible();
