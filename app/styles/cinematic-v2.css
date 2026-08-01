@@ -1635,6 +1635,11 @@ body {
   scroll-margin-top: 4.85rem;
 }
 
+.cinema-detail-overview {
+  display: grid;
+  align-content: start;
+}
+
 .cinema-detail-section-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1690,7 +1695,7 @@ body {
 }
 
 .cinema-detail-context {
-  grid-template-columns: minmax(0, 0.72fr) minmax(16rem, 0.42fr);
+  grid-template-columns: 1fr;
   padding-top: 1.5rem;
 }
 

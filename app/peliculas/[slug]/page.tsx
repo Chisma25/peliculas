@@ -70,12 +70,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
         </div>
       </CinematicStage>
 
-      <section id="la-pelicula" className="cinema-detail-overview" data-scroll-chapter aria-labelledby="overview-title">
-        <header className="cinema-detail-section-heading">
-          <p className="cinema-kicker">La película</p>
-          <h2 id="overview-title">{movie.title}</h2>
-        </header>
-
+      <section id="la-pelicula" className="cinema-detail-overview" data-scroll-chapter aria-label="Datos y sinopsis de la película">
         <div className="cinema-detail-editorial">
           <aside className="cinema-detail-facts" aria-label="Datos clave">
             <p className="cinema-section-number">Datos clave</p>
@@ -142,13 +137,6 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 <p className="cinema-section-number">Reparto principal</p>
                 <h3>En pantalla</h3>
               </div>
-              <p>
-                {watchEntry?.watchedOn
-                  ? `La visteis en grupo el ${formatLongDate(watchEntry.watchedOn)}.`
-                  : watchEntry
-                    ? "Figura en vuestras vistas, pero sin fecha registrada."
-                    : "Todavía no consta como vista por el grupo."}
-              </p>
               <div className="cinema-detail-cast" aria-label="Reparto">
                 {movie.cast.length > 0 ? (
                   movie.cast.map((member, index) => (
