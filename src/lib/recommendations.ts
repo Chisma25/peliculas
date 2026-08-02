@@ -1387,6 +1387,107 @@ export function rankNowPlayingForGroup(
   }));
 }
 
+export function selectDiscoverySeedTmdbIds(state: AppState, generation = 0, desiredCount = 4) {
+  const moviesById = new Map(state.movies.map((movie) => [movie.id, movie]));
+  const ratingsByMovie = new Map<string, number[]>();
+
+  for (const rating of state.ratings) {
+    const scores = ratingsByMovie.get(rating.movieId) ?? [];
+    scores.push(rating.score);
+    ratingsByMovie.set(rating.movieId, scores);
+  }
+
+  const candidates = [...ratingsByMovie.entries()]
+    .map(([movieId, scores]) => {
+      const movie = moviesById.get(movieId);
+      return {
+        movie,
+        score: average(scores) + Math.min(scores.length, 5) * 0.08
+      };
+    })
+    .filter(
+      (entry): entry is { movie: Movie; score: number } =>
+        Boolean(entry.movie?.sourceIds?.tmdb) && entry.score >= 7.4
+    )
+    .sort((left, right) => right.score - left.score);
+
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  const offset = Math.max(0, generation) % candidates.length;
+  const rotated = [...candidates.slice(offset), ...candidates.slice(0, offset)];
+  const selected: Movie[] = [];
+
+  for (const candidate of rotated) {
+    const overlapsTooMuch = selected.some((movie) => movieOverlap(movie, candidate.movie) > 0.72);
+    if (!overlapsTooMuch || selected.length === 0) {
+      selected.push(candidate.movie);
+    }
+    if (selected.length >= desiredCount) break;
+  }
+
+  for (const candidate of rotated) {
+    if (selected.length >= desiredCount) break;
+    if (!selected.some((movie) => movie.id === candidate.movie.id)) selected.push(candidate.movie);
+  }
+
+  return selected
+    .map((movie) => movie.sourceIds?.tmdb)
+    .filter((value): value is string => Boolean(value));
+}
+
+export function rankDiscoveryMoviesForGroup(
+  state: AppState,
+  discoveryMovies: Movie[],
+  desiredCount = 5,
+  excludedTmdbIds: string[] = []
+) {
+  const { groupProfile, userProfiles } = buildProfiles(state);
+  const context = buildWeeklyContext(state);
+  const feedback = buildFeedbackProfile(state);
+  const previousBatch = [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  const previousMovieIds = new Set(previousBatch?.items.map((item) => item.movieId) ?? []);
+  const moviesById = new Map(state.movies.map((movie) => [movie.id, movie]));
+  const unavailableIds = new Set([
+    ...state.watchEntries.map((entry) => entry.movieId),
+    ...state.pendingMovieIds,
+    ...(previousBatch?.selectedMovieId ? [previousBatch.selectedMovieId] : [])
+  ]);
+  const unavailableTmdbIds = new Set([
+    ...excludedTmdbIds,
+    ...[...unavailableIds]
+      .map((movieId) => moviesById.get(movieId)?.sourceIds?.tmdb)
+      .filter((value): value is string => Boolean(value))
+  ]);
+  const unavailableSlugs = new Set(
+    [...unavailableIds]
+      .map((movieId) => moviesById.get(movieId)?.slug)
+      .filter((value): value is string => Boolean(value))
+  );
+
+  const candidates = discoveryMovies
+    .filter(
+      (movie) =>
+        hasRecommendationMetadata(movie) &&
+        Boolean(movie.posterUrl) &&
+        !unavailableIds.has(movie.id) &&
+        !unavailableSlugs.has(movie.slug) &&
+        !(movie.sourceIds?.tmdb && unavailableTmdbIds.has(movie.sourceIds.tmdb))
+    )
+    .map((movie) => {
+      const scored = scoreMovie(movie, groupProfile, userProfiles, context, feedback, "discovery", previousMovieIds);
+      const rating = clamp((parseExternalRating(movie) ?? 5.5) / 10, 0, 1);
+      const voteConfidence = clamp(Math.log1p(Math.max(movie.voteCount ?? 0, 0)) / Math.log1p(15_000), 0, 1);
+      return {
+        ...scored,
+        rawScore: scored.rawScore + rating * 1.15 + voteConfidence * 0.55
+      };
+    });
+
+  return pickDiverseCandidates(candidates, desiredCount).map((candidate) => candidate.movie);
+}
+
 export function rankUpcomingReleasesForGroup(state: AppState, upcomingMovies: Movie[], desiredCount = 3): UpcomingReleaseSuggestion[] {
   const { groupProfile, userProfiles } = buildProfiles(state);
   const context = buildWeeklyContext(state);

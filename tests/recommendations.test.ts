@@ -5,7 +5,9 @@ import {
   generatePendingWeeklyOptions,
   generateWeeklyRecommendations,
   hasRecommendationMetadata,
-  rankNowPlayingForGroup
+  rankDiscoveryMoviesForGroup,
+  rankNowPlayingForGroup,
+  selectDiscoverySeedTmdbIds
 } from "@/lib/recommendations";
 import type { Movie } from "@/lib/types";
 
@@ -35,6 +37,31 @@ function makeNowPlayingMovie(id: string, rating: number, popularity: number, vot
 }
 
 describe("recommendations engine", () => {
+  it("selects real highly rated TMDb movies as rotating discovery seeds", () => {
+    const state = structuredClone(seedState);
+    const seeds = selectDiscoverySeedTmdbIds(state, 0, 3);
+
+    expect(seeds.length).toBeGreaterThan(0);
+    expect(seeds.every((id) => /^\d+$/.test(id))).toBe(true);
+  });
+
+  it("keeps watched, pending and previously shown movies out of discovery", () => {
+    const state = structuredClone(seedState);
+    const available = makeNowPlayingMovie("901", 8.1, 95, 2_100);
+    const excluded = makeNowPlayingMovie("902", 8.4, 110, 2_500);
+    const watchedMovie = state.movies.find((movie) => movie.sourceIds?.tmdb);
+    expect(watchedMovie).toBeDefined();
+
+    const results = rankDiscoveryMoviesForGroup(
+      state,
+      [available, excluded, watchedMovie!],
+      5,
+      ["902"]
+    );
+
+    expect(results.map((movie) => movie.sourceIds?.tmdb)).toEqual(["901"]);
+  });
+
   it("returns three discovery movies that are neither watched nor pending", () => {
     const state = structuredClone(seedState);
     state.pendingMovieIds = ["movie_memories_of_murder"];

@@ -8,6 +8,7 @@ const TMDB_SEARCH_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const TMDB_DETAILS_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const TMDB_UPCOMING_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const TMDB_NOW_PLAYING_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
+const TMDB_DISCOVERY_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 export const TMDB_METADATA_VERSION = 3;
 const tmdbMemoryCache = new Map<string, { payload: unknown; expiresAt: number }>();
 
@@ -166,10 +167,32 @@ export type TmdbSearchResult = {
   original_language?: string;
   popularity?: number;
   vote_count?: number;
+  genre_ids?: number[];
 };
 
 type TmdbListPayload = {
   results?: TmdbSearchResult[];
+};
+
+const TMDB_GENRES: Record<number, string> = {
+  12: "Aventura",
+  14: "Fantasía",
+  16: "Animación",
+  18: "Drama",
+  27: "Terror",
+  28: "Acción",
+  35: "Comedia",
+  36: "Historia",
+  37: "Western",
+  53: "Suspense",
+  80: "Crimen",
+  99: "Documental",
+  878: "Ciencia ficción",
+  9648: "Misterio",
+  10402: "Música",
+  10749: "Romance",
+  10751: "Familia",
+  10752: "Bélica"
 };
 
 export type TmdbMovieDetails = {
@@ -309,6 +332,8 @@ async function tmdbFetch<T>(path: string) {
 }
 
 export function mapSearchResultToMovie(item: TmdbSearchResult): Movie {
+  const genres = item.genre_ids?.map((genreId) => TMDB_GENRES[genreId]).filter(Boolean) ?? [];
+
   return {
     id: `tmdb_${item.id}`,
     slug: slugify(item.title),
@@ -318,7 +343,7 @@ export function mapSearchResultToMovie(item: TmdbSearchResult): Movie {
     releaseDate: item.release_date,
     synopsis: item.overview || "Sinopsis pendiente de enriquecimiento.",
     durationMinutes: 120,
-    genres: ["Pendiente"],
+    genres: genres.length > 0 ? genres : ["Pendiente"],
     director: "Pendiente",
     cast: [],
     language: formatMovieLanguage(item.original_language || "Desconocido"),
@@ -336,6 +361,59 @@ export function mapSearchResultToMovie(item: TmdbSearchResult): Movie {
       tmdb: String(item.id)
     }
   };
+}
+
+function isUsableDiscoveryResult(item: TmdbSearchResult) {
+  return (
+    !item.adult &&
+    !isBehindTheScenesTitle(item.title, "") &&
+    Boolean(item.poster_path) &&
+    Boolean(item.release_date) &&
+    (item.vote_average ?? 0) >= 6.2 &&
+    (item.vote_count ?? 0) >= 120
+  );
+}
+
+export async function fetchMovieDiscoveryPool(seedTmdbIds: string[], generation = 0, limit = 48) {
+  const page = (Math.max(0, generation) % 3) + 1;
+  const seeds = [...new Set(seedTmdbIds.filter((value) => /^\d+$/.test(value)))].slice(0, 4);
+  const cacheKey = `${seeds.join(",") || "general"}:${page}`;
+  const cached = await readCachedPayload<TmdbSearchResult[]>("movie-discovery", cacheKey);
+
+  if (cached) {
+    return cached.hit && cached.data
+      ? cached.data.filter(isUsableDiscoveryResult).slice(0, limit).map(mapSearchResultToMovie)
+      : [];
+  }
+
+  const recommendationPayloads = await Promise.all(
+    seeds.map((tmdbId) =>
+      tmdbFetch<TmdbListPayload>(`/movie/${tmdbId}/recommendations?page=${page}`)
+    )
+  );
+  const fallbackPayload = await tmdbFetch<TmdbListPayload>(
+    `/discover/movie?include_adult=false&include_video=false&page=${page}&sort_by=vote_average.desc&vote_count.gte=500`
+  );
+  const deduplicated = new Map<number, TmdbSearchResult>();
+
+  for (const item of [
+    ...recommendationPayloads.flatMap((payload) => payload?.results ?? []),
+    ...(fallbackPayload?.results ?? [])
+  ]) {
+    if (isUsableDiscoveryResult(item) && !deduplicated.has(item.id)) {
+      deduplicated.set(item.id, item);
+    }
+  }
+
+  const results = [...deduplicated.values()];
+  await writeCachedPayload(
+    "movie-discovery",
+    cacheKey,
+    { hit: results.length > 0, data: results },
+    TMDB_DISCOVERY_CACHE_TTL_MS
+  );
+
+  return results.slice(0, limit).map(mapSearchResultToMovie);
 }
 
 function getSpainReleaseDate(item: TmdbMovieDetails) {
