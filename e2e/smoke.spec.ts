@@ -375,9 +375,11 @@ test.describe("authenticated Preview smoke tests", () => {
 
     await page.goto("/explorar");
     expect(requestCount).toBe(0);
+    await expect(page.locator(".discovery-idle-frame")).toHaveCount(5);
     await page.getByRole("button", { name: "Generar selección", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Descubrimiento 100" })).toBeVisible();
     expect(requestCount).toBe(1);
+    await expect(page.locator(".discovery-idle-frame")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Ver otras", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Descubrimiento 200" })).toBeVisible();

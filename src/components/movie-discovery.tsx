@@ -139,6 +139,18 @@ export function MovieDiscovery() {
         </div>
       </div>
 
+      {status === "idle" ? (
+        <div className="discovery-idle-reel" aria-hidden="true">
+          {Array.from({ length: 5 }, (_, index) => (
+            <div className="discovery-idle-frame" key={index}>
+              <span className="discovery-idle-number">{String(index + 1).padStart(2, "0")}</span>
+              <span className="discovery-idle-line" />
+              <span className="discovery-idle-label">Por revelar</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {status === "loading" ? (
         <div className="discovery-grid discovery-grid-loading" aria-label="Preparando recomendaciones">
           {Array.from({ length: 5 }, (_, index) => (
