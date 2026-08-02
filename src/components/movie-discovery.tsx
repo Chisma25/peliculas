@@ -111,11 +111,19 @@ export function MovieDiscovery() {
   const hasMovies = status === "success" && movies.length > 0;
 
   return (
-    <section className={`discovery-room discovery-room-${status}`} aria-labelledby="discovery-title">
+    <section
+      id="descubrimiento"
+      className={`discovery-room discovery-room-${status}`}
+      aria-labelledby="discovery-title"
+      data-scroll-chapter
+    >
+      <nav className="cinema-chapter-nav discovery-chapter-nav" aria-label="Ir a la siguiente sección">
+        <a href="#explorar-peliculas" aria-label="Bajar a explorar películas"><span aria-hidden="true">↓</span></a>
+      </nav>
       <div className="discovery-heading">
         <div>
           <p className="cinema-kicker">Descubrimiento</p>
-          <h2 id="discovery-title">{hasMovies ? "Para descubrir" : "Encontrar algo nuevo"}</h2>
+          <h1 id="discovery-title">{hasMovies ? "Para descubrir" : "Encontrar algo nuevo"}</h1>
         </div>
         <div className="discovery-heading-action">
           <p>{hasMovies ? "Cinco películas fuera de vuestra lista." : "Una selección basada en el gusto del grupo."}</p>

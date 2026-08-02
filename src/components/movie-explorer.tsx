@@ -6,6 +6,7 @@ import { useDeferredValue, useEffect, useRef, useState } from "react";
 
 import { PosterImage } from "@/components/poster-image";
 import { MovieDiscovery } from "@/components/movie-discovery";
+import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
 import { announcePendingUpdated, announcePendingWrite } from "@/lib/pending-sync";
 
 type SearchMovie = {
@@ -222,13 +223,24 @@ export function MovieExplorer() {
   }
 
   return (
-    <section className={`explore-page ${query ? "explore-page-active" : "explore-page-idle"}`}>
-      <header className="explore-cinematic-intro">
-        <p className="cinema-kicker">Explorar TMDb</p>
-        <h1>Buscar películas</h1>
-      </header>
-
+    <section className="explore-page">
+      <DirectionalChapterAssist />
       <MovieDiscovery />
+
+      <section
+        id="explorar-peliculas"
+        className={`explore-search-room ${query ? "explore-page-active" : "explore-page-idle"}`}
+        aria-labelledby="explore-search-title"
+        data-scroll-chapter
+      >
+        <nav className="cinema-chapter-nav explore-search-chapter-nav" aria-label="Volver a descubrimiento">
+          <a href="#descubrimiento" aria-label="Subir a descubrimiento"><span aria-hidden="true">↑</span></a>
+        </nav>
+
+        <header className="explore-cinematic-intro">
+        <p className="cinema-kicker">Explorar TMDb</p>
+          <h2 id="explore-search-title">Explorar películas</h2>
+        </header>
 
       <form className="explore-search-panel" role="search" onSubmit={(event) => event.preventDefault()}>
         <label className="explore-search-field">
@@ -359,13 +371,14 @@ export function MovieExplorer() {
         </div>
       ) : null}
 
-      {toast ? (
+        {toast ? (
         <div className={`explorer-toast explorer-toast-${toast.tone}`} role="status" aria-live="polite">
           <span className="explorer-toast-label">{toast.label}</span>
           <strong>{toast.title}</strong>
           {toast.body ? <p>{toast.body}</p> : null}
         </div>
-      ) : null}
+        ) : null}
+      </section>
     </section>
   );
 }
