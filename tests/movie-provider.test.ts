@@ -23,6 +23,17 @@ describe("TMDb movie mapping", () => {
     });
   });
 
+  it("maps TMDb genre ids so discovery candidates can be ranked without detail requests", () => {
+    const movie = mapSearchResultToMovie({
+      id: 42,
+      title: "Una película",
+      release_date: "2025-04-12",
+      genre_ids: [18, 878, 999999]
+    });
+
+    expect(movie.genres).toEqual(["Drama", "Ciencia ficción"]);
+  });
+
   it("uses original_language instead of the first spoken language", () => {
     const movie = mapDetailsToMovie({
       id: 872585,

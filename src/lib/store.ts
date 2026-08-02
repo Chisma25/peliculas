@@ -21,6 +21,7 @@ import {
 import { findStoredMovieForSearchResult } from "@/lib/movie-search";
 import {
   fetchNowPlayingMovies,
+  fetchMovieDiscoveryPool,
   fetchUpcomingMovies,
   resolveMovieMetadata,
   searchMovies,
@@ -37,6 +38,8 @@ import {
   generateWeeklyRecommendations,
   hasRecommendationMetadata,
   rankNowPlayingForGroup,
+  rankDiscoveryMoviesForGroup,
+  selectDiscoverySeedTmdbIds,
   rankUpcomingReleasesForGroup
 } from "@/lib/recommendations";
 import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
@@ -3445,6 +3448,17 @@ export async function movieSearch(query: string) {
       collectionStatus
     };
   });
+}
+
+export async function getMovieDiscoverySuggestions(input: {
+  generation?: number;
+  excludeTmdbIds?: string[];
+}) {
+  const state = await loadAppState();
+  const generation = Math.max(0, Math.min(input.generation ?? 0, 50));
+  const seeds = selectDiscoverySeedTmdbIds(state, generation, 4);
+  const pool = await fetchMovieDiscoveryPool(seeds, generation, 48);
+  return rankDiscoveryMoviesForGroup(state, pool, 5, input.excludeTmdbIds ?? []);
 }
 
 export async function addPendingMovie(movieInput: Movie) {

@@ -343,6 +343,48 @@ test.describe("authenticated Preview smoke tests", () => {
     await expect(existingButton).toBeDisabled();
   });
 
+  test("only discovers movies on demand and regenerates without repeats", async ({ page }) => {
+    let requestCount = 0;
+    await page.route("**/api/movies/discover?*", async (route) => {
+      requestCount += 1;
+      const baseId = requestCount * 100;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          generation: requestCount - 1,
+          results: Array.from({ length: 5 }, (_, index) => ({
+            id: `tmdb_${baseId + index}`,
+            slug: `descubrimiento-${baseId + index}`,
+            title: `Descubrimiento ${baseId + index}`,
+            year: 2024,
+            synopsis: "Una recomendación sintética para verificar el flujo de descubrimiento.",
+            durationMinutes: 110,
+            genres: ["Drama"],
+            director: "Codex QA",
+            cast: [],
+            language: "Español",
+            country: "España",
+            posterUrl: "/icon.svg",
+            externalRating: { source: "TMDb", value: "81%" },
+            sourceIds: { tmdb: String(baseId + index) }
+          }))
+        })
+      });
+    });
+
+    await page.goto("/explorar");
+    expect(requestCount).toBe(0);
+    await page.getByRole("button", { name: "Generar selección", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Descubrimiento 100" })).toBeVisible();
+    expect(requestCount).toBe(1);
+
+    await page.getByRole("button", { name: "Ver otras", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Descubrimiento 200" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Descubrimiento 100" })).toHaveCount(0);
+    expect(requestCount).toBe(2);
+  });
+
   test("keeps weekly recommendations concise without restricting the pending archive", async ({ page }) => {
     await page.goto("/pendientes");
 

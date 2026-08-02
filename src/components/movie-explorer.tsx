@@ -5,6 +5,7 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 
 import { PosterImage } from "@/components/poster-image";
+import { MovieDiscovery } from "@/components/movie-discovery";
 import { announcePendingUpdated, announcePendingWrite } from "@/lib/pending-sync";
 
 type SearchMovie = {
@@ -226,6 +227,8 @@ export function MovieExplorer() {
         <p className="cinema-kicker">Explorar TMDb</p>
         <h1>Buscar películas</h1>
       </header>
+
+      <MovieDiscovery />
 
       <form className="explore-search-panel" role="search" onSubmit={(event) => event.preventDefault()}>
         <label className="explore-search-field">
