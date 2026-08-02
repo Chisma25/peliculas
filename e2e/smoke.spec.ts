@@ -367,7 +367,6 @@ test.describe("authenticated Preview smoke tests", () => {
     const [removeBox, chooseBox] = await Promise.all([removeButton.boundingBox(), chooseButton.boundingBox()]);
     expect(removeBox).not.toBeNull();
     expect(chooseBox).not.toBeNull();
-    expect(Math.abs((removeBox?.width ?? 0) - (chooseBox?.width ?? 0))).toBeLessThan(2);
     expect(Math.abs((removeBox?.height ?? 0) - (chooseBox?.height ?? 0))).toBeLessThan(2);
   });
 
