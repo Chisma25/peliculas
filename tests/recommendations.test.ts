@@ -4,8 +4,35 @@ import { seedState } from "@/lib/demo-data";
 import {
   generatePendingWeeklyOptions,
   generateWeeklyRecommendations,
-  hasRecommendationMetadata
+  hasRecommendationMetadata,
+  rankNowPlayingForGroup
 } from "@/lib/recommendations";
+import type { Movie } from "@/lib/types";
+
+function makeNowPlayingMovie(id: string, rating: number, popularity: number, voteCount: number): Movie {
+  return {
+    ...structuredClone(seedState.movies[0]),
+    id: `tmdb_${id}`,
+    slug: `cartelera-${id}`,
+    title: `Cartelera ${id}`,
+    year: 2026,
+    releaseDate: "2026-07-24",
+    releaseDateEs: "2026-07-24",
+    genres: ["Drama"],
+    director: `Dirección ${id}`,
+    posterUrl: `https://image.tmdb.org/t/p/w500/${id}.jpg`,
+    backdrop: `https://image.tmdb.org/t/p/w780/${id}.jpg`,
+    externalRating: {
+      source: "TMDb",
+      value: `${Math.round(rating * 10)}%`
+    },
+    popularity,
+    voteCount,
+    sourceIds: {
+      tmdb: id
+    }
+  };
+}
 
 describe("recommendations engine", () => {
   it("returns three discovery movies that are neither watched nor pending", () => {
@@ -43,6 +70,33 @@ describe("recommendations engine", () => {
       expect(pendingIds.has(item.movieId)).toBe(true);
       expect(item.summary.length).toBeGreaterThan(20);
     }
+  });
+
+  it("excludes the movie already selected for the week and refills the five options", () => {
+    const state = structuredClone(seedState);
+    state.pendingMovieIds = [
+      "movie_arrival",
+      "movie_drive_my_car",
+      "movie_memories_of_murder",
+      "movie_past_lives",
+      "movie_seven_samurai",
+      "movie_chungking_express"
+    ];
+    state.weeklyBatches = [
+      {
+        id: "batch-with-selection",
+        groupId: state.group.id,
+        weekOf: "2026-07-27T00:00:00.000Z",
+        createdAt: "2026-07-31T12:00:00.000Z",
+        items: [],
+        selectedMovieId: "movie_arrival"
+      }
+    ];
+
+    const options = generatePendingWeeklyOptions(state);
+
+    expect(options).toHaveLength(5);
+    expect(options.map((item) => item.movieId)).not.toContain("movie_arrival");
   });
 
   it("includes the decision signals needed by the weekly radar", () => {
@@ -111,5 +165,51 @@ describe("recommendations engine", () => {
       incompleteMovie.id
     );
     expect(state.pendingMovieIds).toContain(incompleteMovie.id);
+  });
+
+  it("prioritizes strong public interest for current theatrical suggestions", () => {
+    const state = structuredClone(seedState);
+    const candidates = [
+      makeNowPlayingMovie("801", 8.4, 210, 4_800),
+      makeNowPlayingMovie("802", 7.6, 125, 1_900),
+      makeNowPlayingMovie("803", 7.2, 80, 760),
+      makeNowPlayingMovie("804", 5.1, 12, 22)
+    ];
+
+    const suggestions = rankNowPlayingForGroup(state, candidates, 3);
+
+    expect(suggestions).toHaveLength(3);
+    expect(suggestions[0].movie.sourceIds?.tmdb).toBe("801");
+    expect(suggestions.map((item) => item.movie.sourceIds?.tmdb)).not.toContain("804");
+  });
+
+  it("keeps watched, pending and incomplete records out of current theatrical suggestions", () => {
+    const state = structuredClone(seedState);
+    const watchedMovie = state.movies.find((movie) => state.watchEntries.some((entry) => entry.movieId === movie.id))!;
+    const pendingMovie = state.movies.find((movie) => !state.watchEntries.some((entry) => entry.movieId === movie.id))!;
+    watchedMovie.sourceIds = { ...watchedMovie.sourceIds, tmdb: "901" };
+    pendingMovie.sourceIds = {};
+    state.pendingMovieIds = [pendingMovie.id];
+
+    const incomplete = {
+      ...makeNowPlayingMovie("903", 8.8, 240, 5_000),
+      genres: ["Pendiente"]
+    };
+    const candidates = [
+      makeNowPlayingMovie("901", 8.9, 250, 6_000),
+      {
+        ...makeNowPlayingMovie("902", 8.7, 230, 5_500),
+        slug: pendingMovie.slug
+      },
+      incomplete,
+      makeNowPlayingMovie("904", 8.1, 180, 3_000),
+      makeNowPlayingMovie("905", 7.8, 140, 2_000),
+      makeNowPlayingMovie("906", 7.5, 110, 1_200)
+    ];
+
+    const ids = rankNowPlayingForGroup(state, candidates, 3).map((item) => item.movie.sourceIds?.tmdb);
+
+    expect(ids).toEqual(expect.arrayContaining(["904", "905", "906"]));
+    expect(ids).not.toEqual(expect.arrayContaining(["901", "902", "903"]));
   });
 });

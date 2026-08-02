@@ -1,9 +1,13 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { CSSProperties } from "react";
 
-import { MoviePoster } from "@/components/movie-poster";
+import { CinematicStage } from "@/components/cinematic-stage";
+import { ContextualBackButton } from "@/components/contextual-back-button";
+import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
+import { PosterImage } from "@/components/poster-image";
 import { RatingPanel } from "@/components/rating-panel";
 import { UserAvatar } from "@/components/user-avatar";
+import { getMovieDetailArtwork } from "@/lib/movie-artwork";
 import { getMovieDetailDataHydrated, getSessionUser } from "@/lib/store";
 import { formatLongDate, formatMovieCountry, formatMovieLanguage, formatScore } from "@/lib/utils";
 
@@ -25,145 +29,197 @@ export default async function MoviePage({ params }: MoviePageProps) {
   const ratingByUserId = new Map(ratings.map((rating) => [rating.userId, rating]));
   const ratedMembers = members.filter((member) => ratingByUserId.has(member.id));
   const unratedMembers = members.filter((member) => !ratingByUserId.has(member.id));
+  const artwork = getMovieDetailArtwork(movie);
+  const fallbackHref = watchEntry ? "/vistas" : "/pendientes";
 
   return (
-    <div className="detail-grid">
-      <aside className="detail-sidebar">
-        <Link
-          href={watchEntry ? "/vistas" : "/pendientes"}
-          className="detail-back-link detail-back-link-mobile"
-        >
-          <span aria-hidden="true">←</span>
-          {watchEntry ? "Volver a vistas" : "Volver a pendientes"}
-        </Link>
-        <MoviePoster movie={movie} />
-        <section className="panel">
-          <p className="eyebrow">Datos clave</p>
-          <div className="detail-facts-grid">
-            <article className="detail-fact-card">
-              <span>Duración</span>
-              <strong>{movie.durationMinutes > 0 ? `${movie.durationMinutes} min` : "Pendiente"}</strong>
-            </article>
-            <article className="detail-fact-card">
-              <span>Año</span>
-              <strong>{movie.year > 0 ? movie.year : "Pendiente"}</strong>
-            </article>
-            <article className="detail-fact-card detail-fact-card-wide">
-              <span>Idioma original</span>
-              <strong>{formatMovieLanguage(movie.language)}</strong>
-            </article>
-            <article className="detail-fact-card detail-fact-card-wide">
-              <span>País</span>
-              <strong>{formatMovieCountry(movie.country)}</strong>
-            </article>
-            <article className="detail-fact-card detail-fact-card-wide detail-fact-card-accent">
-              <span>{movie.externalRating.source}</span>
-              <strong>{movie.externalRating.value}</strong>
-            </article>
-          </div>
-          <div className="detail-fact-actions">
-            {movie.trailerUrl ? (
-              <a href={movie.trailerUrl} className="secondary-button" target="_blank" rel="noreferrer">
-                Ver tráiler
-              </a>
-            ) : null}
-            {movie.sourceIds?.tmdb ? (
-              <a
-                href={`https://www.themoviedb.org/movie/${movie.sourceIds.tmdb}`}
-                className="secondary-button"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abrir TMDb
-              </a>
-            ) : null}
-          </div>
-        </section>
-      </aside>
+    <article className="cinema-detail">
+      <DirectionalChapterAssist />
 
-      <section className="panel detail-main-panel">
-        <Link href={watchEntry ? "/vistas" : "/pendientes"} className="detail-back-link detail-back-link-desktop">
-          <span aria-hidden="true">←</span>
-          {watchEntry ? "Volver a vistas" : "Volver a pendientes"}
-        </Link>
-        <p className="eyebrow">Ficha de película</p>
-        <h1 className="detail-title">{movie.title}</h1>
-        <div className="detail-meta">
-          <span>
-            {movie.director} / {movie.genres.join(" / ")}
-          </span>
-          <strong>{ratings.length > 0 ? `${formatScore(average)} media del grupo` : "Sin notas aún"}</strong>
-        </div>
-        <p className="body-copy">{movie.synopsis}</p>
+      <CinematicStage id="pelicula-portada" className="cinema-detail-hero" labelledBy="movie-title" data-scroll-chapter>
+        {artwork.backdrop ? (
+          <div
+            className={`cinema-detail-backdrop${artwork.usesPosterFallback ? " cinema-detail-backdrop--poster-fallback" : ""}`}
+            style={{ backgroundImage: `url(${artwork.backdrop})` }}
+            aria-hidden="true"
+          />
+        ) : null}
+        <div className="cinema-detail-shade" />
+        <div className="cinema-detail-grain" aria-hidden="true" />
 
-        <section className="panel">
-          <p className="eyebrow">Contexto</p>
-          <p className="body-copy">
-            {watchEntry?.watchedOn
-              ? `La visteis en grupo el ${formatLongDate(watchEntry.watchedOn)}.`
-              : watchEntry
-                ? "Figura en vuestras vistas, pero sin fecha registrada."
-                : "Todavía no consta como vista por el grupo."}
+        <ContextualBackButton fallbackHref={fallbackHref} />
+
+        <div className="cinema-detail-title-block">
+          <h1 id="movie-title">{movie.title}</h1>
+          <p className="cinema-detail-byline">
+            Dirección · <strong>{movie.director}</strong>
           </p>
-          <div className="chips">
-            {movie.cast.length > 0 ? movie.cast.map((member) => <span key={member}>{member}</span>) : <span>Reparto pendiente</span>}
+          <div className="cinema-detail-hero-meta">
+            <span>{movie.year > 0 ? movie.year : "Año pendiente"}</span>
+            <span>{movie.durationMinutes > 0 ? `${movie.durationMinutes} min` : "Duración pendiente"}</span>
+            <span>{movie.genres.slice(0, 2).join(" / ") || "Género pendiente"}</span>
           </div>
-        </section>
+        </div>
 
-        <section className="panel">
-          <div className="panel-header">
-            <p className="eyebrow">Notas del grupo</p>
-            <h2>Valoraciones individuales</h2>
+        <div className="cinema-detail-art">
+          <figure className="cinema-detail-poster">
+            <PosterImage src={artwork.poster} loading="eager" />
+            <figcaption>{movie.title}</figcaption>
+          </figure>
+
+          <div className="cinema-detail-score" aria-label={ratings.length > 0 ? `Media del grupo ${formatScore(average)}` : "Sin notas aún"}>
+            <span>{ratings.length > 0 ? "Media del grupo" : "Todavía"}</span>
+            <strong>{ratings.length > 0 ? formatScore(average) : "—"}</strong>
+            <small>{ratings.length > 0 ? `${ratings.length} notas` : "sin notas"}</small>
           </div>
-          <div className="member-list">
-            {ratedMembers.length > 0 ? (
-              ratedMembers.map((member) => {
-                const rating = ratingByUserId.get(member.id)!;
-                return (
-                  <article key={member.id} className="member-card">
-                    <div className="member-rating-head">
-                      <div className="member-rating-user">
-                        <UserAvatar user={member} size="sm" />
-                        <div className="member-rating-user-copy">
-                          <strong>{member.name}</strong>
-                          <span>@{member.username}</span>
-                        </div>
-                      </div>
-                      <span className="member-rating-score">{formatScore(rating.score)}</span>
+        </div>
+      </CinematicStage>
+
+      <section id="la-pelicula" className="cinema-detail-overview" data-scroll-chapter aria-label="Datos y sinopsis de la película">
+        <div className="cinema-detail-editorial">
+          <aside className="cinema-detail-facts" aria-label="Datos clave">
+            <p className="cinema-section-number">Datos clave</p>
+            <dl>
+              <div>
+                <dt>Duración</dt>
+                <dd>{movie.durationMinutes > 0 ? `${movie.durationMinutes} min` : "Pendiente"}</dd>
+              </div>
+              <div>
+                <dt>Año</dt>
+                <dd>{movie.year > 0 ? movie.year : "Pendiente"}</dd>
+              </div>
+              <div>
+                <dt>Idioma original</dt>
+                <dd>{formatMovieLanguage(movie.language)}</dd>
+              </div>
+              <div>
+                <dt>País</dt>
+                <dd>{formatMovieCountry(movie.country)}</dd>
+              </div>
+              <div>
+                <dt>Sesión</dt>
+                <dd>
+                  {watchEntry?.watchedOn
+                    ? formatLongDate(watchEntry.watchedOn)
+                    : watchEntry
+                      ? "Fecha pendiente"
+                      : "Aún no vista"}
+                </dd>
+              </div>
+              <div className="cinema-detail-fact-accent">
+                <dt>{movie.externalRating.source}</dt>
+                <dd>{movie.externalRating.value}</dd>
+              </div>
+            </dl>
+
+            <div className="cinema-detail-links">
+              {movie.trailerUrl ? (
+                <a href={movie.trailerUrl} className="cinema-text-link" target="_blank" rel="noreferrer">
+                  Ver tráiler <span aria-hidden="true">↗</span>
+                </a>
+              ) : null}
+              {movie.sourceIds?.tmdb ? (
+                <a
+                  href={`https://www.themoviedb.org/movie/${movie.sourceIds.tmdb}`}
+                  className="cinema-text-link"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Abrir TMDb <span aria-hidden="true">↗</span>
+                </a>
+              ) : null}
+            </div>
+
+            <div className="cinema-detail-cast-block">
+              <p className="cinema-section-number">Reparto principal</p>
+              <div className="cinema-detail-cast" aria-label="Reparto">
+                {movie.cast.length > 0 ? (
+                  movie.cast.map((member, index) => (
+                    <span key={member}>
+                      <small>{String(index + 1).padStart(2, "0")}</small>
+                      {member}
+                    </span>
+                  ))
+                ) : (
+                  <span>Reparto pendiente</span>
+                )}
+              </div>
+            </div>
+          </aside>
+
+          <div className="cinema-detail-story">
+            <div className="cinema-detail-synopsis">
+              <p className="cinema-section-number">Sinopsis</p>
+              <p>{movie.synopsis}</p>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <section id="valoraciones" className="cinema-detail-community" data-scroll-chapter aria-labelledby="ratings-title">
+        <header className="cinema-detail-section-heading cinema-detail-ratings-heading">
+          <div>
+            <p className="cinema-kicker">El grupo</p>
+            <h2 id="ratings-title">Valoraciones</h2>
+          </div>
+          <div className="cinema-detail-ratings-summary">
+            <strong>{ratings.length > 0 ? formatScore(average) : "—"}</strong>
+            <span>{ratings.length} valoraciones</span>
+          </div>
+        </header>
+
+        <div className="cinema-rating-list">
+          {ratedMembers.length > 0 ? (
+            ratedMembers.map((member, index) => {
+              const rating = ratingByUserId.get(member.id)!;
+              return (
+                <article key={member.id} className="cinema-rating-row" style={{ "--rating-order": index } as CSSProperties}>
+                  <span className="cinema-rating-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                  <div className="cinema-rating-person">
+                    <UserAvatar user={member} size="sm" />
+                    <div>
+                      <strong>{member.name}</strong>
+                      <span>@{member.username}</span>
                     </div>
-                    <p className="body-copy">{rating.comment ?? "Sin comentario."}</p>
-                  </article>
-                );
-              })
-            ) : (
-              <div className="detail-ratings-empty">
-                <strong>La conversación todavía no ha empezado</strong>
-                <p>Nadie ha dejado una nota para esta película.</p>
-              </div>
-            )}
-            {unratedMembers.length > 0 ? (
-              <div className="detail-unrated-summary">
-                <span>{unratedMembers.length === 1 ? "Falta por valorar" : "Faltan por valorar"}</span>
-                <strong>{unratedMembers.map((member) => member.name).join(", ")}</strong>
-              </div>
-            ) : null}
-          </div>
-        </section>
+                  </div>
+                  <blockquote>{rating.comment ?? "Sin comentario."}</blockquote>
+                  <strong className="cinema-rating-number">{formatScore(rating.score)}</strong>
+                </article>
+              );
+            })
+          ) : (
+            <div className="cinema-ratings-empty">
+              <strong>Todavía no hay valoraciones</strong>
+              <p>Nadie ha dejado una nota para esta película.</p>
+            </div>
+          )}
+        </div>
+
+        {unratedMembers.length > 0 ? (
+          <p className="cinema-unrated">
+            <span>{unratedMembers.length === 1 ? "Falta por valorar" : "Faltan por valorar"}</span>
+            {unratedMembers.map((member) => member.name).join(", ")}
+          </p>
+        ) : null}
 
         {sessionUser && watchEntry ? (
-          <section className="panel">
-            <div className="panel-header">
-              <p className="eyebrow">Tu nota</p>
-              <h2>{myRating ? "Ya tienes una valoración guardada" : "Aún no la has valorado"}</h2>
+          <div className="cinema-detail-your-rating" aria-labelledby="your-rating-title">
+            <div>
+              <p className="cinema-section-number">Tu nota</p>
+              <h2 id="your-rating-title">
+                {myRating ? formatScore(myRating.score) : "Sin valorar"}
+              </h2>
+              <p>
+                {myRating
+                  ? "Puedes cambiar la nota o añadir un comentario cuando quieras."
+                  : "Guarda una nota y, si quieres, añade un comentario."}
+              </p>
             </div>
-            <p className="body-copy">
-              Pulsa el botón para abrir una ventana emergente y guardar tu nota. La nota es obligatoria y el comentario
-              es opcional.
-            </p>
             <RatingPanel movieId={movie.id} initialScore={myRating?.score} initialComment={myRating?.comment} />
-          </section>
+          </div>
         ) : null}
       </section>
-    </div>
+    </article>
   );
 }

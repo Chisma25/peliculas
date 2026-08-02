@@ -44,6 +44,10 @@ function formatLanguage(value) {
   return LANGUAGE_LABELS[normalized] ?? normalized.toUpperCase();
 }
 
+function imageUrl(path, size) {
+  return path ? `https://image.tmdb.org/t/p/${size}${path}` : undefined;
+}
+
 async function fetchDetails(tmdbId) {
   const url = new URL(`https://api.themoviedb.org/3/movie/${encodeURIComponent(tmdbId)}`);
   url.searchParams.set("api_key", apiKey);
@@ -86,7 +90,9 @@ try {
         ...data,
         originalTitle: details.original_title || data.originalTitle,
         language: formatLanguage(details.original_language),
-        metadataVersion: 2,
+        posterUrl: imageUrl(details.poster_path, "w500") || data.posterUrl,
+        backdrop: imageUrl(details.backdrop_path, "w780") || data.backdrop,
+        metadataVersion: 3,
         popularity: Number.isFinite(details.popularity) ? details.popularity : data.popularity,
         voteCount: Number.isFinite(details.vote_count) ? details.vote_count : data.voteCount
       };
@@ -117,7 +123,8 @@ try {
           title: record.data.title,
           previousLanguage: record.data.language,
           nextLanguage: nextData.language,
-          originalTitle: nextData.originalTitle
+          originalTitle: nextData.originalTitle,
+          addedBackdrop: !record.data.backdrop && Boolean(nextData.backdrop)
         }))
       },
       null,

@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Geist } from "next/font/google";
 
 import "./globals.css";
 
 import { SiteHeader } from "@/components/site-header";
+import { NavigationMemory } from "@/components/navigation-memory";
 import { DataUnavailableError } from "@/lib/data-availability";
 import { getDeploymentVersion } from "@/lib/deployment-version";
 import { getSessionUser } from "@/lib/store";
 import type { User } from "@/lib/types";
+
+const interfaceFont = Geist({
+  subsets: ["latin"],
+  variable: "--font-cinema-sans",
+  display: "swap"
+});
 
 export const metadata: Metadata = {
   title: "Cine semanal",
@@ -28,11 +36,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const deploymentVersion = getDeploymentVersion();
 
   return (
-    <html lang="es">
+    <html lang="es" className={interfaceFont.variable}>
       <body>
         <div className="app-shell">
           <div className="ambient ambient-one" />
           <div className="ambient ambient-two" />
+          <NavigationMemory />
           <SiteHeader user={user} deploymentVersion={deploymentVersion} />
           <main className="page-shell">{children}</main>
         </div>

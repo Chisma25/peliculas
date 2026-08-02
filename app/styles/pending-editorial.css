@@ -1,0 +1,406 @@
+/* Pendientes - editorial film library */
+
+html:has(.pending-page) {
+  scroll-padding-top: 4.85rem;
+  scroll-snap-type: none;
+}
+
+.pending-page-intro,
+.pending-radar-panel,
+.pending-archive-panel {
+  box-sizing: border-box;
+  min-height: calc(100dvh - 4.85rem);
+  scroll-snap-stop: normal;
+}
+
+.pending-page-intro,
+.pending-radar-panel {
+  scroll-snap-align: start;
+}
+
+.pending-archive-panel {
+  scroll-snap-align: start;
+}
+
+.pending-radar-panel,
+.pending-archive-panel {
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid var(--cinema-line);
+  background: #11120f;
+}
+
+.pending-page-intro {
+  isolation: isolate;
+  position: relative;
+  align-items: end;
+  padding-inline: clamp(2rem, 4.2vw, 5rem);
+  overflow: hidden;
+  border-bottom: 1px solid var(--cinema-line);
+}
+
+.pending-page-intro::before,
+.pending-page-intro::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.pending-page-intro::before {
+  z-index: -2;
+  inset: 0 calc(var(--page-gutter) * -1);
+  background-image:
+    linear-gradient(90deg, rgba(15, 15, 13, 0.92) 0%, rgba(15, 15, 13, 0.62) 43%, rgba(15, 15, 13, 0.14) 74%, rgba(15, 15, 13, 0.48) 100%),
+    linear-gradient(0deg, var(--cinema-bg) 0%, transparent 38%),
+    var(--pending-hero-image);
+  background-position: center;
+  background-size: cover;
+  filter: saturate(0.9) contrast(1.07) brightness(1.02);
+  opacity: 0.88;
+  transform: scale(1.025);
+}
+
+.pending-page-intro::after {
+  z-index: -1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 4.5rem;
+  border-top: 1px solid rgba(233, 226, 213, 0.12);
+  background: linear-gradient(90deg, rgba(197, 141, 83, 0.08), transparent 46%);
+}
+
+.pending-page-intro-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 5.8rem;
+}
+
+.pending-page-intro-copy h1 {
+  max-width: none;
+  font-size: clamp(5rem, 9vw, 9rem);
+  letter-spacing: -0.075em;
+  line-height: 0.7;
+}
+
+.pending-page-intro-note {
+  max-width: 30ch;
+  margin: 0.5rem 0 0;
+  color: var(--cinema-paper-soft);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.pending-page-intro-ledger {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-width: min(23rem, 100%);
+  justify-items: end;
+  align-self: end;
+  gap: 0.35rem;
+  padding: 0 0 5.8rem 2rem;
+  border-left: 1px solid var(--cinema-line);
+}
+
+.pending-page-intro-ledger > span {
+  color: var(--cinema-accent-soft);
+  font-size: 0.64rem;
+  font-weight: 750;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.pending-page-intro-ledger strong {
+  color: var(--cinema-paper);
+  font-family: var(--cinema-display);
+  font-size: clamp(5.5rem, 9vw, 9rem);
+  font-weight: 400;
+  letter-spacing: -0.07em;
+  line-height: 0.8;
+}
+
+.pending-page-intro-ledger a {
+  margin-top: 1.4rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid rgba(197, 141, 83, 0.55);
+  color: var(--cinema-accent-soft);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.pending-page-intro-ledger a span {
+  margin-left: 0.45rem;
+}
+
+.pending-radar-panel {
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: center;
+  padding-block: clamp(2rem, 3vw, 3rem);
+}
+
+.pending-radar-heading {
+  grid-template-columns: 1fr;
+  margin-bottom: clamp(1.5rem, 2vw, 2rem);
+}
+
+.pending-radar-heading h2 {
+  max-width: none;
+}
+
+.pending-radar-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: clamp(0.7rem, 1.25vw, 1.3rem);
+  align-items: end;
+}
+
+.pending-radar-card.is-lead {
+  grid-column: span 2;
+}
+
+.pending-radar-card.is-lead .pending-radar-poster {
+  aspect-ratio: 4 / 3;
+}
+
+.pending-radar-card.is-lead .pending-card-title {
+  font-size: clamp(1.55rem, 2.2vw, 2.5rem);
+}
+
+.pending-radar-card:not(.is-lead) .pending-radar-poster {
+  aspect-ratio: 2 / 3;
+}
+
+.pending-radar-card.is-selected::before {
+  content: "Elegida";
+  position: absolute;
+  z-index: 3;
+  top: 0.7rem;
+  right: 0.7rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid rgba(233, 226, 213, 0.2);
+  background: rgba(15, 15, 13, 0.78);
+  color: var(--cinema-accent-soft);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+}
+
+.pending-radar-card .pending-selected-pill {
+  display: none;
+}
+
+.pending-radar-rank,
+.pending-archive-number {
+  font-family: var(--cinema-display);
+  font-size: 0.72rem !important;
+  font-weight: 400;
+}
+
+.pending-archive-panel {
+  align-content: start;
+  padding-top: clamp(2.75rem, 4.5vw, 4.5rem);
+}
+
+.pending-archive-heading {
+  grid-template-columns: 1fr;
+  margin-bottom: clamp(1.75rem, 3vw, 3rem);
+}
+
+.pending-archive-heading h2 {
+  font-size: clamp(3rem, 5vw, 5rem);
+}
+
+.pending-filter-panel {
+  margin-bottom: 1rem;
+}
+
+.pending-results-strip {
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--cinema-line);
+}
+
+.pending-movie-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(3rem, 5vw, 5rem) clamp(0.8rem, 1.35vw, 1.4rem);
+  padding-top: clamp(1.25rem, 2vw, 2rem);
+}
+
+.pending-movie-card {
+  grid-column: auto;
+}
+
+.pending-movie-poster .pending-external-score {
+  right: 0.7rem;
+  left: auto;
+  color: var(--cinema-paper-soft);
+  font-family: var(--font-cinema-sans), sans-serif;
+  font-size: 0.58rem !important;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.pending-movie-actions {
+  grid-template-columns: minmax(5rem, 0.42fr) minmax(0, 1fr);
+}
+
+.pending-movie-actions .weekly-selection-button {
+  justify-content: flex-end;
+  color: var(--cinema-accent-soft);
+}
+
+.pending-movie-actions .ghost-button {
+  justify-content: flex-start;
+  color: var(--cinema-paper-dim);
+}
+
+@media (max-width: 1180px) {
+  .pending-radar-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .pending-radar-card.is-lead {
+    grid-column: span 2;
+  }
+
+  .pending-movie-card {
+    grid-column: auto;
+  }
+
+  .pending-movie-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .pending-page-intro {
+    min-height: calc(100svh - 5.6rem);
+    padding-inline: 1rem;
+  }
+
+  .pending-page-intro-copy {
+    padding-bottom: 1rem;
+  }
+
+  .pending-page-intro-copy h1 {
+    font-size: clamp(4.5rem, 20vw, 8rem);
+  }
+
+  .pending-page-intro-ledger {
+    min-width: 0;
+    grid-template-columns: auto 1fr;
+    justify-items: start;
+    align-items: end;
+    padding: 1.3rem 0 5.8rem;
+    border-top: 1px solid var(--cinema-line);
+    border-left: 0;
+  }
+
+  .pending-page-intro-ledger > span {
+    grid-column: 1 / -1;
+  }
+
+  .pending-page-intro-ledger strong {
+    font-size: clamp(4rem, 18vw, 6rem);
+  }
+
+  .pending-page-intro-ledger a {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-self: end;
+    margin: 0 0 0.45rem;
+  }
+
+  .pending-radar-grid,
+  .pending-radar-grid.pending-radar-grid-tight {
+    grid-template-columns: repeat(5, minmax(74vw, 1fr));
+    align-items: start;
+  }
+
+  .pending-radar-grid.pending-radar-grid-tight {
+    grid-template-columns: repeat(2, minmax(74vw, 1fr));
+  }
+
+  .pending-radar-card.is-lead {
+    grid-column: auto;
+  }
+
+  .pending-radar-card.is-lead .pending-radar-poster,
+  .pending-radar-card:not(.is-lead) .pending-radar-poster {
+    aspect-ratio: 2 / 3;
+  }
+
+  .pending-radar-card.is-lead .pending-card-title {
+    font-size: clamp(1.35rem, 6vw, 2rem);
+  }
+
+  .pending-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pending-movie-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3.5rem 0.85rem;
+  }
+
+  .pending-movie-card {
+    grid-column: span 1;
+  }
+
+  .pending-movie-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .pending-movie-actions .weekly-selection-button,
+  .pending-movie-actions .ghost-button {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .pending-movie-grid {
+    grid-template-columns: 1fr;
+    gap: 4rem;
+  }
+
+  .pending-movie-poster {
+    aspect-ratio: 4 / 5;
+  }
+
+  .pending-movie-card .poster-image {
+    object-position: center 24%;
+  }
+}
+
+@media (min-width: 821px) and (max-height: 760px) {
+  .pending-radar-panel {
+    padding-block: 1.5rem;
+  }
+}
+
+@media (max-width: 820px) {
+  html:has(.pending-page) {
+    scroll-padding-top: 5.6rem;
+    scroll-snap-type: none;
+  }
+
+  .pending-radar-panel,
+  .pending-archive-panel {
+    min-height: auto;
+    scroll-snap-align: none;
+  }
+
+  .pending-archive-heading {
+    scroll-snap-align: none;
+  }
+}

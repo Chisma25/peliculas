@@ -1,6 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
 
+import { CinematicStage } from "@/components/cinematic-stage";
+import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
+import { MarkWatchedControl } from "@/components/mark-watched-control";
+import { NowPlayingPanel, NowPlayingPanelFallback } from "@/components/now-playing-panel";
 import { UpcomingReleasesPanel, UpcomingReleasesPanelFallback } from "@/components/upcoming-releases-panel";
 import { getDashboardOverviewHydrated } from "@/lib/store";
 import { formatScore } from "@/lib/utils";
@@ -13,30 +17,48 @@ export default async function HomePage() {
   const hasWatchedSelection = Boolean(dashboard.selectedWatchEntry);
   const heroSubtitle = selectedMovie
     ? selectedMovie.director
-    : "Elegid una candidata y la portada se convertira en programa de la semana.";
+    : "Todavía no habéis elegido película.";
 
   return (
-    <div className="dashboard-pilot">
-      <section className="dashboard-command" aria-labelledby="dashboard-title">
+    <div className="cinema-home">
+      <DirectionalChapterAssist />
+      <div id="semana" className="cinema-home-snap-start" data-scroll-chapter aria-hidden="true" />
+      <CinematicStage
+        className={`cinema-opening ${selectedMovie ? "cinema-opening-selected" : "cinema-opening-empty"}`}
+        labelledBy="dashboard-title"
+      >
         {spotlightArtwork ? (
           <div
-            className="dashboard-command-art"
+            className="cinema-opening-art"
             style={{
-              backgroundImage: `linear-gradient(90deg, rgba(10, 14, 22, 0.95) 0%, rgba(10, 14, 22, 0.8) 42%, rgba(10, 14, 22, 0.2) 100%), url(${spotlightArtwork})`
+              backgroundImage: `url(${spotlightArtwork})`
             }}
           />
         ) : null}
 
-        <div className="dashboard-command-label">
-          <p className="eyebrow">Peli de la semana</p>
+        <div className="cinema-opening-shade" />
+        <div className="cinema-opening-grain" aria-hidden="true" />
+        {!selectedMovie ? (
+          <div className="cinema-opening-empty-art" aria-hidden="true">
+            <span>Por</span>
+            <span>elegir</span>
+            <i />
+          </div>
+        ) : null}
+
+        <div className="cinema-opening-index" aria-hidden="true">
+          <span>01</span>
+          <i />
+          <span>Sesión semanal</span>
         </div>
 
-        <div className="dashboard-command-copy">
-          <h1 id="dashboard-title">{selectedMovie ? selectedMovie.title : "Cartelera por decidir"}</h1>
-          <p className="dashboard-command-director">{heroSubtitle}</p>
+        <div className="cinema-opening-copy">
+          <p className="cinema-kicker">Película de la semana</p>
+          <h1 id="dashboard-title">{selectedMovie ? selectedMovie.title : "Esta semana"}</h1>
+          <p className="cinema-opening-director">{heroSubtitle}</p>
 
           {selectedMovie ? (
-            <div className="dashboard-command-meta" aria-label="Datos de la pelicula seleccionada">
+            <div className="cinema-opening-meta" aria-label="Datos de la película seleccionada">
               <span>{selectedMovie.year > 0 ? selectedMovie.year : "Año pendiente"}</span>
               <span>{spotlightGenres || "Género pendiente"}</span>
               <span>
@@ -45,55 +67,75 @@ export default async function HomePage() {
             </div>
           ) : null}
 
-          <div className="dashboard-command-actions">
+          <div className="cinema-opening-actions">
             {selectedMovie ? (
               <>
-                <Link href={`/peliculas/${selectedMovie.slug}`} className="primary-button">
-                  Abrir ficha
+                <Link href={`/peliculas/${selectedMovie.slug}`} className="cinema-primary-action">
+                  <span>Abrir ficha</span>
+                  <span aria-hidden="true">↗</span>
                 </Link>
                 {hasWatchedSelection ? (
-                  <span className="dashboard-viewed-status">Vista por el grupo</span>
+                  <span className="cinema-viewed-status">Vista por el grupo</span>
                 ) : (
-                  <form action="/api/watch/mark-watched" method="post">
-                    <input type="hidden" name="movieId" value={selectedMovie.id} />
-                    <input type="hidden" name="redirectTo" value="/" />
-                    <button type="submit" className="secondary-button">
-                      Marcar como vista
-                    </button>
-                  </form>
+                  <MarkWatchedControl movieId={selectedMovie.id} movieTitle={selectedMovie.title} />
                 )}
               </>
             ) : (
-              <Link href="/pendientes" className="primary-button">
+              <Link href="/pendientes" className="cinema-primary-action">
                 Elegir desde pendientes
               </Link>
             )}
           </div>
         </div>
 
-        <div className="dashboard-command-ledger" aria-label="Resumen del grupo">
+        <div className="cinema-opening-ledger" aria-label="Resumen del grupo">
           <article>
-            <span>Archivo</span>
+            <span>Películas vistas</span>
             <strong>{dashboard.stats.watchedCount}</strong>
-            <small>vistas</small>
+            <small>en total</small>
           </article>
           <article>
-            <span>Media</span>
+            <span>Nota del grupo</span>
             <strong>{formatScore(dashboard.stats.averageScore)}</strong>
-            <small>grupo</small>
+            <small>media histórica</small>
           </article>
           <article>
-            <span>Lista</span>
+            <span>Pendientes</span>
             <strong>{dashboard.stats.pendingCount}</strong>
-            <small>pendientes</small>
+            <small>por ver</small>
           </article>
         </div>
+
+        <nav className="cinema-chapter-nav" aria-label="Navegación entre capítulos">
+          <a href="#cartelera" aria-label="Bajar a películas en cartelera" title="Ir a Cartelera">
+            <span aria-hidden="true">↓</span>
+          </a>
+        </nav>
+      </CinematicStage>
+
+      <section id="cartelera" className="cinema-home-program cinema-home-now-playing" data-scroll-chapter aria-label="Ahora en cines">
+        <Suspense fallback={<NowPlayingPanelFallback />}>
+          <NowPlayingPanel />
+        </Suspense>
+        <nav className="cinema-chapter-nav" aria-label="Navegación entre capítulos">
+          <a href="#semana" aria-label="Subir a la película de la semana" title="Volver a la película semanal">
+            <span aria-hidden="true">↑</span>
+          </a>
+          <a href="#proximamente" aria-label="Bajar a próximos estrenos" title="Ir a Próximamente">
+            <span aria-hidden="true">↓</span>
+          </a>
+        </nav>
       </section>
 
-      <section className="dashboard-bottom-grid">
+      <section id="proximamente" className="cinema-home-program cinema-home-upcoming" data-scroll-chapter aria-label="Próximos estrenos">
         <Suspense fallback={<UpcomingReleasesPanelFallback />}>
           <UpcomingReleasesPanel />
         </Suspense>
+        <nav className="cinema-chapter-nav" aria-label="Navegación entre capítulos">
+          <a href="#cartelera" aria-label="Subir a películas en cartelera" title="Volver a Cartelera">
+            <span aria-hidden="true">↑</span>
+          </a>
+        </nav>
       </section>
     </div>
   );

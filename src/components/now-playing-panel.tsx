@@ -1,31 +1,29 @@
 import { PosterImage } from "@/components/poster-image";
-import { getUpcomingDashboardReleasesHydrated } from "@/lib/store";
-import { formatLongDate, formatShortDate } from "@/lib/utils";
+import { getNowPlayingDashboardSuggestionsHydrated } from "@/lib/store";
+import { formatShortDate } from "@/lib/utils";
 
 function getTmdbMovieUrl(tmdbId?: string) {
   return tmdbId ? `https://www.themoviedb.org/movie/${tmdbId}` : undefined;
 }
 
-export async function UpcomingReleasesPanel() {
-  const upcomingReleases = await getUpcomingDashboardReleasesHydrated();
+export async function NowPlayingPanel() {
+  const suggestions = await getNowPlayingDashboardSuggestionsHydrated();
 
   return (
-    <section className="cinema-releases">
+    <section className="cinema-releases cinema-now-playing">
       <div className="cinema-releases-heading">
         <div>
-          <p className="cinema-kicker">Estrenos</p>
-          <h2>Próximamente</h2>
+          <p className="cinema-kicker">Cartelera</p>
+          <h2>Ahora en cines</h2>
         </div>
-        <p className="body-copy">
-          Tres próximos estrenos que pueden interesaros.
-        </p>
+        <p className="cinema-program-status">España · Selección actualizada</p>
       </div>
 
-      {upcomingReleases.length > 0 ? (
+      {suggestions.length > 0 ? (
         <div className="cinema-release-grid">
-          {upcomingReleases.map((item, index) => {
+          {suggestions.map((item, index) => {
             const tmdbUrl = getTmdbMovieUrl(item.movie.sourceIds?.tmdb);
-            const artwork = item.movie.posterUrl || item.movie.backdrop;
+            const artwork = item.movie.backdrop || item.movie.posterUrl;
 
             return (
               <article key={item.movie.id} className={`cinema-release-card cinema-release-card-${index + 1}`}>
@@ -37,19 +35,21 @@ export async function UpcomingReleasesPanel() {
                 <div className="cinema-release-copy">
                   <span className="cinema-release-number">0{index + 1}</span>
                   <div>
-                    <p className="cinema-release-date">{formatShortDate(item.releaseDate)}</p>
+                    <p className="cinema-release-date">
+                      {item.releaseDate ? `Desde el ${formatShortDate(item.releaseDate)}` : "Ahora en cartelera"}
+                    </p>
                     <h3>{item.movie.title}</h3>
                     <p className="cinema-release-byline">
-                      {item.movie.director} · {item.movie.genres.slice(0, 2).join(" / ") || "Próximo estreno"}
+                      {item.movie.director} · {item.movie.genres.slice(0, 2).join(" / ") || "En cartelera"}
                     </p>
-                    <p className="cinema-release-full-date">En España, {formatLongDate(item.releaseDate)}</p>
+                    <p className="cinema-release-full-date">
+                      {item.movie.externalRating.source} {item.movie.externalRating.value}
+                    </p>
                     {tmdbUrl ? (
                       <a href={tmdbUrl} target="_blank" rel="noreferrer" className="cinema-text-link">
                         Ver en TMDb <span aria-hidden="true">↗</span>
                       </a>
-                    ) : (
-                      <span className="cinema-text-link cinema-text-link-disabled">Sin enlace</span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </article>
@@ -58,23 +58,23 @@ export async function UpcomingReleasesPanel() {
         </div>
       ) : (
         <div className="cinema-release-empty">
-          <span aria-hidden="true">Estrenos</span>
-          <p>No hemos encontrado estrenos relevantes para el próximo mes.</p>
+          <span aria-hidden="true">Cartelera</span>
+          <p>No hemos podido preparar la selección de películas en cines.</p>
         </div>
       )}
     </section>
   );
 }
 
-export function UpcomingReleasesPanelFallback() {
+export function NowPlayingPanelFallback() {
   return (
-    <section className="cinema-releases">
+    <section className="cinema-releases cinema-now-playing">
       <div className="cinema-releases-heading">
         <div>
-          <p className="cinema-kicker">Estrenos</p>
-          <h2>Próximamente</h2>
+          <p className="cinema-kicker">Cartelera</p>
+          <h2>Ahora en cines</h2>
         </div>
-        <p className="body-copy">Preparando los próximos estrenos…</p>
+        <p className="cinema-program-status">Preparando la selección</p>
       </div>
 
       <div className="cinema-release-grid">

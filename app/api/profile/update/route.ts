@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { resolveApiSessionUser } from "@/lib/api-session";
+import { getAvatarDeliveryUrl } from "@/lib/avatar-data";
 import { operationalErrorResponse } from "@/lib/operational-errors";
 import { ensureSameOrigin } from "@/lib/request-security";
 import { updateUserProfile } from "@/lib/store";
@@ -35,7 +36,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({
-      message: `Perfil actualizado. Ahora entras como ${user.username}.`
+      message: "Perfil actualizado.",
+      avatarUrl: user.avatarUrl ? getAvatarDeliveryUrl(user.id, user.avatarUrl) : null
     });
   } catch (error) {
     return operationalErrorResponse(error, {

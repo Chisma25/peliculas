@@ -1,4 +1,8 @@
+import type { CSSProperties } from "react";
+
+import { CatalogClearButton, CatalogFilterForm, CatalogTextInput } from "@/components/catalog-filter-form";
 import { FilterDropdown } from "@/components/filter-dropdown";
+import { DirectionalChapterAssist } from "@/components/directional-chapter-assist";
 import { PendingFreshness } from "@/components/pending-freshness";
 import { PrefetchLink } from "@/components/prefetch-link";
 import { PosterImage } from "@/components/poster-image";
@@ -9,7 +13,7 @@ import { buildPaginationItems, formatCount } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 16;
 
 type PendingPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -67,14 +71,33 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
 
   const paginationItems = buildPaginationItems(safePage, totalPages);
   const hasActiveFilters = Boolean(search || activeGenre);
+  const heroMovie = weeklyOptions[0]?.movie ?? pagedPending[0];
+  const heroStyle = heroMovie?.backdrop
+    ? ({ "--pending-hero-image": `url("${heroMovie.backdrop}")` } as CSSProperties)
+    : undefined;
 
   return (
     <section className="pending-page">
+      <DirectionalChapterAssist />
       <PendingFreshness />
+      <header id="pendientes-portada" className="cinema-page-intro pending-page-intro" data-scroll-chapter style={heroStyle}>
+        <div className="pending-page-intro-copy">
+          <p className="cinema-kicker">Filmoteca por ver</p>
+          <h1>Pendientes</h1>
+          <p className="pending-page-intro-note">La lista de la que sale la próxima sesión.</p>
+        </div>
+        <div className="pending-page-intro-ledger">
+          <span>En archivo</span>
+          <strong>{String(totalPendingCount).padStart(2, "0")}</strong>
+          <PrefetchLink href="/explorar">Añadir películas <span aria-hidden="true">↗</span></PrefetchLink>
+        </div>
+      </header>
+
       {batch && weeklyOptions.length > 0 ? (
-        <section className="pending-radar-panel" aria-label="Recomendaciones semanales">
+        <section id="seleccion-semanal" className="pending-radar-panel" data-scroll-chapter aria-label="Recomendaciones semanales">
           <div className="pending-radar-heading">
-            <h1>Recomendaciones</h1>
+            <p className="cinema-kicker">Selección semanal</p>
+            <h2>Para esta semana</h2>
           </div>
 
           <div
@@ -87,11 +110,14 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               const primaryGenre = item.movie.genres.find((genre) => genre !== "Pendiente");
 
               return (
-                <article key={item.id} className={`pending-radar-card ${selected ? "is-selected" : ""}`}>
+                <article
+                  key={item.id}
+                  className={`pending-radar-card ${index === 0 ? "is-lead" : ""} ${selected ? "is-selected" : ""}`}
+                >
                   <PrefetchLink href={`/peliculas/${item.movie.slug}`} className="pending-radar-link">
                     <div className="pending-radar-poster">
-                      <PosterImage src={item.movie.posterUrl} />
-                      <span className="pending-radar-rank">#{index + 1}</span>
+                      <PosterImage src={index === 0 ? item.movie.backdrop ?? item.movie.posterUrl : item.movie.posterUrl} />
+                      <span className="pending-radar-rank">{String(index + 1).padStart(2, "0")}</span>
                     </div>
 
                     <div className="pending-radar-copy">
@@ -119,13 +145,19 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         </section>
       ) : null}
 
-      <section id="lista-pendientes" className="pending-archive-panel" aria-label="Archivo de pendientes">
+      <section id="lista-pendientes" className="pending-archive-panel" data-scroll-chapter aria-label="Archivo de pendientes">
+        <div className="pending-archive-heading">
+          <div>
+            <p className="cinema-kicker">Archivo completo</p>
+            <h2>Todas las pendientes</h2>
+          </div>
+        </div>
         {totalPendingCount > 0 || hasActiveFilters ? (
-          <form action="/pendientes" method="get" className="pending-filter-panel">
+          <CatalogFilterForm anchorId="lista-pendientes" basePath="/pendientes" className="pending-filter-panel">
             <div className="pending-filter-grid">
               <label className="pending-filter-field pending-filter-field-wide">
                 Buscar por título
-                <input type="search" name="search" defaultValue={search} placeholder="Interstellar, Toy Story, Whiplash..." />
+                <CatalogTextInput type="search" name="search" value={search} placeholder="Interstellar, Toy Story, Whiplash..." />
               </label>
 
               <label className="pending-filter-field">
@@ -135,6 +167,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                   value={activeGenre}
                   placeholder="Todos los géneros"
                   ariaLabel="Filtrar pendientes por género"
+                  submitOnSelect
                   options={[
                     { value: "", label: "Todos los géneros" },
                     ...genres.map((genre) => ({ value: genre, label: genre }))
@@ -147,11 +180,11 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
               <button type="submit" className="primary-button">
                 Aplicar filtros
               </button>
-              <PrefetchLink href="/pendientes" className="ghost-button">
+              <CatalogClearButton anchorId="lista-pendientes" basePath="/pendientes" className="ghost-button">
                 Limpiar
-              </PrefetchLink>
+              </CatalogClearButton>
             </div>
-          </form>
+          </CatalogFilterForm>
         ) : null}
 
         <div className="pending-list-anchor">
@@ -173,34 +206,39 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
 
         {filteredPendingCount === 0 ? (
           <div className="pending-empty-state">
-            <p className="eyebrow">Sin resultados</p>
-            <h2>{totalPendingCount === 0 ? "Aún no hay películas pendientes." : "No hay pendientes con esos filtros."}</h2>
+            <p className="eyebrow">Sin coincidencias</p>
+            <h2>{totalPendingCount === 0 ? "Todavía no hay pendientes." : "Nada encaja con esta búsqueda."}</h2>
             <p className="body-copy">
               {totalPendingCount === 0
-                ? "Explorad el catálogo y guardad candidatas para tenerlas preparadas antes del próximo plan."
-                : "Prueba con otro género o limpia los filtros para volver a la lista completa."}
+                ? "Busca una película y añádela para empezar la lista."
+                : "Prueba con otro título o género."}
             </p>
             <div className="inline-actions">
-              <PrefetchLink href="/explorar" className="secondary-button">
-                Ir a explorar
-              </PrefetchLink>
-              {totalPendingCount > 0 ? (
-                <PrefetchLink href="/pendientes" className="ghost-button">
-                  Ver todas
+              {totalPendingCount === 0 ? (
+                <PrefetchLink href="/explorar" className="secondary-button">
+                  Buscar películas
                 </PrefetchLink>
-              ) : null}
+              ) : (
+                <CatalogClearButton anchorId="lista-pendientes" basePath="/pendientes" className="ghost-button">
+                  Limpiar filtros
+                </CatalogClearButton>
+              )}
             </div>
           </div>
         ) : (
           <>
             <div className={`pending-movie-grid ${pagedPending.length <= 2 ? "pending-movie-grid-tight" : ""}`}>
-              {pagedPending.map((movie) => (
-                <article key={movie.id} className="pending-movie-card">
-                  <PrefetchLink href={`/peliculas/${movie.slug}`} className="pending-movie-link">
-                    <div className="pending-movie-poster">
-                      <PosterImage src={movie.posterUrl} />
-                      <span>{movie.externalRating.source} {movie.externalRating.value}</span>
-                    </div>
+              {pagedPending.map((movie, index) => {
+                const archiveNumber = (safePage - 1) * PAGE_SIZE + index + 1;
+
+                return (
+                  <article key={movie.id} className="pending-movie-card">
+                    <PrefetchLink href={`/peliculas/${movie.slug}`} className="pending-movie-link">
+                      <div className="pending-movie-poster">
+                        <PosterImage src={movie.posterUrl} />
+                        <span className="pending-archive-number">{String(archiveNumber).padStart(2, "0")}</span>
+                        <span className="pending-external-score">{movie.externalRating.source} {movie.externalRating.value}</span>
+                      </div>
 
                     <div className="pending-movie-copy">
                       <div>
@@ -215,12 +253,12 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                         </div>
                       ) : null}
                     </div>
-                  </PrefetchLink>
+                    </PrefetchLink>
 
                   <div className="pending-movie-actions">
                     <form action="/api/pending/remove" method="post">
                       <input type="hidden" name="movieId" value={movie.id} />
-                      <input type="hidden" name="redirectTo" value={buildPendingQuery({ search, genre: activeGenre, page: safePage })} />
+                      <input type="hidden" name="redirectTo" value={buildPendingPageHref({ search, genre: activeGenre, page: safePage })} />
                       <button type="submit" className="ghost-button">
                         Quitar
                       </button>
@@ -233,8 +271,9 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
                       </form>
                     ) : null}
                   </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
 
             {totalPages > 1 ? (

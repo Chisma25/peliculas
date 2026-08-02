@@ -9,6 +9,7 @@ type AccessibleDialogProps = {
   children: ReactNode;
   labelledBy: string;
   describedBy?: string;
+  className?: string;
   onClose: () => void;
 };
 
@@ -21,7 +22,7 @@ const FOCUSABLE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])"
 ].join(",");
 
-export function AccessibleDialog({ children, labelledBy, describedBy, onClose }: AccessibleDialogProps) {
+export function AccessibleDialog({ children, labelledBy, describedBy, className = "", onClose }: AccessibleDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   const mounted = useMounted();
@@ -98,7 +99,7 @@ export function AccessibleDialog({ children, labelledBy, describedBy, onClose }:
     >
       <div
         ref={dialogRef}
-        className="modal-card"
+        className={["modal-card", className].filter(Boolean).join(" ")}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}

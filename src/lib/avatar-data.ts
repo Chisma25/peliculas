@@ -5,8 +5,21 @@ export type ParsedAvatarData = {
   contentType: string;
 };
 
-export function getAvatarDeliveryUrl(userId: string) {
-  return `/api/users/${encodeURIComponent(userId)}/avatar`;
+function getAvatarVersion(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export function getAvatarDeliveryUrl(userId: string, avatarDataUrl?: string | null) {
+  const path = `/api/users/${encodeURIComponent(userId)}/avatar`;
+  return avatarDataUrl ? `${path}?v=${getAvatarVersion(avatarDataUrl)}` : path;
+}
+
+export function toExactAvatarArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return Uint8Array.from(bytes).buffer;
 }
 
 export function parseAvatarDataUrl(value: string | null | undefined): ParsedAvatarData | null {

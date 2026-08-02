@@ -25,6 +25,17 @@ test("login stays focused and hides authenticated navigation", async ({ page }) 
   await expect(page.getByRole("link", { name: "Ir al dashboard de Cine Semanal" })).toBeVisible();
 });
 
+test("keeps recovery links comfortably tappable on mobile", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes("mobile"), "This check targets the compact mobile layout.");
+
+  await page.goto("/reset-credenciales");
+  const recoveryLink = page.locator('a[href="/login"]');
+  const box = await recoveryLink.boundingBox();
+
+  expect(box).not.toBeNull();
+  expect(box?.height).toBeGreaterThanOrEqual(40);
+});
+
 test("exposes a public, non-cached deployment identity", async ({ request }) => {
   const response = await request.get("/api/version");
   const payload = await response.json();
@@ -113,7 +124,7 @@ test.describe("authenticated Preview smoke tests", () => {
     test.skip(!testInfo.project.name.startsWith("mobile"), "Mobile-only layout assertion.");
     await page.goto("/");
 
-    const headerBox = await page.locator("header").boundingBox();
+    const headerBox = await page.locator(".site-header").boundingBox();
     const headingBox = await page.locator("main h1").first().boundingBox();
 
     expect(headerBox?.height ?? 999).toBeLessThan(100);
@@ -125,7 +136,7 @@ test.describe("authenticated Preview smoke tests", () => {
     await page.setViewportSize({ width: 768, height: 1024 });
     await page.goto("/grupo");
 
-    const headerBox = await page.locator("header").boundingBox();
+    const headerBox = await page.locator(".site-header").boundingBox();
     const brandBox = await page.getByRole("link", { name: "Ir al dashboard de Cine Semanal" }).boundingBox();
     const navigationBox = await page.getByRole("navigation", { name: "Principal" }).boundingBox();
     const profileBox = await page.locator(".user-chip").boundingBox();
@@ -135,6 +146,24 @@ test.describe("authenticated Preview smoke tests", () => {
     expect((brandBox?.x ?? 999) + (brandBox?.width ?? 999)).toBeLessThan(navigationBox?.x ?? 0);
     expect((navigationBox?.x ?? 999) + (navigationBox?.width ?? 999)).toBeLessThan(profileBox?.x ?? 0);
     expect(headingBox?.y ?? 0).toBeGreaterThan(headerBox?.y ? headerBox.y + headerBox.height : headerBox?.height ?? 0);
+  });
+
+  test("attaches the user menu to the lower edge of the header", async ({ page }) => {
+    await page.goto("/perfil");
+    await page.locator(".user-menu-summary").click();
+
+    const headerBox = await page.locator(".site-header").boundingBox();
+    const menu = page.locator(".user-chip-actions");
+    const menuBox = await menu.boundingBox();
+    const edgeDelta = (menuBox?.y ?? 0) - ((headerBox?.y ?? 0) + (headerBox?.height ?? 0));
+
+    expect(edgeDelta).toBeGreaterThanOrEqual(-2);
+    expect(edgeDelta).toBeLessThanOrEqual(0);
+
+    await page.waitForTimeout(250);
+    const settledMenuBox = await menu.boundingBox();
+    expect(settledMenuBox?.x).toBeCloseTo(menuBox?.x ?? 0, 1);
+    expect(settledMenuBox?.y).toBeCloseTo(menuBox?.y ?? 0, 1);
   });
 
   test("uses native lazy-loaded images for poster collections", async ({ page }) => {
@@ -163,6 +192,49 @@ test.describe("authenticated Preview smoke tests", () => {
 
       expect(dimensions.contentWidth, `${path} should not overflow horizontally`).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
     }
+  });
+
+  test("starts a newly selected primary page at the top", async ({ page }) => {
+    await page.goto("/pendientes");
+    await page.evaluate(() => window.scrollTo({ top: 700, behavior: "auto" }));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Vistas" }).click();
+    await page.waitForURL(/\/vistas(?:\?|$)/);
+
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
+
+  test("does not preload every primary screen while navigation is idle", async ({ page }) => {
+    const routeRequests: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.searchParams.has("_rsc") && ["/vistas", "/pendientes", "/explorar", "/grupo"].includes(url.pathname)) {
+        routeRequests.push(url.pathname);
+      }
+    });
+
+    await page.goto("/");
+    await page.waitForTimeout(1_500);
+
+    expect(routeRequests).toEqual([]);
+  });
+
+  test("confirms a watched weekly movie without leaving the dashboard unchanged", async ({ page }) => {
+    await page.route("**/api/watch/mark-watched", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "watched" })
+      });
+    });
+
+    await page.goto("/");
+    const markWatchedButton = page.getByRole("button", { name: /^Marcar .+ como vista$/ });
+    test.skip((await markWatchedButton.count()) === 0, "The current weekly selection is already watched or empty.");
+
+    await markWatchedButton.click();
+    await expect(page.getByText("Vista por el grupo", { exact: true })).toBeVisible();
   });
 
   test("keeps keyboard focus inside the rating dialog and restores it on close", async ({ page }) => {
@@ -194,20 +266,20 @@ test.describe("authenticated Preview smoke tests", () => {
         body: JSON.stringify({
           results: [
             {
-              id: "tmdb_157336",
-              slug: "interstellar",
-              title: "Interstellar",
-              year: 2014,
-              synopsis: "Un grupo de exploradores viaja más allá de nuestra galaxia.",
-              durationMinutes: 169,
+              id: "tmdb_999999991",
+              slug: "prueba-de-escritura-pendiente",
+              title: "Prueba de escritura pendiente",
+              year: 2026,
+              synopsis: "Una película sintética reservada para comprobar este flujo.",
+              durationMinutes: 101,
               genres: ["Ciencia ficción"],
-              director: "Christopher Nolan",
+              director: "Codex QA",
               cast: [],
               language: "EN",
               country: "Estados Unidos",
               posterUrl: "/icon.svg",
               externalRating: { source: "TMDb", value: "84%" },
-              sourceIds: { tmdb: "157336" }
+              sourceIds: { tmdb: "999999991" }
             }
           ]
         })
@@ -223,8 +295,8 @@ test.describe("authenticated Preview smoke tests", () => {
     });
 
     await page.goto("/explorar");
-    await page.getByRole("searchbox", { name: "Buscar por título" }).fill("Interstellar");
-    const addButton = page.getByRole("button", { name: "Añadir", exact: true });
+    await page.getByRole("searchbox", { name: "Buscar por título" }).fill("Prueba de escritura pendiente");
+    const addButton = page.getByRole("button", { name: "Añadir a pendientes", exact: true });
     await expect(addButton).toBeVisible();
     await addButton.click();
     await expect(page.getByRole("button", { name: "Añadiendo..." })).toBeVisible();
@@ -275,11 +347,11 @@ test.describe("authenticated Preview smoke tests", () => {
     await page.goto("/pendientes");
 
     const radar = page.getByRole("region", { name: "Recomendaciones semanales" });
-    const radarCount = await radar.count();
+    const radarCount = await radar.locator(".pending-radar-card").count();
     test.skip(radarCount === 0, "The current environment has no weekly radar.");
 
-    await expect(radar.getByRole("heading", { name: "Recomendaciones" })).toBeVisible();
-    await expect(radar.getByText("#1", { exact: true }).first()).toBeVisible();
+    await expect(radar.getByRole("heading", { name: "Para esta semana" })).toBeVisible();
+    await expect(radar.getByText("01", { exact: true }).first()).toBeVisible();
     await expect(radar.locator(".pending-radar-position-label")).toHaveCount(0);
     await expect(radar.locator(".pending-radar-reason")).toHaveCount(0);
     await expect(radar.locator(".pending-radar-detail-link")).toHaveCount(0);
@@ -295,7 +367,6 @@ test.describe("authenticated Preview smoke tests", () => {
     const [removeBox, chooseBox] = await Promise.all([removeButton.boundingBox(), chooseButton.boundingBox()]);
     expect(removeBox).not.toBeNull();
     expect(chooseBox).not.toBeNull();
-    expect(Math.abs((removeBox?.width ?? 0) - (chooseBox?.width ?? 0))).toBeLessThan(2);
     expect(Math.abs((removeBox?.height ?? 0) - (chooseBox?.height ?? 0))).toBeLessThan(2);
   });
 

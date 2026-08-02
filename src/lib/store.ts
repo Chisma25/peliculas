@@ -20,6 +20,7 @@ import {
 } from "@/lib/local-state-storage";
 import { findStoredMovieForSearchResult } from "@/lib/movie-search";
 import {
+  fetchNowPlayingMovies,
   fetchUpcomingMovies,
   resolveMovieMetadata,
   searchMovies,
@@ -35,6 +36,7 @@ import {
   generatePendingWeeklyOptions,
   generateWeeklyRecommendations,
   hasRecommendationMetadata,
+  rankNowPlayingForGroup,
   rankUpcomingReleasesForGroup
 } from "@/lib/recommendations";
 import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
@@ -45,6 +47,7 @@ import {
   ActivityItem,
   AppState,
   Movie,
+  NowPlayingSuggestion,
   RecommendationMetric,
   UpcomingReleaseSuggestion,
   User,
@@ -69,10 +72,10 @@ import {
 import { average, formatScore, isQuarterPointScore, safeId, slugify } from "@/lib/utils";
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
-const STATE_CACHE_TTL_MS = 20_000;
 const PAGE_ROUTE_CACHE_TTL_MS = 1000 * 60 * 2;
 const MOVIE_DETAIL_CACHE_TTL_MS = 1000 * 60 * 2;
 const UPCOMING_RELEASES_CACHE_TTL_MS = 1000 * 60 * 15;
+const NOW_PLAYING_CACHE_TTL_MS = 1000 * 60 * 15;
 const DATABASE_READ_BACKOFF_MS = 1000 * 60;
 const DATABASE_WRITE_BACKOFF_MS = 1000 * 60;
 const DATABASE_QUOTA_BACKOFF_MS = 1000 * 60 * 30;
@@ -202,11 +205,10 @@ const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
 const profileDataCache = new WeakMap<AppState, Map<string, ProfileData | null>>();
 const profileSummaryCache = new WeakMap<AppState, Map<string, ProfileSummary>>();
 const profileOverviewCache = new WeakMap<AppState, Map<string, ProfileOverview>>();
-let snapshotMemoryCache: TimedCache<AppState | null> | null = null;
 let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 let snapshotUsersWithAvatarsMemoryCache: TimedCache<User[]> | null = null;
-const normalizedCollectionsCache = new Map<string, TimedCache<NormalizedStateCollections>>();
 let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null = null;
+let nowPlayingMemoryCache: TimedCache<NowPlayingSuggestion[]> | null = null;
 let databaseReadBackoffUntil = 0;
 let databaseWriteBackoffUntil = 0;
 let liveStateMemoryCache: TimedCache<AppState> | null = null;
@@ -254,13 +256,6 @@ function readTimedCache<T>(entry: TimedCache<T> | null | undefined) {
   return cloneState(entry.value);
 }
 
-function writeTimedCache<T>(value: T): TimedCache<T> {
-  return {
-    value: cloneState(value),
-    expiresAt: Date.now() + STATE_CACHE_TTL_MS
-  };
-}
-
 function writeTimedCacheWithTtl<T>(value: T, ttlMs: number): TimedCache<T> {
   return {
     value: cloneState(value),
@@ -269,11 +264,10 @@ function writeTimedCacheWithTtl<T>(value: T, ttlMs: number): TimedCache<T> {
 }
 
 function invalidatePersistentStateCache() {
-  snapshotMemoryCache = null;
   snapshotUsersMemoryCache = null;
   snapshotUsersWithAvatarsMemoryCache = null;
-  normalizedCollectionsCache.clear();
   upcomingReleasesMemoryCache = null;
+  nowPlayingMemoryCache = null;
   groupPageDataMemoryCache = null;
   profilePageDataMemoryCache.clear();
   movieDetailDataMemoryCache.clear();
@@ -467,6 +461,7 @@ async function loadSnapshotUsersCached() {
 }
 
 const loadSnapshotUsersForRequest = cache(async () => loadUsersForRead());
+const loadSessionUsersForRequest = cache(async () => loadUsersForRead({ includeAvatarUrls: true }));
 
 const USER_RECORD_SELECT = {
   id: true,
@@ -738,7 +733,7 @@ function mapUserRecordsToStateUsers(records: Array<{
     };
 
     if (entry.avatarUrl) {
-      user.avatarUrl = useDeliveryUrls ? getAvatarDeliveryUrl(entry.id) : entry.avatarUrl;
+      user.avatarUrl = useDeliveryUrls ? getAvatarDeliveryUrl(entry.id, entry.avatarUrl) : entry.avatarUrl;
     }
 
     return ensureUserCredentials(user);
@@ -1434,30 +1429,6 @@ async function loadSnapshotStateUncached() {
   }
 }
 
-async function loadSnapshotStateCached() {
-  const cached = readTimedCache(snapshotMemoryCache);
-  if (cached) {
-    return cached;
-  }
-
-  const snapshot = await loadSnapshotStateUncached();
-  snapshotMemoryCache = writeTimedCache(snapshot);
-  return snapshot ? cloneState(snapshot) : null;
-}
-
-const loadSnapshotStateForRequest = cache(async () => loadSnapshotStateCached());
-
-async function loadNormalizedCollectionsCached(groupId: string) {
-  const cached = readTimedCache(normalizedCollectionsCache.get(groupId));
-  if (cached) {
-    return cached;
-  }
-
-  const collections = await loadNormalizedStateCollections(groupId);
-  normalizedCollectionsCache.set(groupId, writeTimedCache(collections));
-  return cloneState(collections);
-}
-
 async function loadDatabaseStateUncached() {
   if (!shouldAttemptDatabaseRead()) {
     return null;
@@ -1479,31 +1450,6 @@ async function loadDatabaseStateUncached() {
     return ensureStateIntegrity(mergeNormalizedState(baseState, normalizedCollections));
   } catch (error) {
     markDatabaseReadFailure("normalized state bootstrap", error);
-    return null;
-  }
-}
-
-async function loadDatabaseState() {
-  if (!shouldAttemptDatabaseRead()) {
-    return null;
-  }
-
-  try {
-    await ensurePreviewDataHygiene();
-    const snapshotState = await loadSnapshotStateForRequest();
-    if (!snapshotState && shouldFailClosedOnDatabaseError()) {
-      failClosedAfterDatabaseReadError();
-    }
-    const baseState = snapshotState ?? loadFallbackState();
-    const normalizedCollections = await loadNormalizedCollectionsCached(baseState.group.id);
-    if (!snapshotState && !hasNormalizedDatabaseState(normalizedCollections)) {
-      return null;
-    }
-    markDatabaseReadHealthy();
-
-    return ensureStateIntegrity(mergeNormalizedState(cloneState(baseState), normalizedCollections));
-  } catch (error) {
-    markDatabaseReadFailure("normalized state read", error);
     return null;
   }
 }
@@ -1573,17 +1519,25 @@ async function loadAppStateUncached() {
 }
 
 async function loadAppStateForRead() {
-  const liveState = readTimedCache(liveStateMemoryCache);
-  if (liveState) {
-    return liveState;
+  const usesDatabase = shouldUseDatabase();
+  const shouldUseMemoryCache = shouldUseProcessLocalMutableCache(usesDatabase);
+
+  if (shouldUseMemoryCache) {
+    const liveState = readTimedCache(liveStateMemoryCache);
+    if (liveState) {
+      return liveState;
+    }
   }
 
   if (shouldAttemptDatabaseWrite()) {
     await flushDeferredDatabaseWrites();
   }
 
-  if (shouldUseDatabase()) {
-    const databaseState = await loadDatabaseState();
+  if (usesDatabase) {
+    // A mutation and its following render can land on different Vercel
+    // instances. Read the shared database once per request so an instance's
+    // process-local cache can never keep the weekly selection stale.
+    const databaseState = await loadDatabaseStateUncached();
     if (databaseState) {
       rememberLiveState(databaseState);
       return databaseState;
@@ -1944,78 +1898,34 @@ async function buildUpcomingDashboardReleases(state: AppState) {
   return ranked;
 }
 
-async function loadDashboardDataFromDatabase(): Promise<DashboardOverviewData | null> {
-  if (!shouldAttemptDatabaseRead()) {
-    return null;
+async function buildNowPlayingDashboardSuggestions(state: AppState) {
+  const cached = readTimedCache(nowPlayingMemoryCache);
+  if (cached) {
+    return cached;
   }
 
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    const groupId = getDatabaseReadGroup().id;
-
-    const [pendingRows, watchedRows, latestBatch] = await Promise.all([
-      prisma.pendingMovie.findMany({
-        where: { groupId },
-        select: { movieId: true }
-      }),
-      prisma.watchEntryRecord.findMany({
-        where: { groupId },
-        select: { movieId: true }
-      }),
-      prisma.weeklyBatchRecord.findFirst({
-        where: { groupId },
-        orderBy: { createdAt: "desc" },
-        select: { selectedMovieId: true }
-      })
-    ]);
-
-    const pendingMovieIds = pendingRows.map((entry) => entry.movieId);
-    const watchedMovieIds = watchedRows.map((entry) => entry.movieId);
-    const [selectedWatchRecord, movieAverageRows, knownMoviesById] = await Promise.all([
-      latestBatch?.selectedMovieId
-        ? prisma.watchEntryRecord.findUnique({
-            where: { movieId: latestBatch.selectedMovieId }
-          })
-        : Promise.resolve(null),
-      watchedMovieIds.length > 0
-        ? prisma.ratingRecord.groupBy({
-            by: ["movieId"],
-            where: { movieId: { in: watchedMovieIds } },
-            _avg: { score: true }
-          })
-        : Promise.resolve([]),
-      loadMoviesByIdsFromDatabase([...watchedMovieIds, ...pendingMovieIds])
-    ]);
-    const watchedCount = watchedMovieIds.filter((movieId) => knownMoviesById.has(movieId)).length;
-    const pendingCount = pendingMovieIds.filter((movieId) => knownMoviesById.has(movieId)).length;
-
-    const averageScore = average(
-      movieAverageRows
-        .map((entry) => entry._avg.score ?? 0)
-        .filter((value) => value > 0)
-    );
-
-    const selectedMovie = latestBatch?.selectedMovieId
-      ? knownMoviesById.get(latestBatch.selectedMovieId) ??
-        (await loadMoviesByIdsFromDatabase([latestBatch.selectedMovieId])).get(latestBatch.selectedMovieId) ??
-        null
-      : null;
-    const dashboardData = {
-      selectedMovie,
-      selectedWatchEntry: selectedWatchRecord ? mapWatchRecordsToStateEntries([selectedWatchRecord])[0] ?? null : null,
-      stats: {
-        watchedCount,
-        averageScore,
-        pendingCount
-      }
-    } satisfies DashboardOverviewData;
-
-    markDatabaseReadHealthy();
-    return cloneState(dashboardData);
-  } catch (error) {
-    markDatabaseReadFailure("dashboard aggregate", error);
-    return null;
+  const rawNowPlaying = await fetchNowPlayingMovies("ES", 18);
+  if (rawNowPlaying.length === 0) {
+    return [];
   }
+
+  const indexes = getStateIndexes(state);
+  const knownTmdbIds = new Set(
+    [...state.pendingMovieIds, ...state.watchEntries.map((entry) => entry.movieId)]
+      .map((movieId) => indexes.moviesById.get(movieId)?.sourceIds?.tmdb)
+      .filter((value): value is string => Boolean(value))
+  );
+  const candidates = rawNowPlaying
+    .filter((movie) => !(movie.sourceIds?.tmdb && knownTmdbIds.has(movie.sourceIds.tmdb)))
+    .slice(0, 10);
+  const enrichedMovies = await Promise.all(candidates.map((movie) => resolveMovieMetadata(movie)));
+  const ranked = rankNowPlayingForGroup(state, enrichedMovies, 3);
+
+  nowPlayingMemoryCache = {
+    value: cloneState(ranked),
+    expiresAt: Date.now() + NOW_PLAYING_CACHE_TTL_MS
+  };
+  return ranked;
 }
 
 function listMembersFromState(state: AppState) {
@@ -2361,6 +2271,26 @@ async function getViewedPageDataFromDatabase(input: {
       ];
     });
 
+    const featuredHistory: HistoryItem[] = [...allHistory]
+      .sort((left, right) => right.groupAverage - left.groupAverage)
+      .slice(0, 1)
+      .flatMap((item) => {
+      const movie = moviesById.get(item.movieId);
+      if (!movie) {
+        return [];
+      }
+
+      return [
+        {
+          movie,
+          watchedOn: item.watchedOn,
+          groupAverage: item.groupAverage,
+          ratings: ratingsByMovieId.get(item.movieId) ?? [],
+          userRating: item.userRating
+        }
+      ];
+      });
+
     const normalizedSearch = input.search?.trim().toLocaleLowerCase("es") ?? "";
     const normalizedGenre = input.genre?.trim().toLocaleLowerCase("es") ?? "";
     const activeYear = input.year?.trim() ?? "";
@@ -2433,7 +2363,9 @@ async function getViewedPageDataFromDatabase(input: {
         ];
       });
 
-    await hydrateMoviesForDatabaseRead(pagedHistory.map((item) => item.movie));
+    await hydrateMoviesForDatabaseRead(
+      [...new Map([...featuredHistory, ...pagedHistory].map((item) => [item.movie.id, item.movie])).values()]
+    );
     markDatabaseReadHealthy();
     return {
       genres,
@@ -2441,6 +2373,7 @@ async function getViewedPageDataFromDatabase(input: {
       filteredHistoryCount: filteredHistory.length,
       totalPages,
       currentPage: safePage,
+      featuredHistory,
       pagedHistory
     };
   } catch (error) {
@@ -2657,7 +2590,7 @@ function buildProfileFromState(state: AppState, userId: string): ProfileData | n
   const profile = {
     user: {
       ...user,
-      avatarUrl: user.avatarUrl ? getAvatarDeliveryUrl(user.id) : undefined
+      avatarUrl: user.avatarUrl ? getAvatarDeliveryUrl(user.id, user.avatarUrl) : undefined
     },
     ratingsCount: summary.ratingsCount,
     averageScore: summary.averageScore,
@@ -2686,7 +2619,7 @@ const getSessionUserForRequest = cache(async () => {
     return null;
   }
 
-  const users = await loadSnapshotUsersForRequest();
+  const users = await loadSessionUsersForRequest();
   return users.find((user) => user.id === userId) ?? null;
 });
 
@@ -2848,21 +2781,18 @@ export async function getDashboardData() {
 }
 
 export async function getDashboardOverviewHydrated() {
-  if (shouldUseDatabase()) {
-    const databaseDashboard = await loadDashboardDataFromDatabase();
-    if (databaseDashboard) {
-      return databaseDashboard;
-    }
-  }
-
   const state = await loadAppState();
-  const dashboardData = buildDashboardDataFromState(state);
-  return dashboardData;
+  return buildDashboardDataFromState(state);
 }
 
 export async function getUpcomingDashboardReleasesHydrated() {
   const state = await loadAppState();
   return buildUpcomingDashboardReleases(state);
+}
+
+export async function getNowPlayingDashboardSuggestionsHydrated() {
+  const state = await loadAppState();
+  return buildNowPlayingDashboardSuggestions(state);
 }
 
 export async function getDashboardDataHydrated() {
@@ -2896,7 +2826,7 @@ export async function getGroupPageData() {
     members: listMembersFromState(state).map((member) => ({
       member: {
         ...member,
-        avatarUrl: member.avatarUrl ? getAvatarDeliveryUrl(member.id) : undefined
+        avatarUrl: member.avatarUrl ? getAvatarDeliveryUrl(member.id, member.avatarUrl) : undefined
       },
       profileSummary: getProfileSummaryFromState(state, member.id)
     }))
@@ -3014,6 +2944,11 @@ export async function getViewedPageDataHydrated(input: {
     currentUserId: input.currentUserId
   });
 
+  const { filteredHistory: featuredBase } = getViewedListBaseFromState(state, {
+    sort: "group-desc",
+    currentUserId: input.currentUserId
+  });
+
   const moviesToHydrate = new Map<string, Movie>();
   const totalPages = Math.max(1, Math.ceil(filteredHistory.length / itemsPerPage));
   const safePage = Math.min(currentPage, totalPages);
@@ -3036,7 +2971,28 @@ export async function getViewedPageDataHydrated(input: {
     })
     .filter((item): item is HistoryItem => Boolean(item));
 
+  const featuredHistory = featuredBase
+    .slice(0, 1)
+    .map((item) => {
+      const movie = indexes.moviesById.get(item.movieId);
+      if (!movie) {
+        return null;
+      }
+
+      return {
+        movie,
+        watchedOn: item.watchedOn,
+        groupAverage: item.groupAverage,
+        ratings: indexes.ratingsByMovieId.get(item.movieId) ?? [],
+        userRating: item.userRating
+      };
+    })
+    .filter((item): item is HistoryItem => Boolean(item));
+
   for (const item of pagedHistory) {
+    moviesToHydrate.set(item.movie.id, item.movie);
+  }
+  for (const item of featuredHistory) {
     moviesToHydrate.set(item.movie.id, item.movie);
   }
 
@@ -3048,6 +3004,7 @@ export async function getViewedPageDataHydrated(input: {
     filteredHistoryCount: filteredHistory.length,
     totalPages,
     currentPage: safePage,
+    featuredHistory,
     pagedHistory
   };
 }
@@ -3108,8 +3065,12 @@ export async function updateUserProfile(
   user.avatarSeed = slugify(nextName);
   if (input.avatarAction === "remove") {
     user.avatarUrl = undefined;
-  } else if (input.avatarAction === "replace" && input.avatarDataUrl?.trim()) {
-    user.avatarUrl = sanitizeAvatarDataUrl(input.avatarDataUrl);
+  } else if (input.avatarAction === "replace") {
+    const nextAvatar = sanitizeAvatarDataUrl(input.avatarDataUrl);
+    if (!nextAvatar) {
+      throw new Error("No se recibió la nueva imagen del avatar.");
+    }
+    user.avatarUrl = nextAvatar;
   }
   if (input.password?.trim()) {
     validatePassword(input.password.trim());

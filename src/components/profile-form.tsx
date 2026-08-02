@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ChangeEvent, useState, useTransition } from "react";
+import { ChangeEvent, useRef, useState, useTransition } from "react";
 
 import { UserAvatar } from "@/components/user-avatar";
 
@@ -13,6 +13,7 @@ type ProfileFormProps = {
 
 export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: ProfileFormProps) {
   const router = useRouter();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -22,17 +23,32 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
   const [avatarPreview, setAvatarPreview] = useState(initialAvatarUrl ?? "");
 
   async function submitProfile(formData: FormData) {
-    const response = await fetch("/api/profile/update", {
-      method: "POST",
-      body: formData
-    });
+    try {
+      const response = await fetch("/api/profile/update", {
+        method: "POST",
+        body: formData
+      });
 
-    const payload = (await response.json()) as { error?: string; message?: string };
-    setIsError(!response.ok);
-    setMessage(payload.message ?? payload.error ?? "Perfil actualizado.");
+      const payload = (await response.json()) as { avatarUrl?: string | null; error?: string; message?: string };
+      setIsError(!response.ok);
+      setMessage(payload.message ?? payload.error ?? "Perfil actualizado.");
 
-    if (response.ok) {
-      router.refresh();
+      if (response.ok) {
+        setAvatarAction("keep");
+        setAvatarDataUrl("");
+        if (avatarInputRef.current) {
+          avatarInputRef.current.value = "";
+        }
+        window.dispatchEvent(
+          new CustomEvent("cine-semanal:avatar-updated", {
+            detail: { avatarUrl: payload.avatarUrl ?? null }
+          })
+        );
+        router.refresh();
+      }
+    } catch {
+      setIsError(true);
+      setMessage("No se pudo contactar con el servidor. Inténtalo de nuevo.");
     }
   }
 
@@ -75,13 +91,12 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
   }
 
   return (
-    <section className="profile-settings-panel" aria-labelledby="profile-settings-title">
+    <section id="ajustes-perfil" className="profile-settings-panel" data-scroll-chapter aria-labelledby="profile-settings-title">
       <div className="profile-section-heading">
         <div>
-          <p className="eyebrow">Tu perfil</p>
-          <h2 id="profile-settings-title">Cuenta y avatar</h2>
+          <p className="cinema-kicker">Ajustes</p>
+          <h2 id="profile-settings-title">Editar perfil</h2>
         </div>
-        <p>Actualiza cómo apareces en el grupo sin tocar tus notas antiguas.</p>
       </div>
 
       <form
@@ -101,10 +116,23 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
           </div>
           <div className="profile-avatar-controls">
             <label className="avatar-upload-label">
-              Imagen de avatar
-              <input type="file" accept="image/*" onChange={handleAvatarChange} />
+              <span>Elegir imagen</span>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onClick={(event) => {
+                  event.currentTarget.value = "";
+                }}
+                onChange={handleAvatarChange}
+              />
             </label>
-            <p className="muted-copy">Usa una imagen pequeña para que cargue rápido.</p>
+            <p className="muted-copy">PNG o JPG de hasta 1,2 MB.</p>
+            {avatarAction !== "keep" ? (
+              <p className="profile-avatar-pending" role="status">
+                Cambio preparado. Pulsa «Guardar cambios» para aplicarlo.
+              </p>
+            ) : null}
             {avatarPreview ? (
               <button type="button" className="ghost-button" onClick={removeAvatar}>
                 Quitar avatar
@@ -113,39 +141,57 @@ export function ProfileForm({ initialName, initialUsername, initialAvatarUrl }: 
           </div>
         </div>
 
-        <div className="profile-form-grid">
-          <label>
-            Nombre visible
-            <input
-              type="text"
-              name="name"
-              value={draftName}
-              onChange={(event) => setDraftName(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Usuario
-            <input type="text" name="username" defaultValue={initialUsername} required autoComplete="username" />
-          </label>
-          <label className="profile-form-wide">
-            Nueva contraseña
-            <input type="password" name="password" placeholder="Solo si quieres cambiarla" autoComplete="new-password" />
-          </label>
-        </div>
+        <div className="profile-form-body">
+          <div className="profile-form-group">
+            <p className="profile-form-group-title">Identidad</p>
+            <div className="profile-form-grid">
+              <label>
+                Nombre visible
+                <input
+                  type="text"
+                  name="name"
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Usuario
+                <input type="text" name="username" defaultValue={initialUsername} required autoComplete="username" />
+              </label>
+            </div>
+          </div>
 
-        <div className="profile-form-actions">
-          <button type="submit" className="primary-button" disabled={isPending}>
-            {isPending ? "Guardando..." : "Guardar cambios"}
-          </button>
+          <div className="profile-form-group">
+            <p className="profile-form-group-title">Acceso</p>
+            <div className="profile-form-grid">
+              <label className="profile-form-wide">
+                Nueva contraseña
+                <input type="password" name="password" placeholder="Déjalo vacío para mantener la actual" autoComplete="new-password" />
+              </label>
+            </div>
+          </div>
+
+          <div className="profile-form-actions">
+            <button type="submit" className="primary-button" disabled={isPending}>
+              {isPending ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </div>
+
+          {message ? (
+            <div
+              className={`profile-form-message ${isError ? "error-card" : "success-card"}`}
+              role={isError ? "alert" : "status"}
+            >
+              <span>{isError ? "No se pudieron guardar los cambios" : "Cambios guardados"}</span>
+              <strong>{message}</strong>
+            </div>
+          ) : null}
         </div>
       </form>
-
-      {message ? (
-        <div className={`profile-form-message ${isError ? "error-card" : "success-card"}`}>
-          <strong>{message}</strong>
-        </div>
-      ) : null}
+      <nav className="cinema-chapter-nav" aria-label="Navegación entre secciones">
+        <a href="#valoraciones-destacadas" aria-label="Subir a valoraciones destacadas">↑</a>
+      </nav>
     </section>
   );
 }

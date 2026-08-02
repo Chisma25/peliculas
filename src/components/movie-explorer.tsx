@@ -37,8 +37,9 @@ type SearchStatus = "idle" | "loading" | "success" | "error";
 
 type ToastState = {
   tone: "success" | "info" | "error";
+  label: string;
   title: string;
-  body: string;
+  body?: string;
 } | null;
 
 function getButtonLabel(status: PendingResultStatus) {
@@ -56,7 +57,7 @@ function getButtonLabel(status: PendingResultStatus) {
     case "error":
       return "Reintentar";
     default:
-      return "Añadir";
+      return "Añadir a pendientes";
   }
 }
 
@@ -88,6 +89,12 @@ export function MovieExplorer() {
   const [toast, setToast] = useState<ToastState>(null);
   const [movieStates, setMovieStates] = useState<Record<string, PendingResultStatus>>({});
   const searchCache = useRef(new Map<string, SearchMovie[]>());
+
+  function updateQuery(nextQuery: string) {
+    setQuery(nextQuery);
+    setRetryCount(0);
+    setMovieStates({});
+  }
 
   useEffect(() => {
     if (!toast) {
@@ -188,24 +195,24 @@ export function MovieExplorer() {
             : nextStatus === "already_pending" || nextStatus === "already_watched"
               ? "info"
               : "error",
-        title:
+        label:
           nextStatus === "added"
-            ? `${movie.title} añadida a pendientes`
+            ? "Añadida a pendientes"
             : nextStatus === "already_pending"
-              ? "Esa película ya estaba guardada"
+              ? "Ya estaba en pendientes"
               : nextStatus === "already_watched"
-                ? "Esa película ya figura en vistas"
-                : "No se pudo añadir la película",
-        body:
-          payload.message ??
-          payload.error ??
-          (nextStatus === "added" ? "La hemos dejado preparada en pendientes." : "Prueba otra vez dentro de un momento.")
+                ? "Ya está en vistas"
+                : "No se pudo añadir",
+        title:
+          movie.title,
+        body: nextStatus === "error" ? payload.error ?? payload.message ?? "Prueba otra vez dentro de un momento." : undefined
       });
     } catch {
       setMovieStates((current) => ({ ...current, [movie.id]: "error" }));
       setToast({
         tone: "error",
-        title: "No se pudo añadir la película",
+        label: "No se pudo añadir",
+        title: movie.title,
         body: "Ha fallado la conexión justo al guardarla. Prueba otra vez."
       });
     } finally {
@@ -214,43 +221,46 @@ export function MovieExplorer() {
   }
 
   return (
-    <section className="explore-page">
+    <section className={`explore-page ${query ? "explore-page-active" : "explore-page-idle"}`}>
+      <header className="explore-cinematic-intro">
+        <p className="cinema-kicker">Explorar TMDb</p>
+        <h1>Buscar películas</h1>
+      </header>
+
       <form className="explore-search-panel" role="search" onSubmit={(event) => event.preventDefault()}>
         <label className="explore-search-field">
           Buscar por título
           <input
             type="search"
             value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setRetryCount(0);
-              setMovieStates({});
-            }}
+            onChange={(event) => updateQuery(event.target.value)}
             placeholder="Interstellar, Whiplash, La Haine..."
             autoComplete="off"
           />
         </label>
         {query ? (
-          <button type="button" className="ghost-button explore-clear-button" onClick={() => setQuery("")}>
+          <button type="button" className="ghost-button explore-clear-button" onClick={() => updateQuery("")}>
             Limpiar
           </button>
         ) : null}
       </form>
 
-      <div className="explore-results-strip">
-        <p className={`status-text ${searchStatus === "error" ? "status-text-error" : ""}`} role="status" aria-live="polite">
-          {status}
-        </p>
-        {searchStatus === "error" ? (
-          <button type="button" className="secondary-button explore-retry-button" onClick={() => setRetryCount((value) => value + 1)}>
-            Reintentar
-          </button>
-        ) : null}
-      </div>
+      {query ? (
+        <div className="explore-results-strip">
+          <p className={`status-text ${searchStatus === "error" ? "status-text-error" : ""}`} role="status" aria-live="polite">
+            {status}
+          </p>
+          {searchStatus === "error" ? (
+            <button type="button" className="secondary-button explore-retry-button" onClick={() => setRetryCount((value) => value + 1)}>
+              Reintentar
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {searchStatus === "loading" ? (
         <div className="explore-grid explore-skeleton-grid" aria-label="Cargando resultados">
-          {Array.from({ length: 5 }, (_, index) => (
+          {Array.from({ length: 4 }, (_, index) => (
             <article className="explorer-card explorer-card-skeleton" key={index} aria-hidden="true">
               <div className="search-poster skeleton-block" />
               <div className="explorer-card-copy">
@@ -264,7 +274,7 @@ export function MovieExplorer() {
         </div>
       ) : (
         <div className={`explore-grid ${results.length > 0 && results.length < 5 ? "explore-grid-tight" : ""}`}>
-          {results.map((movie) => {
+          {results.map((movie, index) => {
             const pendingState = movieStates[movie.id] ?? movie.collectionStatus ?? "idle";
             const limitedMetadata = hasLimitedMetadata(movie);
             const isActionDisabled =
@@ -281,25 +291,19 @@ export function MovieExplorer() {
               <article key={movie.id} className="explorer-card">
                 <div className="search-poster">
                   <PosterImage src={movie.posterUrl} />
+                  <span className="explorer-card-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="explorer-card-rating">
+                    {movie.externalRating.source} {movie.externalRating.value}
+                  </span>
                 </div>
 
                 <div className="explorer-card-copy">
                   <div className="explorer-card-meta">
                     <p>{movie.year > 0 ? movie.year : "Año pendiente"}</p>
-                    <span>
-                      {movie.externalRating.source}: {movie.externalRating.value}
-                    </span>
+                    {visibleGenres.length > 0 ? <span>{visibleGenres.join(" / ")}</span> : null}
                   </div>
 
                   <strong className="explorer-card-title">{movie.title}</strong>
-
-                  <div className="chips explorer-genres explorer-genres-compact">
-                    {visibleGenres.length > 0 ? (
-                      visibleGenres.map((genre) => <span key={`${movie.id}-${genre}`}>{genre}</span>)
-                    ) : (
-                      <span className="chip-placeholder">Metadatos al añadir</span>
-                    )}
-                  </div>
 
                   <p className="body-copy explorer-card-synopsis">{formatSynopsis(movie.synopsis)}</p>
                   {limitedMetadata ? (
@@ -354,8 +358,9 @@ export function MovieExplorer() {
 
       {toast ? (
         <div className={`explorer-toast explorer-toast-${toast.tone}`} role="status" aria-live="polite">
+          <span className="explorer-toast-label">{toast.label}</span>
           <strong>{toast.title}</strong>
-          <p>{toast.body}</p>
+          {toast.body ? <p>{toast.body}</p> : null}
         </div>
       ) : null}
     </section>

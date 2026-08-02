@@ -41,24 +41,6 @@ export function PrimaryNav() {
     return () => window.removeEventListener(PENDING_WRITE_EVENT, handlePendingWrite);
   }, [router]);
 
-  useEffect(() => {
-    const prefetchAll = () => {
-      for (const item of NAV_ITEMS) {
-        if (!isActivePath(pathname, item.href) && item.href !== "/pendientes") {
-          router.prefetch(item.href);
-        }
-      }
-    };
-
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const idleId = window.requestIdleCallback(prefetchAll, { timeout: 1200 });
-      return () => window.cancelIdleCallback(idleId);
-    }
-
-    const timeoutId = globalThis.setTimeout(prefetchAll, 250);
-    return () => globalThis.clearTimeout(timeoutId);
-  }, [pathname, router]);
-
   return (
     <nav className="nav-links" aria-label="Principal">
       {NAV_ITEMS.map((item) => {
@@ -69,7 +51,7 @@ export function PrimaryNav() {
           <Link
             key={item.href}
             href={item.href}
-            prefetch={item.href === "/pendientes" ? false : undefined}
+            prefetch={false}
             className={`nav-link-pill ${isActive ? "nav-link-pill-active" : ""} ${isPending ? "nav-link-pill-pending" : ""}`}
             aria-current={isActive ? "page" : undefined}
             onMouseEnter={() => {
