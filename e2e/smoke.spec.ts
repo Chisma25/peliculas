@@ -351,7 +351,7 @@ test.describe("authenticated Preview smoke tests", () => {
     test.skip(radarCount === 0, "The current environment has no weekly radar.");
 
     await expect(radar.getByRole("heading", { name: "Para esta semana" })).toBeVisible();
-    await expect(radar.getByText("#1", { exact: true }).first()).toBeVisible();
+    await expect(radar.getByText("01", { exact: true }).first()).toBeVisible();
     await expect(radar.locator(".pending-radar-position-label")).toHaveCount(0);
     await expect(radar.locator(".pending-radar-reason")).toHaveCount(0);
     await expect(radar.locator(".pending-radar-detail-link")).toHaveCount(0);
