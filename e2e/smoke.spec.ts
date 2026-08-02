@@ -296,7 +296,7 @@ test.describe("authenticated Preview smoke tests", () => {
 
     await page.goto("/explorar");
     await page.getByRole("searchbox", { name: "Buscar por título" }).fill("Prueba de escritura pendiente");
-    const addButton = page.getByRole("button", { name: "Añadir", exact: true });
+    const addButton = page.getByRole("button", { name: "Añadir a pendientes", exact: true });
     await expect(addButton).toBeVisible();
     await addButton.click();
     await expect(page.getByRole("button", { name: "Añadiendo..." })).toBeVisible();
@@ -350,7 +350,7 @@ test.describe("authenticated Preview smoke tests", () => {
     const radarCount = await radar.locator(".pending-radar-card").count();
     test.skip(radarCount === 0, "The current environment has no weekly radar.");
 
-    await expect(radar.getByRole("heading", { name: "Recomendaciones" })).toBeVisible();
+    await expect(radar.getByRole("heading", { name: "Para esta semana" })).toBeVisible();
     await expect(radar.getByText("#1", { exact: true }).first()).toBeVisible();
     await expect(radar.locator(".pending-radar-position-label")).toHaveCount(0);
     await expect(radar.locator(".pending-radar-reason")).toHaveCount(0);
