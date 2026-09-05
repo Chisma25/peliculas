@@ -3,7 +3,7 @@ type CommitStateChangeInput = {
   canWriteDatabase: boolean;
   flushDeferredWrites: () => Promise<boolean>;
   runDatabaseTransaction: () => Promise<void>;
-  writeLocalState: () => void;
+  writeLocalState: () => void | Promise<void>;
   publishCommittedState: () => void;
 };
 
@@ -27,7 +27,7 @@ export async function commitStateChangeAtomically(input: CommitStateChangeInput)
 
     await input.runDatabaseTransaction();
   } else {
-    input.writeLocalState();
+    await input.writeLocalState();
   }
 
   input.publishCommittedState();

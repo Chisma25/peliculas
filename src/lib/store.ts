@@ -43,7 +43,8 @@ import {
 } from "@/lib/recommendations";
 import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
 import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
-import { commitStateChangeAtomically } from "@/lib/state-persistence";
+import { commitStateChangeAtomically, StatePersistenceUnavailableError } from "@/lib/state-persistence";
+import { createLocalMutationQueue, withDatabaseMutation } from "@/lib/mutation-lock";
 import { classifyWeeklySelection, isWeeklyBatchCurrent, shouldCarryWeeklySelection } from "@/lib/weekly-selection";
 import {
   ActivityItem,
@@ -195,10 +196,6 @@ type TimedCache<T> = {
 
 type DatabaseWriteOperation = {
   run: (client: Prisma.TransactionClient) => Promise<unknown>;
-};
-
-type PersistStateChangeOptions = {
-  snapshotStrategy?: "eager" | "deferred" | "skip";
 };
 
 const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
@@ -795,8 +792,8 @@ function mapWeeklyBatchRecordsToStateEntries(
   }));
 }
 
-async function loadNormalizedCollections(groupId: string) {
-  const { prisma } = await import("@/lib/prisma");
+async function loadNormalizedCollections(groupId: string, client?: Prisma.TransactionClient) {
+  const prisma = client ?? (await import("@/lib/prisma")).prisma;
   const [pendingRows, watchRows, ratingRows, batchRows] = await Promise.all([
     prisma.pendingMovie.findMany({
       where: { groupId },
@@ -828,8 +825,8 @@ async function loadNormalizedCollections(groupId: string) {
   };
 }
 
-async function loadNormalizedStateCollections(groupId: string): Promise<NormalizedStateCollections> {
-  const { prisma } = await import("@/lib/prisma");
+async function loadNormalizedStateCollections(groupId: string, client?: Prisma.TransactionClient): Promise<NormalizedStateCollections> {
+  const prisma = client ?? (await import("@/lib/prisma")).prisma;
   const [userRows, movieRows, collections] = await Promise.all([
     prisma.userRecord.findMany({
       select: USER_RECORD_WITH_AVATAR_SELECT,
@@ -839,7 +836,7 @@ async function loadNormalizedStateCollections(groupId: string): Promise<Normaliz
       select: { data: true },
       orderBy: { slug: "asc" }
     }),
-    loadNormalizedCollections(groupId)
+    loadNormalizedCollections(groupId, client)
   ]);
 
   return {
@@ -1395,13 +1392,13 @@ async function flushDeferredDatabaseWrites() {
   return true;
 }
 
-async function loadSnapshotStateUncached() {
+async function loadSnapshotStateUncached(client?: Prisma.TransactionClient) {
   if (!shouldAttemptDatabaseRead()) {
     return null;
   }
 
   try {
-    const { prisma } = await import("@/lib/prisma");
+    const prisma = client ?? (await import("@/lib/prisma")).prisma;
     const snapshot = await prisma.appSnapshot.findUnique({
       where: {
         id: SNAPSHOT_ID
@@ -1421,27 +1418,29 @@ async function loadSnapshotStateUncached() {
 
     return parsed;
   } catch (error) {
+    if (client) throw error;
     markDatabaseReadFailure("snapshot", error);
     return null;
   }
 }
 
-async function loadDatabaseStateUncached() {
+async function loadDatabaseStateUncached(client?: Prisma.TransactionClient) {
   if (!shouldAttemptDatabaseRead()) {
     return null;
   }
 
   try {
-    await ensurePreviewDataHygiene();
-    const snapshotState = await loadSnapshotStateUncached();
+    if (!client) await ensurePreviewDataHygiene();
+    const snapshotState = await loadSnapshotStateUncached(client);
     // A missing snapshot is not a failed query. Only use the configured group
     // context; all collections come from normalized tables, including empties.
     const baseState = snapshotState ?? { ...buildInitialState(), activity: [] };
-    const normalizedCollections = await loadNormalizedStateCollections(baseState.group.id);
+    const normalizedCollections = await loadNormalizedStateCollections(baseState.group.id, client);
     markDatabaseReadHealthy();
 
     return ensureStateIntegrity(mergeNormalizedState(baseState, normalizedCollections));
   } catch (error) {
+    if (client) throw error;
     markDatabaseReadFailure("normalized state bootstrap", error);
     return null;
   }
@@ -1546,53 +1545,55 @@ async function loadAppStateForRead() {
 
 const loadAppState = cache(loadAppStateForRead);
 
-async function loadAppStateForMutation() {
-  return cloneState(await loadAppStateUncached());
-}
+type PersistMutation = (state: AppState, operations: DatabaseWriteOperation[]) => Promise<void>;
+const runLocalMutation = createLocalMutationQueue();
 
-async function persistStateChange(
-  state: AppState,
-  operations: DatabaseWriteOperation[] = [],
-  options: PersistStateChangeOptions = {}
-) {
-  const snapshotStrategy = options.snapshotStrategy ?? "eager";
-  const snapshotEnabled = snapshotStrategy !== "skip";
-  try {
+async function mutateState<T>(action: (state: AppState, persist: PersistMutation) => Promise<T>): Promise<T> {
+  const execute = async (client?: Prisma.TransactionClient) => {
+    const loaded = client ? await loadDatabaseStateUncached(client) : await loadAppStateUncached();
+    if (!loaded) throw new StatePersistenceUnavailableError("No se pudo cargar el estado para guardar los cambios.");
+    const state = cloneState(loaded);
+    let changed = false;
+    const result = await action(state, async (nextState, operations) => {
+      if (nextState !== state) throw new Error("La mutación intentó guardar un estado diferente.");
+      if (client) {
+        for (const operation of operations) await operation.run(client);
+        await saveDatabaseState(state, client);
+      } else {
+        saveLocalStateToDiskStrict(state);
+      }
+      changed = true;
+    });
+    return { result, state, changed };
+  };
+  const publish = (committed: Awaited<ReturnType<typeof execute>>) => {
+    if (committed.changed) {
+      rememberLiveState(committed.state);
+      if (shouldUseDatabase()) saveLocalStateToDisk(committed.state);
+      invalidatePersistentStateCache();
+    }
+    return committed.result;
+  };
+  const usesDatabase = shouldUseDatabase();
+  const run = async () => {
+    let committed: Awaited<ReturnType<typeof execute>>;
     await commitStateChangeAtomically({
-      usesDatabase: shouldUseDatabase(),
+      usesDatabase,
       canWriteDatabase: shouldAttemptDatabaseWrite(),
       flushDeferredWrites: flushDeferredDatabaseWrites,
       runDatabaseTransaction: async () => {
+        await ensurePreviewDataHygiene();
         const { prisma } = await import("@/lib/prisma");
-        await prisma.$transaction(async (client) => {
-          for (const operation of operations) {
-            await operation.run(client);
-          }
-          if (snapshotEnabled) {
-            await saveDatabaseState(state, client);
-          }
-        });
+        // Read only after acquiring the shared lock; publish after COMMIT.
+        committed = await withDatabaseMutation(prisma, execute);
         markDatabaseWriteHealthy();
       },
-      writeLocalState: () => saveLocalStateToDiskStrict(state),
-      publishCommittedState: () => {
-        rememberLiveState(state);
-        if (shouldUseDatabase()) {
-          saveLocalStateToDisk(state);
-        }
-        invalidatePersistentStateCache();
-      }
+      writeLocalState: async () => { committed = await execute(); },
+      publishCommittedState: () => { publish(committed); }
     });
-  } catch (error) {
-    if (shouldUseDatabase()) {
-      markDatabaseWriteFailure("state mutation", error);
-    }
-    throw error;
-  }
-}
-
-async function persistStateChangeStrict(state: AppState, operations: DatabaseWriteOperation[]) {
-  await persistStateChange(state, operations);
+    return committed!.result;
+  };
+  return usesDatabase ? run() : runLocalMutation(run);
 }
 
 function findUserById(state: AppState, userId?: string | null) {
@@ -2700,16 +2701,17 @@ export async function getProfileDataHydrated(userId: string) {
 }
 
 export async function getCurrentBatch() {
-  const state = await loadAppStateForMutation();
-  const { batch, changed } = await ensureDashboardBatch(state);
-  if (changed && batch) {
-    await persistStateChange(state, [
-      {
-        run: (client) => insertWeeklyBatchToDatabase(batch, client)
-      }
-    ]);
-  }
-  return batch;
+  return mutateState(async (state, persistStateChange) => {
+    const { batch, changed } = await ensureDashboardBatch(state);
+    if (changed && batch) {
+      await persistStateChange(state, [
+        {
+          run: (client) => insertWeeklyBatchToDatabase(batch, client)
+        }
+      ]);
+    }
+    return batch;
+  });
 }
 
 export async function getWatchEntryForMovie(movieId: string) {
@@ -3037,66 +3039,66 @@ export async function updateUserProfile(
     avatarDataUrl?: string;
   }
 ) {
-  const state = await loadAppStateForMutation();
-  const user = findUserById(state, userId);
-  if (!user) {
-    throw new Error("No se encontró el usuario.");
-  }
-
-  const nextName = input.name.trim();
-  const nextUsername = input.username.trim();
-  if (!nextName) {
-    throw new Error("El nombre visible es obligatorio.");
-  }
-  if (!nextUsername) {
-    throw new Error("El usuario es obligatorio.");
-  }
-  validateDisplayName(nextName);
-  validateUsername(nextUsername);
-
-  const usernameTaken = state.users.some(
-    (entry) => entry.id !== userId && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
-  );
-  if (usernameTaken) {
-    throw new Error("Ese usuario ya lo está usando otra persona.");
-  }
-
-  const previousName = user.name;
-  user.name = nextName;
-  user.username = nextUsername;
-  user.avatarSeed = slugify(nextName);
-  if (input.avatarAction === "remove") {
-    user.avatarUrl = undefined;
-  } else if (input.avatarAction === "replace") {
-    const nextAvatar = sanitizeAvatarDataUrl(input.avatarDataUrl);
-    if (!nextAvatar) {
-      throw new Error("No se recibió la nueva imagen del avatar.");
+  return mutateState(async (state, persistStateChange) => {
+    const user = findUserById(state, userId);
+    if (!user) {
+      throw new Error("No se encontró el usuario.");
     }
-    user.avatarUrl = nextAvatar;
-  }
-  if (input.password?.trim()) {
-    validatePassword(input.password.trim());
-    user.passwordHash = hashPassword(input.password.trim());
-  }
 
-  addActivity(state, {
-    type: "rated",
-    label: previousName === nextName ? `${nextName} actualizó su perfil` : `${previousName} ahora aparece como ${nextName}`,
-    userId: user.id,
-    date: new Date().toISOString()
-  });
+    const nextName = input.name.trim();
+    const nextUsername = input.username.trim();
+    if (!nextName) {
+      throw new Error("El nombre visible es obligatorio.");
+    }
+    if (!nextUsername) {
+      throw new Error("El usuario es obligatorio.");
+    }
+    validateDisplayName(nextName);
+    validateUsername(nextUsername);
 
-  invalidateDerivedCaches(state);
-  await persistStateChange(
-    state,
-    [
-      {
-        run: (client) => upsertUserToDatabase(user, client)
+    const usernameTaken = state.users.some(
+      (entry) => entry.id !== userId && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
+    );
+    if (usernameTaken) {
+      throw new Error("Ese usuario ya lo está usando otra persona.");
+    }
+
+    const previousName = user.name;
+    user.name = nextName;
+    user.username = nextUsername;
+    user.avatarSeed = slugify(nextName);
+    if (input.avatarAction === "remove") {
+      user.avatarUrl = undefined;
+    } else if (input.avatarAction === "replace") {
+      const nextAvatar = sanitizeAvatarDataUrl(input.avatarDataUrl);
+      if (!nextAvatar) {
+        throw new Error("No se recibió la nueva imagen del avatar.");
       }
-    ],
-    { snapshotStrategy: "eager" }
-  );
-  return user;
+      user.avatarUrl = nextAvatar;
+    }
+    if (input.password?.trim()) {
+      validatePassword(input.password.trim());
+      user.passwordHash = hashPassword(input.password.trim());
+    }
+
+    addActivity(state, {
+      type: "rated",
+      label: previousName === nextName ? `${nextName} actualizó su perfil` : `${previousName} ahora aparece como ${nextName}`,
+      userId: user.id,
+      date: new Date().toISOString()
+    });
+
+    invalidateDerivedCaches(state);
+    await persistStateChange(
+      state,
+      [
+        {
+          run: (client) => upsertUserToDatabase(user, client)
+        }
+      ]
+    );
+    return user;
+  });
 }
 
 export async function updateUserCredentialsByAdmin(
@@ -3107,66 +3109,66 @@ export async function updateUserCredentialsByAdmin(
     password?: string;
   }
 ) {
-  const state = await loadAppStateForMutation();
-  const adminUser = findUserById(state, adminUserId);
-  if (!adminUser?.isAdmin) {
-    throw new Error("No tienes permisos para gestionar cuentas del grupo.");
-  }
+  return mutateState(async (state, persistStateChange) => {
+    const adminUser = findUserById(state, adminUserId);
+    if (!adminUser?.isAdmin) {
+      throw new Error("No tienes permisos para gestionar cuentas del grupo.");
+    }
 
-  const targetUser = findUserById(state, input.userId);
-  if (!targetUser) {
-    throw new Error("No se encontró la cuenta que quieres editar.");
-  }
+    const targetUser = findUserById(state, input.userId);
+    if (!targetUser) {
+      throw new Error("No se encontró la cuenta que quieres editar.");
+    }
 
-  const nextUsername = input.username.trim();
-  const nextPassword = input.password?.trim() ?? "";
+    const nextUsername = input.username.trim();
+    const nextPassword = input.password?.trim() ?? "";
 
-  if (!nextUsername) {
-    throw new Error("El usuario no puede quedar vacío.");
-  }
-  validateUsername(nextUsername);
+    if (!nextUsername) {
+      throw new Error("El usuario no puede quedar vacío.");
+    }
+    validateUsername(nextUsername);
 
-  const usernameTaken = state.users.some(
-    (entry) => entry.id !== targetUser.id && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
-  );
-  if (usernameTaken) {
-    throw new Error("Ese usuario ya lo está usando otra persona.");
-  }
+    const usernameTaken = state.users.some(
+      (entry) => entry.id !== targetUser.id && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
+    );
+    if (usernameTaken) {
+      throw new Error("Ese usuario ya lo está usando otra persona.");
+    }
 
-  const previousUsername = targetUser.username;
-  targetUser.username = nextUsername;
+    const previousUsername = targetUser.username;
+    targetUser.username = nextUsername;
 
-  if (nextPassword) {
-    validatePassword(nextPassword);
-    targetUser.passwordHash = hashPassword(nextPassword);
-  }
+    if (nextPassword) {
+      validatePassword(nextPassword);
+      targetUser.passwordHash = hashPassword(nextPassword);
+    }
 
-  addActivity(state, {
-    type: "rated",
-    label:
-      previousUsername === nextUsername
-        ? `${adminUser.name} actualizó el acceso de ${targetUser.name}`
-        : `${adminUser.name} cambió el usuario de ${targetUser.name} a @${nextUsername}`,
-    userId: targetUser.id,
-    date: new Date().toISOString()
+    addActivity(state, {
+      type: "rated",
+      label:
+        previousUsername === nextUsername
+          ? `${adminUser.name} actualizó el acceso de ${targetUser.name}`
+          : `${adminUser.name} cambió el usuario de ${targetUser.name} a @${nextUsername}`,
+      userId: targetUser.id,
+      date: new Date().toISOString()
+    });
+
+    invalidateDerivedCaches(state);
+    await persistStateChange(
+      state,
+      [
+        {
+          run: (client) => upsertUserToDatabase(targetUser, client)
+        }
+      ]
+    );
+
+    return {
+      id: targetUser.id,
+      name: targetUser.name,
+      username: targetUser.username
+    };
   });
-
-  invalidateDerivedCaches(state);
-  await persistStateChange(
-    state,
-    [
-      {
-        run: (client) => upsertUserToDatabase(targetUser, client)
-      }
-    ],
-    { snapshotStrategy: "eager" }
-  );
-
-  return {
-    id: targetUser.id,
-    name: targetUser.name,
-    username: targetUser.username
-  };
 }
 
 export async function resetUserCredentials(input: {
@@ -3183,58 +3185,58 @@ export async function resetUserCredentials(input: {
     throw new Error("El codigo de administración no es valido.");
   }
 
-  const state = await loadAppStateForMutation();
-  const user = findUserByIdentity(state, input.identifier);
-  if (!user) {
-    throw new Error("No se encontró ninguna cuenta con ese usuario o nombre visible.");
-  }
+  return mutateState(async (state, persistStateChange) => {
+    const user = findUserByIdentity(state, input.identifier);
+    if (!user) {
+      throw new Error("No se encontró ninguna cuenta con ese usuario o nombre visible.");
+    }
 
-  const nextUsername = input.username.trim();
-  const nextPassword = input.password.trim();
+    const nextUsername = input.username.trim();
+    const nextPassword = input.password.trim();
 
-  if (!nextUsername) {
-    throw new Error("El nuevo usuario es obligatorio.");
-  }
+    if (!nextUsername) {
+      throw new Error("El nuevo usuario es obligatorio.");
+    }
 
-  if (!nextPassword) {
-    throw new Error("La nueva contraseña es obligatoria.");
-  }
-  validateUsername(nextUsername);
-  validatePassword(nextPassword);
+    if (!nextPassword) {
+      throw new Error("La nueva contraseña es obligatoria.");
+    }
+    validateUsername(nextUsername);
+    validatePassword(nextPassword);
 
-  const usernameTaken = state.users.some(
-    (entry) => entry.id !== user.id && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
-  );
-  if (usernameTaken) {
-    throw new Error("Ese usuario ya lo está usando otra persona.");
-  }
+    const usernameTaken = state.users.some(
+      (entry) => entry.id !== user.id && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
+    );
+    if (usernameTaken) {
+      throw new Error("Ese usuario ya lo está usando otra persona.");
+    }
 
-  user.username = nextUsername;
-  user.passwordHash = hashPassword(nextPassword);
+    user.username = nextUsername;
+    user.passwordHash = hashPassword(nextPassword);
 
-  addActivity(state, {
-    type: "rated",
-    label: `Se restableció el acceso de ${user.name}`,
-    userId: user.id,
-    date: new Date().toISOString()
+    addActivity(state, {
+      type: "rated",
+      label: `Se restableció el acceso de ${user.name}`,
+      userId: user.id,
+      date: new Date().toISOString()
+    });
+
+    invalidateDerivedCaches(state);
+    await persistStateChange(
+      state,
+      [
+        {
+          run: (client) => upsertUserToDatabase(user, client)
+        }
+      ]
+    );
+
+    return {
+      id: user.id,
+      name: user.name,
+      username: user.username
+    };
   });
-
-  invalidateDerivedCaches(state);
-  await persistStateChange(
-    state,
-    [
-      {
-        run: (client) => upsertUserToDatabase(user, client)
-      }
-    ],
-    { snapshotStrategy: "eager" }
-  );
-
-  return {
-    id: user.id,
-    name: user.name,
-    username: user.username
-  };
 }
 
 export async function upsertRating(input: { movieId: string; userId: string; score: number; comment?: string }) {
@@ -3242,190 +3244,187 @@ export async function upsertRating(input: { movieId: string; userId: string; sco
     throw new Error("La nota debe estar entre 0 y 10 y avanzar en incrementos de 0,25.");
   }
 
-  const state = await loadAppStateForMutation();
-  const comment = sanitizeComment(input.comment);
-  const user = findUserById(state, input.userId);
-  const movie = getMovieById(state, input.movieId);
-  if (!user || !movie) {
-    throw new Error("No se encontró la película o el miembro que quieres valorar.");
-  }
-  const ratingKey = `${input.userId}:${input.movieId}`;
-  const existing = getStateIndexes(state).ratingByUserMovie.get(ratingKey);
-
-  if (existing) {
-    existing.score = input.score;
-    existing.comment = comment;
-  } else {
-    state.ratings.push({
-      id: safeId("rating", `${input.movieId}-${input.userId}`),
-      movieId: input.movieId,
-      userId: input.userId,
-      score: input.score,
-      comment
-    });
-  }
-
-  addActivity(state, {
-    type: "rated",
-    label: `${user.name} puntuó ${movie.title} con un ${formatScore(input.score)}`,
-    movieId: movie.id,
-    userId: user.id,
-    date: new Date().toISOString()
-  });
-
-  invalidateDerivedCaches(state);
-  const nextRating = getStateIndexes(state).ratingByUserMovie.get(ratingKey) as UserRating;
-  await persistStateChange(state, [
-    {
-      run: (client) => upsertRatingToDatabase(nextRating, client)
+  return mutateState(async (state, persistStateChange) => {
+    const comment = sanitizeComment(input.comment);
+    const user = findUserById(state, input.userId);
+    const movie = getMovieById(state, input.movieId);
+    if (!user || !movie) {
+      throw new Error("No se encontró la película o el miembro que quieres valorar.");
     }
-  ]);
-  return nextRating;
+    const ratingKey = `${input.userId}:${input.movieId}`;
+    const existing = getStateIndexes(state).ratingByUserMovie.get(ratingKey);
+
+    if (existing) {
+      existing.score = input.score;
+      existing.comment = comment;
+    } else {
+      state.ratings.push({
+        id: safeId("rating", `${input.movieId}-${input.userId}`),
+        movieId: input.movieId,
+        userId: input.userId,
+        score: input.score,
+        comment
+      });
+    }
+
+    addActivity(state, {
+      type: "rated",
+      label: `${user.name} puntuó ${movie.title} con un ${formatScore(input.score)}`,
+      movieId: movie.id,
+      userId: user.id,
+      date: new Date().toISOString()
+    });
+
+    invalidateDerivedCaches(state);
+    const nextRating = getStateIndexes(state).ratingByUserMovie.get(ratingKey) as UserRating;
+    await persistStateChange(state, [
+      {
+        run: (client) => upsertRatingToDatabase(nextRating, client)
+      }
+    ]);
+    return nextRating;
+  });
 }
 
 export async function generateBatch() {
-  const state = await loadAppStateForMutation();
-  const currentBatch = getCurrentBatchFromState(state);
-  const batch = generateWeeklyRecommendations(state);
-  const selectedMovie = currentBatch?.selectedMovieId
-    ? getMovieById(state, currentBatch.selectedMovieId)
-    : null;
-  if (
-    currentBatch?.selectedMovieId &&
-    selectedMovie &&
-    hasRecommendationMetadata(selectedMovie) &&
-    shouldCarryWeeklySelection(
-      currentBatch,
-      getStateIndexes(state).watchedMovieIdSet,
-      getStateIndexes(state).pendingMovieIdSet
-    )
-  ) {
-    batch.selectedMovieId = currentBatch.selectedMovieId;
-  }
-  state.weeklyBatches.unshift(batch);
-  addActivity(state, {
-    type: "recommended",
-    label: "Se generó una nueva tanda de recomendaciones para esta semana",
-    date: batch.createdAt
-  });
-  invalidateDerivedCaches(state);
-  await persistStateChange(state, [
-    {
-      run: (client) => insertWeeklyBatchToDatabase(batch, client)
+  return mutateState(async (state, persistStateChange) => {
+    const currentBatch = getCurrentBatchFromState(state);
+    const batch = generateWeeklyRecommendations(state);
+    const selectedMovie = currentBatch?.selectedMovieId
+      ? getMovieById(state, currentBatch.selectedMovieId)
+      : null;
+    if (
+      currentBatch?.selectedMovieId &&
+      selectedMovie &&
+      hasRecommendationMetadata(selectedMovie) &&
+      shouldCarryWeeklySelection(
+        currentBatch,
+        getStateIndexes(state).watchedMovieIdSet,
+        getStateIndexes(state).pendingMovieIdSet
+      )
+    ) {
+      batch.selectedMovieId = currentBatch.selectedMovieId;
     }
-  ]);
-  return batch;
+    state.weeklyBatches.unshift(batch);
+    addActivity(state, {
+      type: "recommended",
+      label: "Se generó una nueva tanda de recomendaciones para esta semana",
+      date: batch.createdAt
+    });
+    invalidateDerivedCaches(state);
+    await persistStateChange(state, [
+      {
+        run: (client) => insertWeeklyBatchToDatabase(batch, client)
+      }
+    ]);
+    return batch;
+  });
 }
 
 export async function selectWeeklyMovie(batchId: string, movieId: string) {
-  const state = await loadAppStateForMutation();
-  const batch = getStateIndexes(state).weeklyBatchById.get(batchId);
-  if (!batch) {
-    throw new Error("No se encontró la tanda semanal.");
-  }
-
-  const currentBatch = getCurrentBatchFromState(state);
-  if (currentBatch?.id !== batch.id) {
-    throw new Error("La tanda semanal ya no es la actual. Recarga la página para continuar.");
-  }
-
-  let movie = getMovieById(state, movieId);
-  if (!movie && shouldUseDatabase()) {
-    movie = (await loadMoviesByIdsFromDatabase([movieId])).get(movieId) ?? null;
-    if (movie) {
-      state.movies.push(movie);
-      invalidateDerivedCaches(state);
+  return mutateState(async (state, persistStateChange) => {
+    const batch = getStateIndexes(state).weeklyBatchById.get(batchId);
+    if (!batch) {
+      throw new Error("No se encontró la tanda semanal.");
     }
-  }
-  if (!movie) {
-    throw new Error("No se encontró la película.");
-  }
-  if (!hasRecommendationMetadata(movie)) {
-    throw new Error("La película necesita título, año y género válidos antes de poder elegirla.");
-  }
 
-  const selectionSource = classifyWeeklySelection(
-    batch,
-    getStateIndexes(state).pendingMovieIdSet,
-    movieId
-  );
-  if (!selectionSource) {
-    throw new Error("Solo puedes elegir una recomendación de la tanda o cualquier película de Pendientes.");
-  }
+    const currentBatch = getCurrentBatchFromState(state);
+    if (currentBatch?.id !== batch.id) {
+      throw new Error("La tanda semanal ya no es la actual. Recarga la página para continuar.");
+    }
 
-  batch.selectedMovieId = movieId;
-  addActivity(state, {
-    type: "recommended",
-    label: `La película de la semana pasó a ser ${movie.title}`,
-    movieId: movie.id,
-    date: new Date().toISOString()
+    const movie = getMovieById(state, movieId);
+    if (!movie) {
+      throw new Error("No se encontró la película.");
+    }
+    if (!hasRecommendationMetadata(movie)) {
+      throw new Error("La película necesita título, año y género válidos antes de poder elegirla.");
+    }
+    if (getStateIndexes(state).watchedMovieIdSet.has(movieId)) {
+      throw new Error("Esa película ya está vista. Recarga la página para elegir otra.");
+    }
+
+    const selectionSource = classifyWeeklySelection(
+      batch,
+      getStateIndexes(state).pendingMovieIdSet,
+      movieId
+    );
+    if (!selectionSource) {
+      throw new Error("Solo puedes elegir una recomendación de la tanda o cualquier película de Pendientes.");
+    }
+
+    batch.selectedMovieId = movieId;
+    addActivity(state, {
+      type: "recommended",
+      label: `La película de la semana pasó a ser ${movie.title}`,
+      movieId: movie.id,
+      date: new Date().toISOString()
+    });
+
+    invalidateDerivedCaches(state);
+    await persistStateChange(state, [
+      {
+        run: (client) => updateWeeklyBatchSelectionInDatabase(batch.id, batch.selectedMovieId, client)
+      }
+    ]);
+    return batch;
   });
-
-  invalidateDerivedCaches(state);
-  await persistStateChangeStrict(state, [
-    {
-      run: (client) => updateWeeklyBatchSelectionInDatabase(batch.id, batch.selectedMovieId, client)
-    }
-  ]);
-  return batch;
 }
 
 export async function markMovieAsWatched(movieId: string, watchedOn = new Date().toISOString()) {
-  const state = await loadAppStateForMutation();
-  let movie = getMovieById(state, movieId);
-  if (!movie && shouldUseDatabase()) {
-    movie = (await loadMoviesByIdsFromDatabase([movieId])).get(movieId) ?? null;
-    if (movie) {
-      state.movies.push(movie);
-      invalidateDerivedCaches(state);
+  return mutateState(async (state, persistStateChange) => {
+    const movie = getMovieById(state, movieId);
+    if (!movie) {
+      throw new Error("No se encontró la película.");
     }
-  }
-  if (!movie) {
-    throw new Error("No se encontró la película.");
-  }
 
-  const existingEntry = getWatchEntryForMovieFromState(state, movieId);
-  if (existingEntry) {
-    if (!existingEntry.watchedOn) {
-      existingEntry.watchedOn = watchedOn;
-      invalidateDerivedCaches(state);
-      await persistStateChangeStrict(state, [
-        {
-          run: (client) => upsertWatchEntryToDatabase(existingEntry, client)
-        }
-      ]);
+    const existingEntry = getWatchEntryForMovieFromState(state, movieId);
+    if (existingEntry) {
+      if (!existingEntry.watchedOn || state.pendingMovieIds.includes(movieId)) {
+        existingEntry.watchedOn ??= watchedOn;
+        state.pendingMovieIds = state.pendingMovieIds.filter((id) => id !== movieId);
+        invalidateDerivedCaches(state);
+        await persistStateChange(state, [
+          {
+            run: (client) => upsertWatchEntryToDatabase(existingEntry, client)
+          },
+          {
+            run: (client) => removePendingMovieFromDatabase(state.group.id, movieId, client)
+          }
+        ]);
+      }
+      return existingEntry;
     }
-    return existingEntry;
-  }
 
-  const currentBatch = getCurrentBatchFromState(state);
-  const watchEntry = {
-    id: safeId("watch", movieId),
-    movieId,
-    groupId: state.group.id,
-    watchedOn,
-    selectedForWeek: currentBatch?.selectedMovieId === movieId ? currentBatch.weekOf : undefined
-  };
+    const currentBatch = getCurrentBatchFromState(state);
+    const watchEntry = {
+      id: safeId("watch", movieId),
+      movieId,
+      groupId: state.group.id,
+      watchedOn,
+      selectedForWeek: currentBatch?.selectedMovieId === movieId ? currentBatch.weekOf : undefined
+    };
 
-  state.watchEntries.unshift(watchEntry);
-  state.pendingMovieIds = state.pendingMovieIds.filter((pendingMovieId) => pendingMovieId !== movieId);
-  addActivity(state, {
-    type: "watched",
-    label: `${movie.title} pasó a vistas del grupo`,
-    movieId: movie.id,
-    date: watchedOn
+    state.watchEntries.unshift(watchEntry);
+    state.pendingMovieIds = state.pendingMovieIds.filter((pendingMovieId) => pendingMovieId !== movieId);
+    addActivity(state, {
+      type: "watched",
+      label: `${movie.title} pasó a vistas del grupo`,
+      movieId: movie.id,
+      date: watchedOn
+    });
+
+    invalidateDerivedCaches(state);
+    await persistStateChange(state, [
+      {
+        run: (client) => upsertWatchEntryToDatabase(watchEntry, client)
+      },
+      {
+        run: (client) => removePendingMovieFromDatabase(state.group.id, movieId, client)
+      }
+    ]);
+    return watchEntry;
   });
-
-  invalidateDerivedCaches(state);
-  await persistStateChangeStrict(state, [
-    {
-      run: (client) => upsertWatchEntryToDatabase(watchEntry, client)
-    },
-    {
-      run: (client) => removePendingMovieFromDatabase(state.group.id, movieId, client)
-    }
-  ]);
-  return watchEntry;
 }
 
 export async function movieSearch(query: string) {
@@ -3461,96 +3460,97 @@ export async function getMovieDiscoverySuggestions(input: {
 }
 
 export async function addPendingMovie(movieInput: Movie) {
-  const state = await loadAppStateForMutation();
-  let movie =
-    (movieInput.sourceIds?.tmdb ? getMovieByTmdbId(state, movieInput.sourceIds.tmdb) : null) ??
-    state.movies.find((entry) => entry.slug === movieInput.slug && entry.year === movieInput.year) ??
-    null;
+  const preparedMovie = movieNeedsHydration(movieInput) ? await resolveMovieMetadata(movieInput) : movieInput;
+  return mutateState(async (state, persistStateChange) => {
+    let movie =
+      (movieInput.sourceIds?.tmdb ? getMovieByTmdbId(state, movieInput.sourceIds.tmdb) : null) ??
+      state.movies.find((entry) => entry.slug === movieInput.slug && entry.year === movieInput.year) ??
+      null;
 
-  if (!movie) {
-    movie = {
-      ...movieInput,
-      id: movieInput.sourceIds?.tmdb ? `movie_tmdb_${movieInput.sourceIds.tmdb}` : safeId("movie", movieInput.title),
-      slug: slugify(movieInput.title)
-    };
-    state.movies.push(movie);
-  }
-
-  await hydrateMovie(state, movie);
-
-  if (state.watchEntries.some((entry) => entry.movieId === movie.id)) {
-    return {
-      status: "already_watched" as const,
-      movie,
-      message: "Esa película ya figura en vuestras vistas."
-    };
-  }
-
-  if (state.pendingMovieIds.includes(movie.id)) {
-    return {
-      status: "already_pending" as const,
-      movie,
-      message: "Esa película ya está en pendientes."
-    };
-  }
-
-  const addedAt = new Date();
-
-  state.pendingMovieIds.unshift(movie.id);
-  addActivity(state, {
-    type: "queued",
-    label: `${movie.title} se añadió a pendientes`,
-    movieId: movie.id,
-    date: addedAt.toISOString()
-  });
-
-  invalidateDerivedCaches(state);
-  await persistStateChangeStrict(state, [
-    {
-      run: (client) => upsertMovieToDatabase(movie, client)
-    },
-    {
-      run: (client) => upsertPendingMovieToDatabase(state.group.id, movie.id, addedAt, client)
+    if (!movie) {
+      movie = {
+        ...preparedMovie,
+        id: movieInput.sourceIds?.tmdb ? `movie_tmdb_${movieInput.sourceIds.tmdb}` : safeId("movie", movieInput.title),
+        slug: slugify(movieInput.title)
+      };
+      state.movies.push(movie);
     }
-  ]);
-  return {
-    status: "added" as const,
-    movie,
-    message: "Película añadida a pendientes."
-  };
+
+    if (state.watchEntries.some((entry) => entry.movieId === movie.id)) {
+      return {
+        status: "already_watched" as const,
+        movie,
+        message: "Esa película ya figura en vuestras vistas."
+      };
+    }
+
+    if (state.pendingMovieIds.includes(movie.id)) {
+      return {
+        status: "already_pending" as const,
+        movie,
+        message: "Esa película ya está en pendientes."
+      };
+    }
+
+    const addedAt = new Date();
+
+    state.pendingMovieIds.unshift(movie.id);
+    addActivity(state, {
+      type: "queued",
+      label: `${movie.title} se añadió a pendientes`,
+      movieId: movie.id,
+      date: addedAt.toISOString()
+    });
+
+    invalidateDerivedCaches(state);
+    await persistStateChange(state, [
+      {
+        run: (client) => upsertMovieToDatabase(movie, client)
+      },
+      {
+        run: (client) => upsertPendingMovieToDatabase(state.group.id, movie.id, addedAt, client)
+      }
+    ]);
+    return {
+      status: "added" as const,
+      movie,
+      message: "Película añadida a pendientes."
+    };
+  });
 }
 
 export async function removePendingMovie(movieId: string) {
-  const state = await loadAppStateForMutation();
-  const movie = getMovieById(state, movieId);
+  return mutateState(async (state, persistStateChange) => {
+    const movie = getMovieById(state, movieId);
 
-  if (!state.pendingMovieIds.includes(movieId)) {
-    return {
-      status: "not_pending" as const,
-      movie,
-      message: "Esa película ya no estaba en pendientes."
-    };
-  }
-
-  state.pendingMovieIds = state.pendingMovieIds.filter((pendingMovieId) => pendingMovieId !== movieId);
-  if (movie) {
-    addActivity(state, {
-      type: "queued",
-      label: `${movie.title} se quitó de pendientes`,
-      movieId: movie.id,
-      date: new Date().toISOString()
-    });
-  }
-  invalidateDerivedCaches(state);
-  await persistStateChange(state, [
-    {
-      run: (client) => removePendingMovieFromDatabase(state.group.id, movieId, client)
+    if (!state.pendingMovieIds.includes(movieId)) {
+      return {
+        status: "not_pending" as const,
+        movie,
+        message: "Esa película ya no estaba en pendientes."
+      };
     }
-  ]);
 
-  return {
-    status: "removed" as const,
-    movie,
-    message: "Película quitada de pendientes."
-  };
+    state.pendingMovieIds = state.pendingMovieIds.filter((pendingMovieId) => pendingMovieId !== movieId);
+    if (movie) {
+      addActivity(state, {
+        type: "queued",
+        label: `${movie.title} se quitó de pendientes`,
+        movieId: movie.id,
+        date: new Date().toISOString()
+      });
+    }
+    invalidateDerivedCaches(state);
+    await persistStateChange(state, [
+      {
+        run: (client) => removePendingMovieFromDatabase(state.group.id, movieId, client)
+      }
+    ]);
+
+    return {
+      status: "removed" as const,
+      movie,
+      message: "Película quitada de pendientes."
+    };
+  });
 }
