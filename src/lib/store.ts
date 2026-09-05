@@ -1,34 +1,44 @@
-import { createMovieService } from "@/lib/movies/service";
 import { hydrateMovie } from "@/lib/movies/metadata";
 import {
-  mapWatchRecordsToStateEntries,
   isMovie,
   mapMovieRecordsToStateMovies,
+  mapWatchRecordsToStateEntries,
+  removePendingMovieFromDatabase,
   syncMoviesToDatabase,
-  upsertMovieToDatabase,
   syncPendingMoviesToDatabase,
   syncWatchEntriesToDatabase,
+  upsertMovieToDatabase,
   upsertPendingMovieToDatabase,
-  removePendingMovieFromDatabase,
   upsertWatchEntryToDatabase
 } from "@/lib/movies/records";
-import { createRatingService } from "@/lib/ratings/service";
+import { createMovieService } from "@/lib/movies/service";
+import { createDashboardPageReader } from "@/lib/pages/dashboard";
+import { createHistoryPageReader } from "@/lib/pages/history";
+import { createMovieDetailPageReader } from "@/lib/pages/movie-detail";
+import { createPendingPageReader } from "@/lib/pages/pending";
+import { createProfilePageReader } from "@/lib/pages/profiles";
+
 import { mapRatingRecordsToStateEntries, syncRatingsToDatabase, upsertRatingToDatabase } from "@/lib/ratings/records";
+import { createRatingService } from "@/lib/ratings/service";
+import {
+  insertWeeklyBatchToDatabase,
+  mapWeeklyBatchRecordsToStateEntries,
+  syncWeeklyBatchesToDatabase,
+  updateWeeklyBatchSelectionInDatabase
+} from "@/lib/recommendations/records";
+import { createRecommendationService } from "@/lib/recommendations/service";
+import { createSuggestionReader } from "@/lib/recommendations/suggestions";
+import {
+  TimedCache,
+  cloneState,
+  readTimedCache,
+  writeTimedCacheWithTtl,
+  PAGE_ROUTE_CACHE_TTL_MS
+} from "@/lib/state-cache";
+import { createStateReader } from "@/lib/state-readers";
 import type { Prisma } from "@prisma/client";
 import { cache } from "react";
 
-import { getAvatarDeliveryUrl } from "@/lib/avatar-data";
-import { createAuthenticationService } from "@/lib/users/authentication";
-import { createUserService } from "@/lib/users/service";
-import { createProfileReader, buildProfileFromRatings, type ProfileData, type ProfileSummary } from "@/lib/users/profiles";
-import {
-  USER_RECORD_WITH_AVATAR_SELECT,
-  ensureUserCredentials,
-  mapUserRecordsToStateUsers,
-  readUsersFromDatabase,
-  syncUsersToDatabase,
-  upsertUserToDatabase
-} from "@/lib/users/records";
 import {
   ensureDatabaseReadCanProceed,
   failClosedAfterDatabaseReadError,
@@ -36,7 +46,6 @@ import {
 } from "@/lib/data-availability";
 import { seedState } from "@/lib/demo-data";
 import { assertDatabaseEnvironmentSafety } from "@/lib/environment-safety";
-import { loadManualHistorySeed } from "@/lib/manual-history";
 import {
   loadDeferredWriteQueue,
   readLocalState,
@@ -45,167 +54,62 @@ import {
   saveLocalStateStrict,
   type DeferredDatabaseWrite
 } from "@/lib/local-state-storage";
-import {
-  fetchNowPlayingMovies,
-  fetchMovieDiscoveryPool,
-  resolveMovieMetadata,
-  fetchUpcomingMovies
-} from "@/lib/movie-provider";
-import {
-  mergeNormalizedState,
-  toCompactSnapshotState,
-  type NormalizedStateCollections
-} from "@/lib/normalized-state";
-import {
-  generatePendingWeeklyOptions,
-  generateWeeklyRecommendations,
-  hasRecommendationMetadata,
-  rankNowPlayingForGroup,
-  rankDiscoveryMoviesForGroup,
-  selectDiscoverySeedTmdbIds,
-  rankUpcomingReleasesForGroup
-} from "@/lib/recommendations";
-import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
-import { commitStateChangeAtomically, StatePersistenceUnavailableError, type PersistMutation } from "@/lib/state-persistence";
+import { loadManualHistorySeed } from "@/lib/manual-history";
 import { createLocalMutationQueue, withDatabaseMutation } from "@/lib/mutation-lock";
-import { classifyWeeklySelection, isWeeklyBatchCurrent, shouldCarryWeeklySelection } from "@/lib/weekly-selection";
+import { mergeNormalizedState, toCompactSnapshotState, type NormalizedStateCollections } from "@/lib/normalized-state";
+import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
 import {
-  ActivityItem,
-  AppState,
-  Movie,
-  NowPlayingSuggestion,
-  RecommendationMetric,
-  UpcomingReleaseSuggestion,
-  User,
-  UserRating,
-  WatchEntry,
-  WeeklyRecommendationBatch,
-  WeeklyRecommendationItem
-} from "@/lib/types";
-import { normalizeIdentity, normalizeUsername } from "@/lib/user-input";
-import { average } from "@/lib/utils";
+  StatePersistenceUnavailableError,
+  commitStateChangeAtomically,
+  type PersistMutation
+} from "@/lib/state-persistence";
+import { ActivityItem, AppState, Movie, User } from "@/lib/types";
+import { createAuthenticationService } from "@/lib/users/authentication";
+import { createProfileReader } from "@/lib/users/profiles";
+import {
+  USER_RECORD_WITH_AVATAR_SELECT,
+  ensureUserCredentials,
+  mapUserRecordsToStateUsers,
+  readUsersFromDatabase,
+  syncUsersToDatabase,
+  upsertUserToDatabase
+} from "@/lib/users/records";
+import { createUserService } from "@/lib/users/service";
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 
-const PAGE_ROUTE_CACHE_TTL_MS = 1000 * 60 * 2;
-const MOVIE_DETAIL_CACHE_TTL_MS = 1000 * 60 * 2;
-const UPCOMING_RELEASES_CACHE_TTL_MS = 1000 * 60 * 15;
-const NOW_PLAYING_CACHE_TTL_MS = 1000 * 60 * 15;
 const DATABASE_READ_BACKOFF_MS = 1000 * 60;
 const DATABASE_WRITE_BACKOFF_MS = 1000 * 60;
 const DATABASE_QUOTA_BACKOFF_MS = 1000 * 60 * 30;
 const LIVE_STATE_CACHE_TTL_MS = 1000 * 60 * 10;
 const DEFERRED_WRITE_FLUSH_TTL_MS = 1000 * 60;
-const APP_REGISTRATION_FALLBACK_DATE = "2026-03-14T17:09:52.000Z";
 
 const REMOVED_TEST_USER_IDS = new Set(["user_xisma25"]);
 const PREVIEW_TECHNICAL_MOVIE_TITLES = new Set(["F1 Review 1987", "F1 Review 2006"]);
 
-type HistoryFilters = {
-  genre?: string;
-  year?: string;
-  search?: string;
-  sort?: "watched-desc" | "group-desc" | "group-asc" | "mine-desc" | "mine-asc";
-};
-
-type HistoryItem = {
-  movie: Movie;
-  watchedOn: string | undefined;
-  groupAverage: number;
-  ratings: UserRating[];
-  userRating: number | undefined;
-};
-
-type DashboardData = {
-  selectedMovie: Movie | null;
-  selectedWatchEntry: WatchEntry | null;
-  upcomingReleases: UpcomingReleaseSuggestion[];
-  stats: {
-    watchedCount: number;
-    averageScore: number;
-    pendingCount: number;
-  };
-};
-
-type DashboardOverviewData = Omit<DashboardData, "upcomingReleases">;
-type ProfileDataCacheKey = string;
-type MovieDetailCacheKey = string;
-type PendingListCacheKey = string;
-type ViewedListCacheKey = string;
-
-type StateIndexes = {
-  usersById: Map<string, User>;
-  usersByUsername: Map<string, User>;
-  usersByIdentity: Map<string, User>;
-  moviesById: Map<string, Movie>;
-  moviesByTmdbId: Map<string, Movie>;
-  moviesBySlug: Map<string, Movie>;
-  ratingsByMovieId: Map<string, UserRating[]>;
-  ratingsByUserId: Map<string, UserRating[]>;
-  ratingByUserMovie: Map<string, UserRating>;
-  movieAverageById: Map<string, number>;
-  watchEntriesByMovieId: Map<string, AppState["watchEntries"][number]>;
-  pendingMovieIdSet: Set<string>;
-  watchedMovieIdSet: Set<string>;
-  currentBatch: WeeklyRecommendationBatch | null;
-  weeklyBatchById: Map<string, WeeklyRecommendationBatch>;
-  groupAverageScore: number;
-};
-
-type PendingListBase = {
-  batch: WeeklyRecommendationBatch | null;
-  genres: string[];
-  totalPendingCount: number;
-  filteredPendingIds: string[];
-  weeklyOptions: WeeklyRecommendationItem[];
-};
-
-type ViewedHistorySummary = {
-  movieId: string;
-  watchedOn: string | undefined;
-  groupAverage: number;
-  userRating: number | undefined;
-};
-
-type ViewedListBase = {
-  genres: string[];
-  totalHistoryCount: number;
-  filteredHistory: ViewedHistorySummary[];
-};
-
-type TimedCache<T> = {
-  value: T;
-  expiresAt: number;
-};
-
-const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
-
 let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 let snapshotUsersWithAvatarsMemoryCache: TimedCache<User[]> | null = null;
-let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null = null;
-let nowPlayingMemoryCache: TimedCache<NowPlayingSuggestion[]> | null = null;
+
 let databaseReadBackoffUntil = 0;
 let databaseWriteBackoffUntil = 0;
 let liveStateMemoryCache: TimedCache<AppState> | null = null;
 let lastDeferredWriteFlushAt = 0;
 let previewDataHygienePromise: Promise<void> | null = null;
-let groupPageDataMemoryCache: TimedCache<{
-  group: AppState["group"];
-  members: Array<{
-    member: User;
-    profileSummary: ProfileSummary;
-  }>;
-}> | null = null;
-const profilePageDataMemoryCache = new Map<ProfileDataCacheKey, TimedCache<ProfileData | null>>();
-const movieDetailDataMemoryCache = new Map<MovieDetailCacheKey, TimedCache<{
-  movie: Movie;
-  watchEntry: WatchEntry | null;
-  ratings: UserRating[];
-  members: User[];
-  average: number;
-  myRating: UserRating | null;
-} | null>>();
-const pendingListMemoryCache = new Map<PendingListCacheKey, TimedCache<PendingListBase>>();
-const viewedListMemoryCache = new Map<ViewedListCacheKey, TimedCache<ViewedListBase>>();
+
+const {
+  invalidateStateIndexes,
+  getStateIndexes,
+  getMovieById,
+  getCurrentBatchFromState,
+  getMovieAverageFromState,
+  listPendingFromState,
+  listMembersFromState,
+  getMovieBySlug,
+  getRatingsForMovieFromState,
+  getWatchEntryForMovieFromState,
+  findUserById,
+  findUserByIdentity,
+  getMovieByTmdbId
+} = createStateReader();
 
 // The store remains the composition root: domain modules never import it.
 // Mutations receive the same coordinator used by movies and recommendations.
@@ -243,44 +147,147 @@ export const { upsertRating } = createRatingService({
   invalidateDerivedCaches
 });
 
+const { ensureDashboardBatch, getCurrentBatch, generateBatch, selectWeeklyMovie } = createRecommendationService({
+  getStateIndexes,
+  getMovieById,
+  getCurrentBatchFromState,
+  invalidateDerivedCaches,
+  mutateState,
+  addActivity
+});
+
+const {
+  invalidateSuggestionCaches,
+  buildUpcomingDashboardReleases,
+  getUpcomingDashboardReleasesHydrated,
+  getNowPlayingDashboardSuggestionsHydrated,
+  getMovieDiscoverySuggestions,
+  getPendingWeeklySuggestionsHydrated
+} = createSuggestionReader({
+  getStateIndexes,
+  loadAppState: () => loadAppState(),
+  getMovieById
+});
+
+const { invalidateHistoryPageCache, getViewedPageDataHydrated, listHistory, listHistoryHydrated } = createHistoryPageReader({
+  getStateIndexes,
+  getMovieAverageFromState,
+  shouldAttemptDatabaseRead,
+  getDatabaseReadGroup,
+  loadMoviesByIdsFromDatabase,
+  hydrateMoviesForDatabaseRead,
+  markDatabaseReadHealthy,
+  markDatabaseReadFailure,
+  shouldUseDatabase,
+  loadAppState: () => loadAppState()
+});
+
+const { invalidatePendingPageCache, getPendingPageDataHydrated, listPendingHydrated } = createPendingPageReader({
+  listPendingFromState,
+  getCurrentBatchFromState,
+  shouldAttemptDatabaseRead,
+  getDatabaseReadGroup,
+  loadUsersForRead,
+  loadMovieCatalogFromDatabaseUncached,
+  loadNormalizedCollections,
+  ensureStateIntegrity,
+  ensureDashboardBatch,
+  getMovieById,
+  hydrateMoviesForDatabaseRead,
+  markDatabaseReadHealthy,
+  markDatabaseReadFailure,
+  shouldUseDatabase,
+  loadAppState: () => loadAppState()
+});
+
+const { invalidateProfilePageCaches, getProfileDataHydrated, getGroupPageData, listMembers, getUserByUsername } = createProfilePageReader({
+  shouldAttemptDatabaseRead,
+  loadUsersForRead,
+  loadMoviesByIdsFromDatabase,
+  hydrateMoviesForDatabaseRead,
+  markDatabaseReadHealthy,
+  markDatabaseReadFailure,
+  shouldUseDatabase,
+  loadAppState: () => loadAppState(),
+  buildProfileFromState,
+  getDatabaseReadGroup,
+  listMembersFromState,
+  getProfileSummaryFromState,
+  loadSnapshotUsersForRequest: () => loadSnapshotUsersForRequest()
+});
+
+const {
+  invalidateMovieDetailPageCache,
+  getMovieDetailDataHydrated,
+  getWatchEntryForMovie,
+  getRatingsForMovie,
+  getMovieBySlugHydrated
+} = createMovieDetailPageReader({
+  shouldAttemptDatabaseRead,
+  loadMovieBySlugFromDatabase,
+  hydrateMoviesForDatabaseRead,
+  loadUsersForRead,
+  markDatabaseReadHealthy,
+  markDatabaseReadFailure,
+  shouldUseDatabase,
+  loadAppState: () => loadAppState(),
+  getMovieBySlug,
+  getRatingsForMovieFromState,
+  getWatchEntryForMovieFromState,
+  listMembersFromState,
+  getMovieAverageFromState,
+  getStateIndexes
+});
+
+const { getDashboardData, getDashboardOverviewHydrated, getDashboardDataHydrated } = createDashboardPageReader({
+  getStateIndexes,
+  getCurrentBatchFromState,
+  getMovieById,
+  getWatchEntryForMovieFromState,
+  loadAppState: () => loadAppState(),
+  buildUpcomingDashboardReleases,
+  getUpcomingDashboardReleasesHydrated
+});
+
+export {
+  generateBatch,
+  getCurrentBatch,
+  getDashboardData,
+  getDashboardDataHydrated,
+  getDashboardOverviewHydrated,
+  getGroupPageData,
+  getMovieBySlugHydrated,
+  getMovieDetailDataHydrated,
+  getMovieDiscoverySuggestions,
+  getNowPlayingDashboardSuggestionsHydrated,
+  getPendingPageDataHydrated,
+  getPendingWeeklySuggestionsHydrated,
+  getProfileDataHydrated,
+  getRatingsForMovie,
+  getUpcomingDashboardReleasesHydrated,
+  getUserByUsername,
+  getViewedPageDataHydrated,
+  getWatchEntryForMovie,
+  listHistory,
+  listHistoryHydrated,
+  listMembers,
+  listPendingHydrated,
+  selectWeeklyMovie
+};
+
 function invalidateDerivedCaches(state: AppState) {
-  stateIndexesCache.delete(state);
+  invalidateStateIndexes(state);
   invalidateProfileCaches(state);
-}
-
-function cloneState<T>(value: T): T {
-  if (typeof structuredClone === "function") {
-    return structuredClone(value);
-  }
-
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function readTimedCache<T>(entry: TimedCache<T> | null | undefined) {
-  if (!entry || entry.expiresAt <= Date.now()) {
-    return null;
-  }
-
-  return cloneState(entry.value);
-}
-
-function writeTimedCacheWithTtl<T>(value: T, ttlMs: number): TimedCache<T> {
-  return {
-    value: cloneState(value),
-    expiresAt: Date.now() + ttlMs
-  };
 }
 
 function invalidatePersistentStateCache() {
   snapshotUsersMemoryCache = null;
   snapshotUsersWithAvatarsMemoryCache = null;
-  upcomingReleasesMemoryCache = null;
-  nowPlayingMemoryCache = null;
-  groupPageDataMemoryCache = null;
-  profilePageDataMemoryCache.clear();
-  movieDetailDataMemoryCache.clear();
-  pendingListMemoryCache.clear();
-  viewedListMemoryCache.clear();
+  invalidateSuggestionCaches();
+  invalidateProfilePageCaches();
+  invalidateMovieDetailPageCache();
+  invalidatePendingPageCache();
+  invalidateHistoryPageCache();
 }
 
 function normalizeLegacyActivityLabel(label: string) {
@@ -357,94 +364,6 @@ function buildInitialState(): AppState {
       }
     ]
   });
-}
-
-function getStateIndexes(state: AppState): StateIndexes {
-  const cachedIndexes = stateIndexesCache.get(state);
-  if (cachedIndexes) {
-    return cachedIndexes;
-  }
-
-  const usersById = new Map<string, User>();
-  const usersByUsername = new Map<string, User>();
-  const usersByIdentity = new Map<string, User>();
-  const moviesById = new Map<string, Movie>();
-  const moviesByTmdbId = new Map<string, Movie>();
-  const moviesBySlug = new Map<string, Movie>();
-  const ratingsByMovieId = new Map<string, UserRating[]>();
-  const ratingsByUserId = new Map<string, UserRating[]>();
-  const ratingByUserMovie = new Map<string, UserRating>();
-  const movieAverageById = new Map<string, number>();
-  const watchEntriesByMovieId = new Map<string, AppState["watchEntries"][number]>();
-  const pendingMovieIdSet = new Set(state.pendingMovieIds);
-  const watchedMovieIdSet = new Set<string>();
-  const weeklyBatchById = new Map<string, WeeklyRecommendationBatch>();
-
-  for (const user of state.users) {
-    usersById.set(user.id, user);
-    usersByUsername.set(normalizeUsername(user.username), user);
-    usersByIdentity.set(normalizeIdentity(user.name), user);
-  }
-
-  for (const movie of state.movies) {
-    moviesById.set(movie.id, movie);
-    moviesBySlug.set(movie.slug, movie);
-    if (movie.sourceIds?.tmdb) {
-      moviesByTmdbId.set(movie.sourceIds.tmdb, movie);
-    }
-  }
-
-  for (const rating of state.ratings) {
-    const movieRatings = ratingsByMovieId.get(rating.movieId) ?? [];
-    movieRatings.push(rating);
-    ratingsByMovieId.set(rating.movieId, movieRatings);
-
-    const userRatings = ratingsByUserId.get(rating.userId) ?? [];
-    userRatings.push(rating);
-    ratingsByUserId.set(rating.userId, userRatings);
-
-    ratingByUserMovie.set(`${rating.userId}:${rating.movieId}`, rating);
-  }
-
-  for (const [movieId, movieRatings] of ratingsByMovieId.entries()) {
-    movieAverageById.set(movieId, average(movieRatings.map((rating) => rating.score)));
-  }
-
-  for (const watchEntry of state.watchEntries) {
-    watchEntriesByMovieId.set(watchEntry.movieId, watchEntry);
-    watchedMovieIdSet.add(watchEntry.movieId);
-  }
-
-  const currentBatch = [...state.weeklyBatches].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
-  for (const batch of state.weeklyBatches) {
-    weeklyBatchById.set(batch.id, batch);
-  }
-
-  const groupAverageScore = average(
-    state.watchEntries.map((entry) => movieAverageById.get(entry.movieId) ?? 0).filter((value) => value > 0)
-  );
-
-  const indexes = {
-    usersById,
-    usersByUsername,
-    usersByIdentity,
-    moviesById,
-    moviesByTmdbId,
-    moviesBySlug,
-    ratingsByMovieId,
-    ratingsByUserId,
-    ratingByUserMovie,
-    movieAverageById,
-    watchEntriesByMovieId,
-    pendingMovieIdSet,
-    watchedMovieIdSet,
-    currentBatch,
-    weeklyBatchById,
-    groupAverageScore
-  };
-
-  stateIndexesCache.set(state, indexes);
-  return indexes;
 }
 
 async function loadUsersForAuthentication() {
@@ -644,43 +563,6 @@ function loadFallbackState() {
   return initial;
 }
 
-function mapWeeklyBatchRecordsToStateEntries(
-  records: Array<{
-    id: string;
-    groupId: string;
-    weekOf: Date;
-    createdAt: Date;
-    selectedMovieId: string | null;
-    items: Array<{
-      id: string;
-      movieId: string;
-      score: number;
-      summary: string;
-      reasons: unknown;
-      metrics: unknown;
-      position: number;
-    }>;
-  }>
-): WeeklyRecommendationBatch[] {
-  return records.map((batch) => ({
-    id: batch.id,
-    groupId: batch.groupId,
-    weekOf: batch.weekOf.toISOString(),
-    createdAt: batch.createdAt.toISOString(),
-    selectedMovieId: batch.selectedMovieId ?? undefined,
-    items: [...batch.items]
-      .sort((left, right) => left.position - right.position)
-      .map((item) => ({
-        id: item.id,
-        movieId: item.movieId,
-        score: item.score,
-        summary: item.summary,
-        reasons: Array.isArray(item.reasons) ? (item.reasons as WeeklyRecommendationItem["reasons"]) : [],
-        metrics: Array.isArray(item.metrics) ? (item.metrics as RecommendationMetric[]) : undefined
-      }))
-  }));
-}
-
 async function loadNormalizedCollections(groupId: string, client?: Prisma.TransactionClient) {
   const prisma = client ?? (await import("@/lib/prisma")).prisma;
   const [pendingRows, watchRows, ratingRows, batchRows] = await Promise.all([
@@ -856,115 +738,6 @@ async function loadMovieBySlugFromDatabase(slug: string) {
     markDatabaseReadFailure("movie by slug read", error);
     return null;
   }
-}
-
-async function syncWeeklyBatchesToDatabase(groupId: string, weeklyBatches: WeeklyRecommendationBatch[]) {
-  const { prisma } = await import("@/lib/prisma");
-  const existingBatchIds = (
-    await prisma.weeklyBatchRecord.findMany({
-      where: { groupId },
-      select: { id: true }
-    })
-  ).map((batch) => batch.id);
-
-  await prisma.$transaction([
-    ...(existingBatchIds.length > 0
-      ? [prisma.weeklyBatchItemRecord.deleteMany({ where: { batchId: { in: existingBatchIds } } })]
-      : []),
-    prisma.weeklyBatchRecord.deleteMany({ where: { groupId } }),
-    ...(weeklyBatches.length > 0
-      ? [
-          prisma.weeklyBatchRecord.createMany({
-            data: weeklyBatches.map((batch) => ({
-              id: batch.id,
-              groupId: batch.groupId,
-              weekOf: new Date(batch.weekOf),
-              createdAt: new Date(batch.createdAt),
-              selectedMovieId: batch.selectedMovieId ?? null
-            })),
-            skipDuplicates: true
-          }),
-          prisma.weeklyBatchItemRecord.createMany({
-            data: weeklyBatches.flatMap((batch) =>
-              batch.items.map((item, index) => ({
-                id: item.id,
-                batchId: batch.id,
-                movieId: item.movieId,
-                position: index,
-                score: item.score,
-                summary: item.summary,
-                reasons: item.reasons,
-                metrics: item.metrics ?? []
-              }))
-            ),
-            skipDuplicates: true
-          })
-        ]
-      : [])
-  ]);
-}
-
-async function insertWeeklyBatchToDatabase(batch: WeeklyRecommendationBatch, client?: Prisma.TransactionClient) {
-  const execute = async (database: Prisma.TransactionClient) => {
-    await database.weeklyBatchRecord.upsert({
-      where: {
-        id: batch.id
-      },
-      create: {
-        id: batch.id,
-        groupId: batch.groupId,
-        weekOf: new Date(batch.weekOf),
-        createdAt: new Date(batch.createdAt),
-        selectedMovieId: batch.selectedMovieId ?? null
-      },
-      update: {
-        weekOf: new Date(batch.weekOf),
-        selectedMovieId: batch.selectedMovieId ?? null
-      }
-    });
-    await database.weeklyBatchItemRecord.deleteMany({
-      where: {
-        batchId: batch.id
-      }
-    });
-    await database.weeklyBatchItemRecord.createMany({
-      data: batch.items.map((item, index) => ({
-        id: item.id,
-        batchId: batch.id,
-        movieId: item.movieId,
-        position: index,
-        score: item.score,
-        summary: item.summary,
-        reasons: item.reasons,
-        metrics: item.metrics ?? []
-      })),
-      skipDuplicates: true
-    });
-  };
-
-  if (client) {
-    await execute(client);
-    return;
-  }
-
-  const { prisma } = await import("@/lib/prisma");
-  await prisma.$transaction(execute);
-}
-
-async function updateWeeklyBatchSelectionInDatabase(
-  batchId: string,
-  selectedMovieId?: string,
-  client?: Prisma.TransactionClient
-) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.weeklyBatchRecord.update({
-    where: {
-      id: batchId
-    },
-    data: {
-      selectedMovieId: selectedMovieId ?? null
-    }
-  });
 }
 
 async function applyDeferredDatabaseWrite(write: DeferredDatabaseWrite) {
@@ -1234,141 +1007,6 @@ async function mutateState<T>(action: (state: AppState, persist: PersistMutation
   return usesDatabase ? run() : runLocalMutation(run);
 }
 
-function findUserById(state: AppState, userId?: string | null) {
-  if (!userId) {
-    return null;
-  }
-
-  return getStateIndexes(state).usersById.get(userId) ?? null;
-}
-
-function findUserByIdentity(state: AppState, identifier?: string | null) {
-  const normalizedIdentifier = normalizeIdentity(identifier ?? "");
-  if (!normalizedIdentifier) {
-    return null;
-  }
-
-  return (
-    getStateIndexes(state).usersByUsername.get(normalizedIdentifier) ??
-    getStateIndexes(state).usersByIdentity.get(normalizedIdentifier) ??
-    null
-  );
-}
-
-function getMovieById(state: AppState, movieId: string) {
-  return getStateIndexes(state).moviesById.get(movieId) ?? null;
-}
-
-function getMovieByTmdbId(state: AppState, tmdbId: string) {
-  return getStateIndexes(state).moviesByTmdbId.get(tmdbId) ?? null;
-}
-
-function getMovieBySlug(state: AppState, slug: string) {
-  return getStateIndexes(state).moviesBySlug.get(slug) ?? null;
-}
-
-function getCurrentBatchFromState(state: AppState) {
-  return getStateIndexes(state).currentBatch;
-}
-
-function isDashboardBatchValid(state: AppState, batch: AppState["weeklyBatches"][number] | null) {
-  if (!batch || !isWeeklyBatchCurrent(batch) || batch.items.length !== 3) {
-    return false;
-  }
-
-  const { watchedMovieIdSet, pendingMovieIdSet } = getStateIndexes(state);
-  if (batch.selectedMovieId) {
-    const selectedMovie = getMovieById(state, batch.selectedMovieId);
-    const isSelectable =
-      selectedMovie !== null &&
-      hasRecommendationMetadata(selectedMovie) &&
-      !watchedMovieIdSet.has(batch.selectedMovieId) &&
-      (pendingMovieIdSet.has(batch.selectedMovieId) ||
-        batch.items.some((item) => item.movieId === batch.selectedMovieId));
-    if (!isSelectable) {
-      return false;
-    }
-  }
-
-  return batch.items.every((item) => {
-    const movie = getMovieById(state, item.movieId);
-    return (
-      movie !== null &&
-      hasRecommendationMetadata(movie) &&
-      !watchedMovieIdSet.has(item.movieId) &&
-      !pendingMovieIdSet.has(item.movieId) &&
-      Array.isArray(item.metrics) &&
-      item.metrics.length >= 4
-    );
-  });
-}
-
-async function ensureDashboardBatch(state: AppState) {
-  const currentBatch = getCurrentBatchFromState(state);
-  if (isDashboardBatchValid(state, currentBatch)) {
-    return {
-      batch: currentBatch,
-      changed: false
-    };
-  }
-
-  const refreshedBatch = generateWeeklyRecommendations(state);
-  const selectedMovie = currentBatch?.selectedMovieId
-    ? getMovieById(state, currentBatch.selectedMovieId)
-    : null;
-  if (
-    currentBatch?.selectedMovieId &&
-    selectedMovie &&
-    hasRecommendationMetadata(selectedMovie) &&
-    shouldCarryWeeklySelection(
-      currentBatch,
-      getStateIndexes(state).watchedMovieIdSet,
-      getStateIndexes(state).pendingMovieIdSet
-    )
-  ) {
-    refreshedBatch.selectedMovieId = currentBatch.selectedMovieId;
-  }
-
-  state.weeklyBatches.unshift(refreshedBatch);
-  invalidateDerivedCaches(state);
-  return {
-    batch: refreshedBatch,
-    changed: true
-  };
-}
-
-function getWatchEntryForMovieFromState(state: AppState, movieId: string) {
-  return getStateIndexes(state).watchEntriesByMovieId.get(movieId) ?? null;
-}
-
-function getRatingsForMovieFromState(state: AppState, movieId: string) {
-  return getStateIndexes(state).ratingsByMovieId.get(movieId) ?? [];
-}
-
-function getMovieAverageFromState(state: AppState, movieId: string) {
-  return getStateIndexes(state).movieAverageById.get(movieId) ?? 0;
-}
-
-function getGroupStatsFromState(state: AppState) {
-  const { groupAverageScore } = getStateIndexes(state);
-  return {
-    watchedCount: state.watchEntries.length,
-    averageScore: groupAverageScore,
-    pendingCount: state.pendingMovieIds.length
-  };
-}
-
-function buildDashboardDataFromState(state: AppState): DashboardOverviewData {
-  const batch = getCurrentBatchFromState(state);
-  const selectedMovie = batch?.selectedMovieId ? getMovieById(state, batch.selectedMovieId) : null;
-
-  return {
-    selectedMovie,
-    selectedWatchEntry: batch?.selectedMovieId ? getWatchEntryForMovieFromState(state, batch.selectedMovieId) : null,
-    stats: getGroupStatsFromState(state)
-  };
-}
-
 function getDatabaseReadGroup() {
   return cloneState(loadFallbackState().group);
 }
@@ -1388,95 +1026,6 @@ async function hydrateMoviesForDatabaseRead(movies: Movie[]) {
   if (changedMovies.length > 0 && shouldAttemptDatabaseWrite()) {
     await syncMoviesToDatabase(changedMovies).catch((error) => markDatabaseWriteFailure("movie hydration sync", error));
   }
-}
-
-async function buildUpcomingDashboardReleases(state: AppState) {
-  const cached = readTimedCache(upcomingReleasesMemoryCache);
-  if (cached) {
-    return cached;
-  }
-
-  const rawUpcoming = await fetchUpcomingMovies(31, "ES", 12);
-  if (rawUpcoming.length === 0) {
-    return [];
-  }
-
-  const indexes = getStateIndexes(state);
-  const knownTmdbIds = new Set(
-    [...state.pendingMovieIds, ...state.watchEntries.map((entry) => entry.movieId)]
-      .map((movieId) => indexes.moviesById.get(movieId)?.sourceIds?.tmdb)
-      .filter((value): value is string => Boolean(value))
-  );
-
-  const candidates = rawUpcoming.filter((movie) => !(movie.sourceIds?.tmdb && knownTmdbIds.has(movie.sourceIds.tmdb))).slice(0, 5);
-
-  const enrichedUpcoming = await Promise.all(candidates.map((movie) => resolveMovieMetadata(movie)));
-  const ranked = rankUpcomingReleasesForGroup(state, enrichedUpcoming, 3);
-  upcomingReleasesMemoryCache = {
-    value: cloneState(ranked),
-    expiresAt: Date.now() + UPCOMING_RELEASES_CACHE_TTL_MS
-  };
-  return ranked;
-}
-
-async function buildNowPlayingDashboardSuggestions(state: AppState) {
-  const cached = readTimedCache(nowPlayingMemoryCache);
-  if (cached) {
-    return cached;
-  }
-
-  const rawNowPlaying = await fetchNowPlayingMovies("ES", 18);
-  if (rawNowPlaying.length === 0) {
-    return [];
-  }
-
-  const indexes = getStateIndexes(state);
-  const knownTmdbIds = new Set(
-    [...state.pendingMovieIds, ...state.watchEntries.map((entry) => entry.movieId)]
-      .map((movieId) => indexes.moviesById.get(movieId)?.sourceIds?.tmdb)
-      .filter((value): value is string => Boolean(value))
-  );
-  const candidates = rawNowPlaying
-    .filter((movie) => !(movie.sourceIds?.tmdb && knownTmdbIds.has(movie.sourceIds.tmdb)))
-    .slice(0, 10);
-  const enrichedMovies = await Promise.all(candidates.map((movie) => resolveMovieMetadata(movie)));
-  const ranked = rankNowPlayingForGroup(state, enrichedMovies, 3);
-
-  nowPlayingMemoryCache = {
-    value: cloneState(ranked),
-    expiresAt: Date.now() + NOW_PLAYING_CACHE_TTL_MS
-  };
-  return ranked;
-}
-
-function listMembersFromState(state: AppState) {
-  const { usersById } = getStateIndexes(state);
-  return state.group.memberIds.map((memberId) => usersById.get(memberId)).filter((user): user is User => Boolean(user));
-}
-
-function listPendingFromState(state: AppState) {
-  const { moviesById } = getStateIndexes(state);
-  return state.pendingMovieIds.map((movieId) => moviesById.get(movieId)).filter((movie): movie is Movie => Boolean(movie));
-}
-
-function buildPendingListCacheKey(search: string, genre: string) {
-  return `${search.toLocaleLowerCase("es")}::${genre.toLocaleLowerCase("es")}`;
-}
-
-function buildViewedListCacheKey(input: {
-  search?: string;
-  year?: string;
-  genre?: string;
-  sort?: HistoryFilters["sort"];
-  currentUserId?: string;
-}) {
-  return [
-    input.currentUserId ?? "guest",
-    input.search?.trim().toLocaleLowerCase("es") ?? "",
-    input.year?.trim() ?? "",
-    input.genre?.trim().toLocaleLowerCase("es") ?? "",
-    input.sort ?? "watched-desc"
-  ].join("::");
 }
 
 function addActivity(state: AppState, entry: ActivityItem) {
@@ -1499,1046 +1048,4 @@ function addActivity(state: AppState, entry: ActivityItem) {
 
   state.activity.unshift(entry);
   state.activity = state.activity.slice(0, 20);
-}
-
-function buildHistoryFromState(state: AppState, filters?: HistoryFilters, currentUserId?: string) {
-  const { moviesById, ratingsByMovieId, ratingByUserMovie } = getStateIndexes(state);
-  const watchedMovies: HistoryItem[] = state.watchEntries.flatMap((entry) => {
-    const movie = moviesById.get(entry.movieId);
-    if (!movie) {
-      return [];
-    }
-
-    const ratings = ratingsByMovieId.get(movie.id) ?? [];
-    const userRating = currentUserId ? ratingByUserMovie.get(`${currentUserId}:${movie.id}`)?.score : undefined;
-
-    return [
-      {
-        movie,
-        watchedOn: entry.watchedOn ?? APP_REGISTRATION_FALLBACK_DATE,
-        groupAverage: getMovieAverageFromState(state, movie.id),
-        ratings,
-        userRating
-      }
-    ];
-  });
-
-  const filtered = watchedMovies.filter((item) => {
-    const genreMatch = filters?.genre ? item.movie.genres.includes(filters.genre) : true;
-    const yearMatch = filters?.year ? String(item.movie.year) === filters.year : true;
-    const searchMatch = filters?.search ? item.movie.title.toLowerCase().includes(filters.search.toLowerCase()) : true;
-    return genreMatch && yearMatch && searchMatch;
-  });
-
-  const sort = filters?.sort ?? "watched-desc";
-  return [...filtered].sort((left, right) => {
-    if (sort === "group-desc") {
-      return right.groupAverage - left.groupAverage || right.movie.year - left.movie.year;
-    }
-
-    if (sort === "group-asc") {
-      return left.groupAverage - right.groupAverage || left.movie.year - right.movie.year;
-    }
-
-    if (sort === "mine-desc") {
-      return (right.userRating ?? -1) - (left.userRating ?? -1) || right.groupAverage - left.groupAverage;
-    }
-
-    if (sort === "mine-asc") {
-      return (left.userRating ?? 11) - (right.userRating ?? 11) || left.groupAverage - right.groupAverage;
-    }
-
-    return (new Date(right.watchedOn ?? 0).getTime() || 0) - (new Date(left.watchedOn ?? 0).getTime() || 0);
-  });
-}
-
-function getPendingListBaseFromState(state: AppState, search: string, activeGenre: string): PendingListBase {
-  const cacheKey = buildPendingListCacheKey(search, activeGenre);
-  const cached = readTimedCache(pendingListMemoryCache.get(cacheKey));
-  if (cached !== null) {
-    return cached;
-  }
-
-  const pending = listPendingFromState(state);
-  const batch = getCurrentBatchFromState(state);
-  const weeklyOptions = generatePendingWeeklyOptions(state);
-  const normalizedSearch = search.toLocaleLowerCase("es");
-  const normalizedGenre = activeGenre.toLocaleLowerCase("es");
-
-  const genres = Array.from(
-    new Set(
-      pending
-        .flatMap((movie) => movie.genres)
-        .map((genre) => genre.trim())
-        .filter((genre) => genre && genre.toLowerCase() !== "pendiente")
-    )
-  ).sort((left, right) => left.localeCompare(right, "es"));
-
-  const filteredPendingIds = pending
-    .filter((movie) => {
-      const matchesSearch =
-        !normalizedSearch ||
-        `${movie.title} ${movie.year} ${movie.director} ${movie.cast.join(" ")}`
-          .toLocaleLowerCase("es")
-          .includes(normalizedSearch);
-
-      const matchesGenre =
-        !normalizedGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === normalizedGenre);
-
-      return matchesSearch && matchesGenre;
-    })
-    .map((movie) => movie.id);
-
-  const base = {
-    batch,
-    genres,
-    totalPendingCount: pending.length,
-    filteredPendingIds,
-    weeklyOptions
-  };
-
-  pendingListMemoryCache.set(cacheKey, writeTimedCacheWithTtl(base, PAGE_ROUTE_CACHE_TTL_MS));
-  return base;
-}
-
-function getViewedListBaseFromState(
-  state: AppState,
-  input: {
-    search?: string;
-    year?: string;
-    genre?: string;
-    sort?: HistoryFilters["sort"];
-    currentUserId?: string;
-  }
-): ViewedListBase {
-  const cacheKey = buildViewedListCacheKey(input);
-  const cached = readTimedCache(viewedListMemoryCache.get(cacheKey));
-  if (cached !== null) {
-    return cached;
-  }
-
-  const indexes = getStateIndexes(state);
-  const allHistory = state.watchEntries
-    .flatMap((entry) => {
-      const movie = indexes.moviesById.get(entry.movieId);
-      if (!movie) {
-        return [];
-      }
-
-      const userRating = input.currentUserId ? indexes.ratingByUserMovie.get(`${input.currentUserId}:${movie.id}`)?.score : undefined;
-
-      return [
-        {
-          movieId: movie.id,
-          watchedOn: entry.watchedOn ?? APP_REGISTRATION_FALLBACK_DATE,
-          groupAverage: getMovieAverageFromState(state, movie.id),
-          userRating
-        }
-      ];
-    });
-
-  const normalizedSearch = input.search?.trim().toLocaleLowerCase("es") ?? "";
-  const normalizedGenre = input.genre?.trim().toLocaleLowerCase("es") ?? "";
-  const activeYear = input.year?.trim() ?? "";
-
-  const filteredHistory = allHistory
-    .filter((item) => {
-      const movie = indexes.moviesById.get(item.movieId);
-      if (!movie) {
-        return false;
-      }
-
-      const genreMatch = !normalizedGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === normalizedGenre);
-      const yearMatch = !activeYear || String(movie.year) === activeYear;
-      const searchMatch = !normalizedSearch || movie.title.toLocaleLowerCase("es").includes(normalizedSearch);
-      return genreMatch && yearMatch && searchMatch;
-    })
-    .sort((left, right) => {
-      const sort = input.sort ?? "watched-desc";
-      const leftMovie = indexes.moviesById.get(left.movieId);
-      const rightMovie = indexes.moviesById.get(right.movieId);
-      if (!leftMovie || !rightMovie) {
-        return 0;
-      }
-
-      if (sort === "group-desc") {
-        return right.groupAverage - left.groupAverage || rightMovie.year - leftMovie.year;
-      }
-
-      if (sort === "group-asc") {
-        return left.groupAverage - right.groupAverage || leftMovie.year - rightMovie.year;
-      }
-
-      if (sort === "mine-desc") {
-        return (right.userRating ?? -1) - (left.userRating ?? -1) || right.groupAverage - left.groupAverage;
-      }
-
-      if (sort === "mine-asc") {
-        return (left.userRating ?? 11) - (right.userRating ?? 11) || left.groupAverage - right.groupAverage;
-      }
-
-      return (new Date(right.watchedOn ?? 0).getTime() || 0) - (new Date(left.watchedOn ?? 0).getTime() || 0);
-    });
-
-  const genres = Array.from(
-    new Set(
-      allHistory
-        .flatMap((item) => indexes.moviesById.get(item.movieId)?.genres ?? [])
-        .map((genre) => genre.trim())
-        .filter((genre) => genre && genre.toLowerCase() !== "pendiente")
-    )
-  ).sort((left, right) => left.localeCompare(right, "es"));
-
-  const base = {
-    genres,
-    totalHistoryCount: allHistory.length,
-    filteredHistory
-  };
-
-  viewedListMemoryCache.set(cacheKey, writeTimedCacheWithTtl(base, PAGE_ROUTE_CACHE_TTL_MS));
-  return base;
-}
-
-async function getViewedPageDataFromDatabase(input: {
-  search?: string;
-  year?: string;
-  genre?: string;
-  sort?: HistoryFilters["sort"];
-  currentUserId?: string;
-  page?: number;
-  pageSize?: number;
-}) {
-  if (!shouldAttemptDatabaseRead()) {
-    return null;
-  }
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    const groupId = getDatabaseReadGroup().id;
-    const currentPage = input.page && input.page > 0 ? input.page : 1;
-    const itemsPerPage = input.pageSize && input.pageSize > 0 ? input.pageSize : 15;
-    const watchRows = await prisma.watchEntryRecord.findMany({
-      where: { groupId },
-      orderBy: [{ watchedOn: "desc" }, { createdAt: "desc" }]
-    });
-    const watchEntries = mapWatchRecordsToStateEntries(watchRows);
-    const watchedMovieIds = watchEntries.map((entry) => entry.movieId);
-    const [moviesById, ratingRows] = await Promise.all([
-      loadMoviesByIdsFromDatabase(watchedMovieIds),
-      watchedMovieIds.length > 0
-        ? prisma.ratingRecord.findMany({
-            where: { movieId: { in: watchedMovieIds } },
-            orderBy: [{ watchedOn: "desc" }, { updatedAt: "desc" }]
-          })
-        : Promise.resolve([])
-    ]);
-    const ratings = mapRatingRecordsToStateEntries(ratingRows);
-    if (watchedMovieIds.length > 0 && moviesById.size === 0) {
-      return null;
-    }
-
-    const ratingsByMovieId = new Map<string, UserRating[]>();
-    const ratingByUserMovie = new Map<string, UserRating>();
-    for (const rating of ratings) {
-      const movieRatings = ratingsByMovieId.get(rating.movieId) ?? [];
-      movieRatings.push(rating);
-      ratingsByMovieId.set(rating.movieId, movieRatings);
-      ratingByUserMovie.set(`${rating.userId}:${rating.movieId}`, rating);
-    }
-
-    const allHistory = watchEntries.flatMap((entry) => {
-      const movie = moviesById.get(entry.movieId);
-      if (!movie) {
-        return [];
-      }
-
-      return [
-        {
-          movieId: movie.id,
-          watchedOn: entry.watchedOn ?? APP_REGISTRATION_FALLBACK_DATE,
-          groupAverage: average((ratingsByMovieId.get(movie.id) ?? []).map((rating) => rating.score)),
-          userRating: input.currentUserId ? ratingByUserMovie.get(`${input.currentUserId}:${movie.id}`)?.score : undefined
-        }
-      ];
-    });
-
-    const featuredHistory: HistoryItem[] = [...allHistory]
-      .sort((left, right) => right.groupAverage - left.groupAverage)
-      .slice(0, 1)
-      .flatMap((item) => {
-      const movie = moviesById.get(item.movieId);
-      if (!movie) {
-        return [];
-      }
-
-      return [
-        {
-          movie,
-          watchedOn: item.watchedOn,
-          groupAverage: item.groupAverage,
-          ratings: ratingsByMovieId.get(item.movieId) ?? [],
-          userRating: item.userRating
-        }
-      ];
-      });
-
-    const normalizedSearch = input.search?.trim().toLocaleLowerCase("es") ?? "";
-    const normalizedGenre = input.genre?.trim().toLocaleLowerCase("es") ?? "";
-    const activeYear = input.year?.trim() ?? "";
-    const filteredHistory = allHistory
-      .filter((item) => {
-        const movie = moviesById.get(item.movieId);
-        if (!movie) {
-          return false;
-        }
-
-        const genreMatch = !normalizedGenre || movie.genres.some((genre) => genre.toLocaleLowerCase("es") === normalizedGenre);
-        const yearMatch = !activeYear || String(movie.year) === activeYear;
-        const searchMatch = !normalizedSearch || movie.title.toLocaleLowerCase("es").includes(normalizedSearch);
-        return genreMatch && yearMatch && searchMatch;
-      })
-      .sort((left, right) => {
-        const sort = input.sort ?? "watched-desc";
-        const leftMovie = moviesById.get(left.movieId);
-        const rightMovie = moviesById.get(right.movieId);
-        if (!leftMovie || !rightMovie) {
-          return 0;
-        }
-
-        if (sort === "group-desc") {
-          return right.groupAverage - left.groupAverage || rightMovie.year - leftMovie.year;
-        }
-
-        if (sort === "group-asc") {
-          return left.groupAverage - right.groupAverage || leftMovie.year - rightMovie.year;
-        }
-
-        if (sort === "mine-desc") {
-          return (right.userRating ?? -1) - (left.userRating ?? -1) || right.groupAverage - left.groupAverage;
-        }
-
-        if (sort === "mine-asc") {
-          return (left.userRating ?? 11) - (right.userRating ?? 11) || left.groupAverage - right.groupAverage;
-        }
-
-        return (new Date(right.watchedOn ?? 0).getTime() || 0) - (new Date(left.watchedOn ?? 0).getTime() || 0);
-      });
-
-    const genres = Array.from(
-      new Set(
-        allHistory
-          .flatMap((item) => moviesById.get(item.movieId)?.genres ?? [])
-          .map((genre) => genre.trim())
-          .filter((genre) => genre && genre.toLowerCase() !== "pendiente")
-      )
-    ).sort((left, right) => left.localeCompare(right, "es"));
-    const totalPages = Math.max(1, Math.ceil(filteredHistory.length / itemsPerPage));
-    const safePage = Math.min(currentPage, totalPages);
-    const pageStart = (safePage - 1) * itemsPerPage;
-    const pagedHistory: HistoryItem[] = filteredHistory
-      .slice(pageStart, pageStart + itemsPerPage)
-      .flatMap((item) => {
-        const movie = moviesById.get(item.movieId);
-        if (!movie) {
-          return [];
-        }
-
-        return [
-          {
-            movie,
-            watchedOn: item.watchedOn,
-            groupAverage: item.groupAverage,
-            ratings: ratingsByMovieId.get(item.movieId) ?? [],
-            userRating: item.userRating
-          }
-        ];
-      });
-
-    await hydrateMoviesForDatabaseRead(
-      [...new Map([...featuredHistory, ...pagedHistory].map((item) => [item.movie.id, item.movie])).values()]
-    );
-    markDatabaseReadHealthy();
-    return {
-      genres,
-      totalHistoryCount: allHistory.length,
-      filteredHistoryCount: filteredHistory.length,
-      totalPages,
-      currentPage: safePage,
-      featuredHistory,
-      pagedHistory
-    };
-  } catch (error) {
-    markDatabaseReadFailure("viewed page read", error);
-    return null;
-  }
-}
-
-async function getPendingPageDataFromDatabase(input: { search?: string; genre?: string; page?: number; pageSize?: number }) {
-  if (!shouldAttemptDatabaseRead()) {
-    return null;
-  }
-
-  try {
-    const group = getDatabaseReadGroup();
-    const search = input.search?.trim() ?? "";
-    const activeGenre = input.genre?.trim() ?? "";
-    const currentPage = input.page && input.page > 0 ? input.page : 1;
-    const itemsPerPage = input.pageSize && input.pageSize > 0 ? input.pageSize : 15;
-    const [users, movies, normalizedCollections] = await Promise.all([
-      loadUsersForRead(),
-      loadMovieCatalogFromDatabaseUncached(),
-      loadNormalizedCollections(group.id)
-    ]);
-    if (!movies) {
-      return null;
-    }
-    const state = ensureStateIntegrity({
-      users,
-      group,
-      movies,
-      watchEntries: normalizedCollections.watchEntries,
-      ratings: normalizedCollections.ratings,
-      pendingMovieIds: normalizedCollections.pendingMovieIds,
-      weeklyBatches: normalizedCollections.weeklyBatches,
-      activity: []
-    });
-    pendingListMemoryCache.clear();
-    const ensuredBatch = await ensureDashboardBatch(state);
-    if (ensuredBatch.changed && ensuredBatch.batch) {
-      await insertWeeklyBatchToDatabase(ensuredBatch.batch);
-    }
-    const { batch, genres, totalPendingCount, filteredPendingIds, weeklyOptions } = getPendingListBaseFromState(
-      state,
-      search,
-      activeGenre
-    );
-    const totalPages = Math.max(1, Math.ceil(filteredPendingIds.length / itemsPerPage));
-    const safePage = Math.min(currentPage, totalPages);
-    const pageStart = (safePage - 1) * itemsPerPage;
-    const pagedPending = filteredPendingIds
-      .slice(pageStart, pageStart + itemsPerPage)
-      .map((movieId) => getMovieById(state, movieId))
-      .filter((movie): movie is Movie => Boolean(movie));
-    const weeklyOptionsWithMovies = weeklyOptions
-      .map((item) => {
-        const movie = getMovieById(state, item.movieId);
-        return movie ? { ...item, movie } : null;
-      })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item));
-    await hydrateMoviesForDatabaseRead([
-      ...pagedPending,
-      ...weeklyOptionsWithMovies.map((item) => item.movie)
-    ]);
-    markDatabaseReadHealthy();
-    return {
-      batch,
-      genres,
-      totalPendingCount,
-      filteredPendingCount: filteredPendingIds.length,
-      totalPages,
-      currentPage: safePage,
-      pagedPending,
-      weeklyOptions: weeklyOptionsWithMovies
-    };
-  } catch (error) {
-    markDatabaseReadFailure("pending page read", error);
-    return null;
-  }
-}
-
-async function getProfileDataFromDatabase(userId: string) {
-  if (!shouldAttemptDatabaseRead()) {
-    return null;
-  }
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    const users = await loadUsersForRead({ includeAvatarUrls: true });
-    const user = users.find((entry) => entry.id === userId);
-    if (!user) {
-      return null;
-    }
-
-    const ratingRows = await prisma.ratingRecord.findMany({
-      where: { userId },
-      orderBy: [{ score: "desc" }, { updatedAt: "desc" }]
-    });
-    const ratings = mapRatingRecordsToStateEntries(ratingRows);
-    const moviesById = await loadMoviesByIdsFromDatabase(ratings.map((rating) => rating.movieId));
-    if (ratings.length > 0 && moviesById.size === 0) {
-      return null;
-    }
-
-    const profile = buildProfileFromRatings(user, ratings, moviesById);
-    await hydrateMoviesForDatabaseRead([...profile.topThree, ...profile.bottomThree].map((item) => item.movie));
-    markDatabaseReadHealthy();
-    return cloneState(profile);
-  } catch (error) {
-    markDatabaseReadFailure("profile page read", error);
-    return null;
-  }
-}
-
-async function getMovieDetailDataFromDatabase(slug: string, currentUserId?: string) {
-  if (!shouldAttemptDatabaseRead()) {
-    return null;
-  }
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    const movie = await loadMovieBySlugFromDatabase(slug);
-    if (!movie) {
-      return null;
-    }
-
-    await hydrateMoviesForDatabaseRead([movie]);
-    const [watchRecord, ratingRows, members] = await Promise.all([
-      prisma.watchEntryRecord.findUnique({
-        where: { movieId: movie.id }
-      }),
-      prisma.ratingRecord.findMany({
-        where: { movieId: movie.id },
-        orderBy: [{ score: "desc" }, { updatedAt: "desc" }]
-      }),
-      loadUsersForRead()
-    ]);
-    const ratings = mapRatingRecordsToStateEntries(ratingRows);
-    const detailData = {
-      movie,
-      watchEntry: watchRecord ? mapWatchRecordsToStateEntries([watchRecord])[0] ?? null : null,
-      ratings,
-      members,
-      average: average(ratings.map((rating) => rating.score)),
-      myRating: currentUserId ? ratings.find((rating) => rating.userId === currentUserId) ?? null : null
-    };
-    markDatabaseReadHealthy();
-    return detailData;
-  } catch (error) {
-    markDatabaseReadFailure("movie detail read", error);
-    return null;
-  }
-}
-
-async function getGroupPageDataFromDatabase() {
-  if (!shouldAttemptDatabaseRead()) {
-    return null;
-  }
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    const group = getDatabaseReadGroup();
-    const users = await loadUsersForRead({ includeAvatarUrls: true });
-    const summaries = await prisma.ratingRecord.groupBy({
-      by: ["userId"],
-      _count: { _all: true },
-      _avg: { score: true },
-      _max: { score: true }
-    });
-    const summariesByUserId = new Map(
-      summaries.map((summary) => [
-        summary.userId,
-        {
-          ratingsCount: summary._count._all,
-          averageScore: summary._avg.score ?? 0,
-          bestScore: summary._max.score ?? 0
-        }
-      ])
-    );
-    const members = group.memberIds
-      .map((memberId) => users.find((user) => user.id === memberId))
-      .filter((member): member is User => Boolean(member))
-      .map((member) => ({
-        member,
-        profileSummary: summariesByUserId.get(member.id) ?? {
-          ratingsCount: 0,
-          averageScore: 0,
-          bestScore: 0
-        }
-      }));
-    const groupData = { group, members };
-    markDatabaseReadHealthy();
-    return cloneState(groupData);
-  } catch (error) {
-    markDatabaseReadFailure("group page read", error);
-    return null;
-  }
-}
-
-export async function listMembers() {
-  const state = await loadAppState();
-  return listMembersFromState(state);
-}
-
-export async function getUserByUsername(username: string) {
-  const users = await loadSnapshotUsersForRequest();
-  const normalizedUsername = normalizeUsername(username);
-  return users.find((user) => normalizeUsername(user.username) === normalizedUsername) ?? null;
-}
-
-export async function listPendingHydrated() {
-  const state = await loadAppState();
-  const pending = listPendingFromState(state);
-  await Promise.all(pending.map((movie) => hydrateMovie(state, movie)));
-  return listPendingFromState(state);
-}
-
-export async function listHistory(filters?: HistoryFilters, currentUserId?: string) {
-  const state = await loadAppState();
-  return buildHistoryFromState(state, filters, currentUserId);
-}
-
-export async function listHistoryHydrated(filters?: HistoryFilters, currentUserId?: string) {
-  const state = await loadAppState();
-  const history = buildHistoryFromState(state, filters, currentUserId);
-  await Promise.all(history.map((item) => hydrateMovie(state, item.movie)));
-  return buildHistoryFromState(state, filters, currentUserId);
-}
-
-export async function getProfileDataHydrated(userId: string) {
-  const usesDatabase = shouldUseDatabase();
-  const shouldUseMemoryCache = shouldUseProcessLocalMutableCache(usesDatabase);
-
-  if (usesDatabase) {
-    const databaseProfile = await getProfileDataFromDatabase(userId);
-    if (databaseProfile) {
-      return databaseProfile;
-    }
-  }
-
-  if (shouldUseMemoryCache) {
-    const cached = readTimedCache(profilePageDataMemoryCache.get(userId));
-    if (cached !== null) {
-      return cached;
-    }
-  }
-
-  const state = await loadAppState();
-  const profile = buildProfileFromState(state, userId);
-  if (!profile) {
-    if (shouldUseMemoryCache) {
-      profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl<ProfileData | null>(null, PAGE_ROUTE_CACHE_TTL_MS));
-    }
-    return null;
-  }
-
-  const moviesToHydrate = new Map<string, Movie>();
-  [...profile.topThree, ...profile.bottomThree].forEach((item) => {
-    moviesToHydrate.set(item.movie.id, item.movie);
-  });
-  await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
-
-  const hydratedProfile = buildProfileFromState(state, userId);
-  if (shouldUseMemoryCache) {
-    profilePageDataMemoryCache.set(userId, writeTimedCacheWithTtl(hydratedProfile, PAGE_ROUTE_CACHE_TTL_MS));
-  }
-  return hydratedProfile;
-}
-
-export async function getCurrentBatch() {
-  return mutateState(async (state, persistStateChange) => {
-    const { batch, changed } = await ensureDashboardBatch(state);
-    if (changed && batch) {
-      await persistStateChange(state, [
-        {
-          run: (client) => insertWeeklyBatchToDatabase(batch, client)
-        }
-      ]);
-    }
-    return batch;
-  });
-}
-
-export async function getWatchEntryForMovie(movieId: string) {
-  const state = await loadAppState();
-  return getWatchEntryForMovieFromState(state, movieId);
-}
-
-export async function getRatingsForMovie(movieId: string) {
-  const state = await loadAppState();
-  return getRatingsForMovieFromState(state, movieId);
-}
-
-export async function getMovieBySlugHydrated(slug: string) {
-  const state = await loadAppState();
-  const movie = getMovieBySlug(state, slug);
-  await hydrateMovie(state, movie);
-  return movie;
-}
-
-export async function getMovieDetailDataHydrated(slug: string, currentUserId?: string) {
-  const cacheKey = `${slug}:${currentUserId ?? "anon"}`;
-  const usesDatabase = shouldUseDatabase();
-  const shouldUseMemoryCache = shouldUseProcessLocalMutableCache(usesDatabase);
-
-  if (usesDatabase) {
-    const databaseDetail = await getMovieDetailDataFromDatabase(slug, currentUserId);
-    if (databaseDetail) {
-      return databaseDetail;
-    }
-  }
-
-  if (shouldUseMemoryCache) {
-    const cached = readTimedCache(movieDetailDataMemoryCache.get(cacheKey));
-    if (cached !== null) {
-      return cached;
-    }
-  }
-
-  const state = await loadAppState();
-  const movie = getMovieBySlug(state, slug);
-  if (!movie) {
-    if (shouldUseMemoryCache) {
-      movieDetailDataMemoryCache.set(cacheKey, writeTimedCacheWithTtl(null, MOVIE_DETAIL_CACHE_TTL_MS));
-    }
-    return null;
-  }
-
-  await hydrateMovie(state, movie);
-
-  const ratings = getRatingsForMovieFromState(state, movie.id);
-  const detailData = {
-    movie,
-    watchEntry: getWatchEntryForMovieFromState(state, movie.id),
-    ratings,
-    members: listMembersFromState(state),
-    average: getMovieAverageFromState(state, movie.id),
-    myRating: currentUserId ? getStateIndexes(state).ratingByUserMovie.get(`${currentUserId}:${movie.id}`) ?? null : null
-  };
-  if (shouldUseMemoryCache) {
-    movieDetailDataMemoryCache.set(cacheKey, writeTimedCacheWithTtl(detailData, MOVIE_DETAIL_CACHE_TTL_MS));
-  }
-  return detailData;
-}
-
-export async function getDashboardData() {
-  const state = await loadAppState();
-  return {
-    ...(await getDashboardOverviewHydrated()),
-    upcomingReleases: await buildUpcomingDashboardReleases(state)
-  };
-}
-
-export async function getDashboardOverviewHydrated() {
-  const state = await loadAppState();
-  return buildDashboardDataFromState(state);
-}
-
-export async function getUpcomingDashboardReleasesHydrated() {
-  const state = await loadAppState();
-  return buildUpcomingDashboardReleases(state);
-}
-
-export async function getNowPlayingDashboardSuggestionsHydrated() {
-  const state = await loadAppState();
-  return buildNowPlayingDashboardSuggestions(state);
-}
-
-export async function getDashboardDataHydrated() {
-  return {
-    ...(await getDashboardOverviewHydrated()),
-    upcomingReleases: await getUpcomingDashboardReleasesHydrated()
-  };
-}
-
-export async function getGroupPageData() {
-  const usesDatabase = shouldUseDatabase();
-  const shouldUseMemoryCache = shouldUseProcessLocalMutableCache(usesDatabase);
-
-  if (usesDatabase) {
-    const databaseGroupData = await getGroupPageDataFromDatabase();
-    if (databaseGroupData) {
-      return databaseGroupData;
-    }
-  }
-
-  if (shouldUseMemoryCache) {
-    const cached = readTimedCache(groupPageDataMemoryCache);
-    if (cached) {
-      return cached;
-    }
-  }
-
-  const state = await loadAppState();
-  const groupData = {
-    group: state.group,
-    members: listMembersFromState(state).map((member) => ({
-      member: {
-        ...member,
-        avatarUrl: member.avatarUrl ? getAvatarDeliveryUrl(member.id, member.avatarUrl) : undefined
-      },
-      profileSummary: getProfileSummaryFromState(state, member.id)
-    }))
-  };
-  if (shouldUseMemoryCache) {
-    groupPageDataMemoryCache = writeTimedCacheWithTtl(groupData, PAGE_ROUTE_CACHE_TTL_MS);
-  }
-  return groupData;
-}
-
-export async function getPendingWeeklySuggestionsHydrated() {
-  const state = await loadAppState();
-  const suggestions = generatePendingWeeklyOptions(state);
-  const movies = suggestions
-    .map((item) => getMovieById(state, item.movieId))
-    .filter((movie): movie is Movie => Boolean(movie));
-
-  await Promise.all(movies.map((movie) => hydrateMovie(state, movie)));
-
-  return suggestions
-    .map((item) => {
-      const movie = getMovieById(state, item.movieId);
-      if (!movie) {
-        return null;
-      }
-
-      return {
-        ...item,
-        movie
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
-}
-
-export async function getPendingPageDataHydrated(input: { search?: string; genre?: string; page?: number; pageSize?: number }) {
-  pendingListMemoryCache.clear();
-
-  if (shouldUseDatabase()) {
-    const databasePendingData = await getPendingPageDataFromDatabase(input);
-    if (databasePendingData) {
-      return databasePendingData;
-    }
-  }
-
-  const state = await loadAppState();
-  const search = input.search?.trim() ?? "";
-  const activeGenre = input.genre?.trim() ?? "";
-  const currentPage = input.page && input.page > 0 ? input.page : 1;
-  const itemsPerPage = input.pageSize && input.pageSize > 0 ? input.pageSize : 15;
-  const { batch, genres, totalPendingCount, filteredPendingIds, weeklyOptions } = getPendingListBaseFromState(state, search, activeGenre);
-
-  const moviesToHydrate = new Map<string, Movie>();
-  const totalPages = Math.max(1, Math.ceil(filteredPendingIds.length / itemsPerPage));
-  const safePage = Math.min(currentPage, totalPages);
-  const pageStart = (safePage - 1) * itemsPerPage;
-  const pagedPending = filteredPendingIds
-    .slice(pageStart, pageStart + itemsPerPage)
-    .map((movieId) => getMovieById(state, movieId))
-    .filter((movie): movie is Movie => Boolean(movie));
-
-  for (const movie of pagedPending) {
-    moviesToHydrate.set(movie.id, movie);
-  }
-  for (const item of weeklyOptions) {
-    const movie = getMovieById(state, item.movieId);
-    if (movie) {
-      moviesToHydrate.set(movie.id, movie);
-    }
-  }
-
-  await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
-
-  return {
-    batch,
-    genres,
-    totalPendingCount,
-    filteredPendingCount: filteredPendingIds.length,
-    totalPages,
-    currentPage: safePage,
-    pagedPending,
-    weeklyOptions: weeklyOptions
-      .map((item) => {
-        const movie = getMovieById(state, item.movieId);
-        return movie ? { ...item, movie } : null;
-      })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item))
-  };
-}
-
-export async function getViewedPageDataHydrated(input: {
-  search?: string;
-  year?: string;
-  genre?: string;
-  sort?: HistoryFilters["sort"];
-  currentUserId?: string;
-  page?: number;
-  pageSize?: number;
-}) {
-  if (shouldUseDatabase()) {
-    const databaseViewedData = await getViewedPageDataFromDatabase(input);
-    if (databaseViewedData) {
-      return databaseViewedData;
-    }
-  }
-
-  const state = await loadAppState();
-  const indexes = getStateIndexes(state);
-  const currentPage = input.page && input.page > 0 ? input.page : 1;
-  const itemsPerPage = input.pageSize && input.pageSize > 0 ? input.pageSize : 15;
-  const { genres, totalHistoryCount, filteredHistory } = getViewedListBaseFromState(state, {
-    search: input.search,
-    year: input.year,
-    genre: input.genre,
-    sort: input.sort,
-    currentUserId: input.currentUserId
-  });
-
-  const { filteredHistory: featuredBase } = getViewedListBaseFromState(state, {
-    sort: "group-desc",
-    currentUserId: input.currentUserId
-  });
-
-  const moviesToHydrate = new Map<string, Movie>();
-  const totalPages = Math.max(1, Math.ceil(filteredHistory.length / itemsPerPage));
-  const safePage = Math.min(currentPage, totalPages);
-  const pageStart = (safePage - 1) * itemsPerPage;
-  const pagedHistory = filteredHistory
-    .slice(pageStart, pageStart + itemsPerPage)
-    .map((item) => {
-      const movie = indexes.moviesById.get(item.movieId);
-      if (!movie) {
-        return null;
-      }
-
-      return {
-        movie,
-        watchedOn: item.watchedOn,
-        groupAverage: item.groupAverage,
-        ratings: indexes.ratingsByMovieId.get(item.movieId) ?? [],
-        userRating: item.userRating
-      };
-    })
-    .filter((item): item is HistoryItem => Boolean(item));
-
-  const featuredHistory = featuredBase
-    .slice(0, 1)
-    .map((item) => {
-      const movie = indexes.moviesById.get(item.movieId);
-      if (!movie) {
-        return null;
-      }
-
-      return {
-        movie,
-        watchedOn: item.watchedOn,
-        groupAverage: item.groupAverage,
-        ratings: indexes.ratingsByMovieId.get(item.movieId) ?? [],
-        userRating: item.userRating
-      };
-    })
-    .filter((item): item is HistoryItem => Boolean(item));
-
-  for (const item of pagedHistory) {
-    moviesToHydrate.set(item.movie.id, item.movie);
-  }
-  for (const item of featuredHistory) {
-    moviesToHydrate.set(item.movie.id, item.movie);
-  }
-
-  await Promise.all([...moviesToHydrate.values()].map((movie) => hydrateMovie(state, movie)));
-
-  return {
-    genres,
-    totalHistoryCount,
-    filteredHistoryCount: filteredHistory.length,
-    totalPages,
-    currentPage: safePage,
-    featuredHistory,
-    pagedHistory
-  };
-}
-
-export async function generateBatch() {
-  return mutateState(async (state, persistStateChange) => {
-    const currentBatch = getCurrentBatchFromState(state);
-    const batch = generateWeeklyRecommendations(state);
-    const selectedMovie = currentBatch?.selectedMovieId
-      ? getMovieById(state, currentBatch.selectedMovieId)
-      : null;
-    if (
-      currentBatch?.selectedMovieId &&
-      selectedMovie &&
-      hasRecommendationMetadata(selectedMovie) &&
-      shouldCarryWeeklySelection(
-        currentBatch,
-        getStateIndexes(state).watchedMovieIdSet,
-        getStateIndexes(state).pendingMovieIdSet
-      )
-    ) {
-      batch.selectedMovieId = currentBatch.selectedMovieId;
-    }
-    state.weeklyBatches.unshift(batch);
-    addActivity(state, {
-      type: "recommended",
-      label: "Se generó una nueva tanda de recomendaciones para esta semana",
-      date: batch.createdAt
-    });
-    invalidateDerivedCaches(state);
-    await persistStateChange(state, [
-      {
-        run: (client) => insertWeeklyBatchToDatabase(batch, client)
-      }
-    ]);
-    return batch;
-  });
-}
-
-export async function selectWeeklyMovie(batchId: string, movieId: string) {
-  return mutateState(async (state, persistStateChange) => {
-    const batch = getStateIndexes(state).weeklyBatchById.get(batchId);
-    if (!batch) {
-      throw new Error("No se encontró la tanda semanal.");
-    }
-
-    const currentBatch = getCurrentBatchFromState(state);
-    if (currentBatch?.id !== batch.id) {
-      throw new Error("La tanda semanal ya no es la actual. Recarga la página para continuar.");
-    }
-
-    const movie = getMovieById(state, movieId);
-    if (!movie) {
-      throw new Error("No se encontró la película.");
-    }
-    if (!hasRecommendationMetadata(movie)) {
-      throw new Error("La película necesita título, año y género válidos antes de poder elegirla.");
-    }
-    if (getStateIndexes(state).watchedMovieIdSet.has(movieId)) {
-      throw new Error("Esa película ya está vista. Recarga la página para elegir otra.");
-    }
-
-    const selectionSource = classifyWeeklySelection(
-      batch,
-      getStateIndexes(state).pendingMovieIdSet,
-      movieId
-    );
-    if (!selectionSource) {
-      throw new Error("Solo puedes elegir una recomendación de la tanda o cualquier película de Pendientes.");
-    }
-
-    batch.selectedMovieId = movieId;
-    addActivity(state, {
-      type: "recommended",
-      label: `La película de la semana pasó a ser ${movie.title}`,
-      movieId: movie.id,
-      date: new Date().toISOString()
-    });
-
-    invalidateDerivedCaches(state);
-    await persistStateChange(state, [
-      {
-        run: (client) => updateWeeklyBatchSelectionInDatabase(batch.id, batch.selectedMovieId, client)
-      }
-    ]);
-    return batch;
-  });
-}
-
-export async function getMovieDiscoverySuggestions(input: {
-  generation?: number;
-  excludeTmdbIds?: string[];
-}) {
-  const state = await loadAppState();
-  const generation = Math.max(0, Math.min(input.generation ?? 0, 50));
-  const seeds = selectDiscoverySeedTmdbIds(state, generation, 4);
-  const pool = await fetchMovieDiscoveryPool(seeds, generation, 48);
-  return rankDiscoveryMoviesForGroup(state, pool, 5, input.excludeTmdbIds ?? []);
 }
