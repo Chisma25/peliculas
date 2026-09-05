@@ -17,6 +17,20 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cine_test
+          POSTGRES_PASSWORD: local_test_only
+          POSTGRES_DB: cine_concurrency_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cine_test -d cine_concurrency_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Check out the commit
         uses: actions/checkout@v6
@@ -32,6 +46,17 @@ jobs:
 
       - name: Run unit and integration tests
         run: npm test
+
+      - name: Verify concurrent mutations against isolated PostgreSQL
+        env:
+          APP_ENV: test
+          DATABASE_ENVIRONMENT: development
+          DATABASE_URL: postgresql://cine_test:local_test_only@127.0.0.1:5432/cine_concurrency_test
+          DIRECT_URL: postgresql://cine_test:local_test_only@127.0.0.1:5432/cine_concurrency_test
+          CONCURRENCY_DATABASE_URL: postgresql://cine_test:local_test_only@127.0.0.1:5432/cine_concurrency_test
+        run: |
+          npx prisma db push --skip-generate
+          npx vitest run tests/store-concurrency.test.ts
 
       - name: Run lint
         run: npm run lint

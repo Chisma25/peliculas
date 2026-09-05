@@ -38,9 +38,15 @@ Por defecto, `DATABASE_URL` queda vacío y la app funciona con `data/runtime-sta
 El desarrollo bloquea cualquier base remota. Si necesitas una base remota exclusiva de desarrollo, debes indicar
 simultáneamente `DATABASE_ENVIRONMENT=development` y `ALLOW_REMOTE_DATABASE_IN_DEVELOPMENT=true`.
 
-Las mutaciones se confirman de forma atómica: con PostgreSQL, las escrituras relacionadas y el snapshot se
-ejecutan en una única transacción; sin base de datos, el archivo local se reemplaza atómicamente. La caché solo
-se publica después de que la persistencia durable haya terminado correctamente.
+Las mutaciones adquieren un bloqueo transaccional compartido en PostgreSQL **antes de leer el estado**.
+La lectura, la validación, las escrituras relacionadas y el snapshot se ejecutan en la misma transacción,
+también entre instancias distintas de Vercel. Esto evita perder notas o actividad, sobrescribir una
+contraseña al editar el perfil y dejar una película simultáneamente en Pendientes y Vistas. Si dos
+peticiones modifican el mismo campo, prevalece la última operación confirmada.
+El bloqueo se libera tanto al confirmar como al deshacer la transacción; las consultas a TMDb se hacen
+fuera del bloqueo. No requiere cambios de esquema. Sin base de datos se usa una cola dentro del proceso
+y reemplazo atómico del archivo: este modo local está pensado para **una sola instancia** de la app.
+La caché solo se publica después de que la persistencia durable haya terminado correctamente.
 
 ## Pruebas
 
@@ -50,6 +56,12 @@ npm run lint
 npm run build
 npm run test:security
 ```
+
+`tests/store-concurrency.test.ts` comprueba peticiones simultáneas sobre notas, listas y credenciales.
+El workflow de Preview repite estas pruebas con dos módulos de la app independientes y PostgreSQL 16
+en un contenedor desechable. Para ejecutarlas manualmente, provisiona el esquema con `prisma db push`
+y define `CONCURRENCY_DATABASE_URL` apuntando a una base local llamada `cine_concurrency_test`.
+La suite vacía las tablas de esa base entre casos y rechaza cualquier host remoto u otro nombre de base.
 
 Los E2E se pueden ejecutar contra una Preview ya desplegada sin guardar credenciales en el repositorio:
 

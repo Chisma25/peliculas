@@ -23,7 +23,7 @@ function movieWithRating(value: string): Movie {
     language: "",
     country: "",
     posterUrl: "",
-    externalRating: { source: "Test", value }
+    externalRating: { source: "TMDb", value }
   };
 }
 
