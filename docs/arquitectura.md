@@ -9,7 +9,8 @@
 | [app](../app) | Páginas, layouts y rutas HTTP de Next.js |
 | [src/components](../src/components) | Componentes de interfaz y formularios |
 | [proxy.ts](../proxy.ts) | Control de acceso previo a páginas y API |
-| [store.ts](../src/lib/store.ts) | Composición de servicios, carga de estado, transacciones y preparación de páginas; mantiene los exports que consumen páginas y API |
+| [store.ts](../src/lib/store.ts) | Composición de servicios, carga de estado, disponibilidad de datos y transacciones; mantiene los exports que consumen páginas y API |
+| [state-readers.ts](../src/lib/state-readers.ts) y [state-cache.ts](../src/lib/state-cache.ts) | Índices y consultas del estado compartidos por los dominios; copias y caducidad de cachés |
 | [users/records.ts](../src/lib/users/records.ts) | Lecturas de usuarios, selección y conversión de registros, normalización de credenciales y escrituras Prisma |
 | [users/authentication.ts](../src/lib/users/authentication.ts) | Login y validación de sesiones con un cargador explícito de credenciales vigentes |
 | [users/service.ts](../src/lib/users/service.ts) | Edición de perfil, gestión administrativa y recuperación de credenciales dentro del coordinador de mutaciones |
@@ -28,6 +29,12 @@
 | [user-input.ts](../src/lib/user-input.ts) y [request-security.ts](../src/lib/request-security.ts) | Credenciales, validación, origen y límites de intentos |
 | [movie-provider.ts](../src/lib/movie-provider.ts) y [movie-search.ts](../src/lib/movie-search.ts) | TMDb, enriquecimiento, ranking y deduplicación de búsquedas |
 | [recommendations.ts](../src/lib/recommendations.ts) y [weekly-selection.ts](../src/lib/weekly-selection.ts) | Recomendaciones y reglas de selección |
+| [recommendations/service.ts](../src/lib/recommendations/service.ts) y [recommendations/records.ts](../src/lib/recommendations/records.ts) | Renovación, generación y selección de tandas; conversión y persistencia de registros |
+| [recommendations/suggestions.ts](../src/lib/recommendations/suggestions.ts) | Estrenos, cartelera, descubrimiento y sugerencias de pendientes; enriquecimiento y cachés de resultados |
+| [pages/dashboard.ts](../src/lib/pages/dashboard.ts) | Datos del inicio y resumen del grupo |
+| [pages/history.ts](../src/lib/pages/history.ts) y [pages/pending.ts](../src/lib/pages/pending.ts) | Lecturas locales/PostgreSQL, filtros, destacados y paginación de vistas y pendientes |
+| [pages/profiles.ts](../src/lib/pages/profiles.ts) y [pages/movie-detail.ts](../src/lib/pages/movie-detail.ts) | Datos de perfiles, grupo y ficha de película; cachés por usuario |
+| [pages/types.ts](../src/lib/pages/types.ts) | Contratos compartidos de páginas y fecha de respaldo del historial |
 | [environment-safety.ts](../src/lib/environment-safety.ts), [data-availability.ts](../src/lib/data-availability.ts) | Separación de entornos y comportamiento ante fallos de datos |
 | [operational-health.ts](../src/lib/operational-health.ts), [operational-errors.ts](../src/lib/operational-errors.ts) | Salud y respuestas de error con identificador de incidencia |
 | [scripts](../scripts), [tests](../tests), [e2e](../e2e), [.github/workflows](../.github/workflows) | Operación, pruebas y entrega |
@@ -53,15 +60,23 @@ El store crea los servicios de usuarios y les entrega únicamente las dependenci
 
 `authentication.ts` recibe un cargador de credenciales frescas; sus comprobaciones de token y login no añaden caché entre peticiones. `service.ts` recibe `mutateState`, por lo que sus validaciones y persistencia continúan dentro del mismo bloqueo que las películas y recomendaciones. Los tipos compartidos del coordinador se definen en `state-persistence.ts`.
 
-`profiles.ts` conserva por separado los cálculos de la lectura local y de base de datos, incluidas sus reglas de clasificación y distribución; no introduce cambios de estadísticas. El store llama a su invalidación cuando cambia un estado. La carga de páginas y la disponibilidad de la base siguen coordinándose en el store y son candidatas a posteriores extracciones.
+`users/profiles.ts` conserva por separado los cálculos de la lectura local y de base de datos, incluidas sus reglas de clasificación y distribución; no introduce cambios de estadísticas. El store llama a su invalidación cuando cambia un estado. `pages/profiles.ts` prepara los datos de pantalla usando esos cálculos; la disponibilidad de la base sigue coordinándose en el store.
 
 ### Separación de películas y notas
 
-El store compone `movies/service.ts` y `ratings/service.ts` y conserva sus exports públicos. Ambos reciben el mismo `mutateState` que usuarios y recomendaciones; ninguno importa el store. Los módulos de registros reciben el cliente transaccional del coordinador para guardar catálogo, colección y notas junto al snapshot. Las funciones de sincronización masiva se mantienen solo para la compatibilidad con escrituras históricas diferidas y no se usan en las mutaciones habituales.
+El store compone `movies/service.ts` y `ratings/service.ts` y conserva sus exports públicos. Ambos reciben el mismo `mutateState` que usuarios y recomendaciones; ninguno importa el store. Los módulos de registros reciben el cliente transaccional del coordinador para guardar catálogo, colección y notas junto al snapshot. Las funciones de sincronización masiva se mantienen para escrituras históricas diferidas y, en el caso del catálogo, para guardar metadatos enriquecidos durante lecturas; no se usan en las mutaciones habituales de colección o notas.
 
 Al añadir una pendiente, el servicio prepara los metadatos antes de entrar en el coordinador y comprueba la colección con el estado recibido tras el bloqueo. Así respeta que otro usuario haya marcado la película como vista durante la espera de TMDb. Al marcar una vista, elimina la pendiente en la misma transacción. Las búsquedas resuelven la identidad local para informar si un resultado remoto ya está pendiente o visto.
 
-`movies/metadata.ts` conserva ID y slug locales al enriquecer una película. `ratings/service.ts` conserva los incrementos de 0,25, la nota cero, el límite de comentarios y la identidad de una nota al editarla. La preparación de páginas, los filtros del historial, las consultas con control de disponibilidad y la orquestación de recomendaciones continúan en el store; esta etapa no modifica rutas, reglas funcionales ni esquema.
+`movies/metadata.ts` conserva ID y slug locales al enriquecer una película. `ratings/service.ts` conserva los incrementos de 0,25, la nota cero, el límite de comentarios y la identidad de una nota al editarla.
+
+### Recomendaciones y preparación de páginas
+
+`recommendations/service.ts` recibe el coordinador compartido para `getCurrentBatch`, `generateBatch` y `selectWeeklyMovie`. Mantiene la validación de tandas, la selección entre recomendaciones o pendientes y el descarte de selecciones ya vistas. El algoritmo de puntuación permanece en `recommendations.ts`. `recommendations/suggestions.ts` reúne consultas al proveedor, enriquecimiento y resultados de estrenos, cartelera y descubrimiento.
+
+Cada módulo de `pages/` prepara una familia de pantallas, conserva las rutas de lectura local y PostgreSQL y recibe del store cargadores de datos y controles de disponibilidad. No importa `store.ts`. La composición es unidireccional: store → servicios/lectores → reglas y registros. Las consultas de catálogo y usuarios, la reconstrucción del estado, el control de fallos y el guardado de metadatos durante lecturas permanecen en el store.
+
+El store crea una instancia de cada lector y comparte sus índices. Tras una mutación invalida los índices, cálculos de perfil y cachés de páginas y sugerencias, conservando los momentos de invalidación anteriores. Los filtros, el orden de desempate, la paginación y las claves que separan las notas por usuario se mantienen. No se unifican los cálculos locales y SQL en esta extracción; por ejemplo, el desempate del destacado de Vistas sigue siendo distinto entre ambas rutas cuando las medias coinciden.
 
 ## Fuente de verdad
 
@@ -99,7 +114,9 @@ En PostgreSQL:
 
 El bloqueo es común a la base, no al proceso ni al snapshot. Prisma espera hasta 10 segundos para adquirir una transacción; esta tiene un límite de 30 segundos, incluida la espera por el bloqueo. Los fallos Prisma se presentan como indisponibilidad temporal. La consulta de metadatos de una película añadida se prepara antes de entrar en la transacción.
 
-Esta coordinación cubre las mutaciones del store. **Los scripts administrativos, la consola SQL y la reproducción de escrituras históricas no quedan protegidos automáticamente por ella.** No deben ejecutarse en paralelo con escrituras de usuarios. El bloqueo global es adecuado para el grupo actual; debe reevaluarse antes de ampliar mucho el uso.
+Esta coordinación cubre las diez entradas indicadas. **Los scripts administrativos, la consola SQL y la reproducción de escrituras históricas no quedan protegidos automáticamente por ella.** No deben ejecutarse en paralelo con escrituras de usuarios. El bloqueo global es adecuado para el grupo actual; debe reevaluarse antes de ampliar mucho el uso.
+
+Hay además dos escrituras preexistentes durante lecturas que esta extracción conserva: `getPendingPageDataFromDatabase` puede renovar y guardar una tanda directamente, y `hydrateMoviesForDatabaseRead` sincroniza metadatos enriquecidos del catálogo. Esas rutas no usan `mutateState`, ni el bloqueo compartido ni el guardado conjunto del snapshot. Su coordinación con mutaciones concurrentes sigue pendiente; las pruebas de las diez entradas no demuestran esa garantía para todas las lecturas de páginas.
 
 En modo archivo, una cola dentro del proceso ordena lectura, modificación y reemplazo atómico del archivo. Solo se admite una instancia local. No ofrece coordinación entre procesos o equipos.
 
@@ -108,6 +125,8 @@ En modo archivo, una cola dentro del proceso ordena lectura, modificación y ree
 [runtime-cache-policy.ts](../src/lib/runtime-cache-policy.ts) desactiva las cachés mutables de páginas entre peticiones cuando se usa PostgreSQL, para que distintas instancias lean la base compartida. La memoización de React puede reutilizar datos dentro de una petición. La autenticación consulta las credenciales vigentes sin una caché de usuarios entre peticiones.
 
 TMDb tiene cachés propias, distintas de los datos editados por el grupo: búsqueda y descubrimiento 12 horas, detalles 14 días, cartelera y próximos estrenos 6 horas. Los tiempos y la versión de metadatos se definen en `movie-provider.ts`.
+
+Además, `recommendations/suggestions.ts` mantiene resultados de estrenos y cartelera durante 15 minutos en cada instancia. Son cachés separadas de las respuestas TMDb y se invalidan tras las mutaciones procesadas por esa instancia; no disponen de invalidación distribuida. Las cachés de páginas locales conservan su duración de dos minutos.
 
 ## Seguridad y límites
 
