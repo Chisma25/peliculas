@@ -9,7 +9,11 @@
 | [app](../app) | Páginas, layouts y rutas HTTP de Next.js |
 | [src/components](../src/components) | Componentes de interfaz y formularios |
 | [proxy.ts](../proxy.ts) | Control de acceso previo a páginas y API |
-| [store.ts](../src/lib/store.ts) | Consultas, preparación de páginas y mutaciones del dominio; sigue siendo el módulo principal |
+| [store.ts](../src/lib/store.ts) | Composición de servicios, carga de estado, transacciones y preparación de páginas; mantiene los exports que consumen páginas y API |
+| [users/records.ts](../src/lib/users/records.ts) | Lecturas de usuarios, selección y conversión de registros, normalización de credenciales y escrituras Prisma |
+| [users/authentication.ts](../src/lib/users/authentication.ts) | Login y validación de sesiones con un cargador explícito de credenciales vigentes |
+| [users/service.ts](../src/lib/users/service.ts) | Edición de perfil, gestión administrativa y recuperación de credenciales dentro del coordinador de mutaciones |
+| [users/profiles.ts](../src/lib/users/profiles.ts) | Resúmenes, clasificaciones y distribución de notas de perfiles; cachés por estado e invalidación |
 | [types.ts](../src/lib/types.ts) | Tipos de usuarios, películas, notas, tandas y estado agregado |
 | [prisma.ts](../src/lib/prisma.ts) y [schema.prisma](../prisma/schema.prisma) | Cliente y esquema PostgreSQL |
 | [normalized-state.ts](../src/lib/normalized-state.ts) | Composición de tablas normalizadas y snapshot compacto |
@@ -37,6 +41,14 @@ flowchart LR
 ```
 
 Los componentes cliente usan las API para las acciones. Las páginas de servidor consultan el store. Una ruta valida sesión, origen y entrada, ejecuta la operación y devuelve JSON o una redirección; algunas rutas invalidan páginas con `revalidatePath`.
+
+### Separación del dominio de usuarios
+
+El store crea los servicios de usuarios y les entrega únicamente las dependencias que necesitan. Los módulos de `users/` no importan `store.ts`, no crean otro coordinador de escrituras y no dependen de módulos de páginas. La API de importación existente desde el store se conserva para evitar cambios en los consumidores durante esta extracción.
+
+`authentication.ts` recibe un cargador de credenciales frescas; sus comprobaciones de token y login no añaden caché entre peticiones. `service.ts` recibe `mutateState`, por lo que sus validaciones y persistencia continúan dentro del mismo bloqueo que las películas y recomendaciones. Los tipos compartidos del coordinador se definen en `state-persistence.ts`.
+
+`profiles.ts` conserva por separado los cálculos de la lectura local y de base de datos, incluidas sus reglas de clasificación y distribución; no introduce cambios de estadísticas. El store llama a su invalidación cuando cambia un estado. La carga de páginas, la hidratación de películas y la disponibilidad de la base siguen coordinándose en el store y son candidatas a posteriores extracciones.
 
 ## Fuente de verdad
 

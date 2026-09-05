@@ -2,7 +2,7 @@
 
 [Inicio](../README.md) · [Arquitectura](arquitectura.md) · [Operación](operacion.md)
 
-Revisión documental: **5 de septiembre de 2026**. Base funcional revisada: `0542d31` (PR #21). Este documento reúne el contexto útil del análisis inicial que se conservaba fuera del repositorio; no copia datos personales, secretos ni exports. Los apartados actuales sustituyen el diagnóstico antiguo como referencia de trabajo.
+Revisión documental: **5 de septiembre de 2026**. Base funcional inicial de esta documentación: `0542d31` (PR #21); la organización del código se actualiza con cada extracción descrita abajo. Este documento reúne el contexto útil del análisis inicial que se conservaba fuera del repositorio; no copia datos personales, secretos ni exports. Los apartados actuales sustituyen el diagnóstico antiguo como referencia de trabajo.
 
 Infraestructura consultada en esa fecha: Neon PostgreSQL **17**, región `aws-eu-central-1`. La suite de concurrencia utiliza PostgreSQL **16** desechable en CI; esta diferencia de versión se debe tener en cuenta al introducir SQL específico de una versión.
 
@@ -29,9 +29,11 @@ Los fallos de permisos por nombre, exposición de hashes, sesiones no revocadas 
 
 ## Trabajo pendiente
 
+La primera extracción de usuarios está implementada en `src/lib/users/`: registros, autenticación, edición de cuentas y cálculos de perfil. Conserva los exports del store y el coordinador transaccional común. Incluye regresiones para credenciales vigentes, representación de avatares, estadísticas y cachés. La orquestación de lecturas y páginas permanece en el store; no se ha completado la separación de todos los dominios.
+
 | Área | Siguiente trabajo | Criterio de cierre |
 | --- | --- | --- |
-| Organización del código | Extraer gradualmente usuarios, películas, valoraciones y recomendaciones de `store.ts` | Responsabilidades claras, comportamiento conservado y regresiones aprobadas en cada paso |
+| Organización del código | Continuar con películas, valoraciones, recomendaciones y preparación de páginas tras la extracción inicial de usuarios | Responsabilidades claras, comportamiento conservado y regresiones aprobadas en cada paso |
 | Experiencia de uso | Revisión visual manual, especialmente móvil, del recorrido buscar → pendiente → elegir → vista → valorar | Hallazgos concretos corregidos y comprobados en navegador; los E2E actuales no sustituyen esta revisión |
 | Integridad de datos | Evaluar relaciones foráneas e historial de migraciones; revisar datos existentes antes de añadir restricciones | Plan compatible con la base real, probado en Preview y con vuelta atrás |
 | Herramientas administrativas | Revisar consistencia de exports y coordinación de scripts con escrituras del grupo | Copias consistentes y operaciones administrativas con garantías explícitas; hoy exigen coordinación del operador |
