@@ -1,3 +1,19 @@
+import { createMovieService } from "@/lib/movies/service";
+import { hydrateMovie } from "@/lib/movies/metadata";
+import {
+  mapWatchRecordsToStateEntries,
+  isMovie,
+  mapMovieRecordsToStateMovies,
+  syncMoviesToDatabase,
+  upsertMovieToDatabase,
+  syncPendingMoviesToDatabase,
+  syncWatchEntriesToDatabase,
+  upsertPendingMovieToDatabase,
+  removePendingMovieFromDatabase,
+  upsertWatchEntryToDatabase
+} from "@/lib/movies/records";
+import { createRatingService } from "@/lib/ratings/service";
+import { mapRatingRecordsToStateEntries, syncRatingsToDatabase, upsertRatingToDatabase } from "@/lib/ratings/records";
 import type { Prisma } from "@prisma/client";
 import { cache } from "react";
 
@@ -29,14 +45,11 @@ import {
   saveLocalStateStrict,
   type DeferredDatabaseWrite
 } from "@/lib/local-state-storage";
-import { findStoredMovieForSearchResult } from "@/lib/movie-search";
 import {
   fetchNowPlayingMovies,
   fetchMovieDiscoveryPool,
-  fetchUpcomingMovies,
   resolveMovieMetadata,
-  searchMovies,
-  TMDB_METADATA_VERSION
+  fetchUpcomingMovies
 } from "@/lib/movie-provider";
 import {
   mergeNormalizedState,
@@ -69,8 +82,8 @@ import {
   WeeklyRecommendationBatch,
   WeeklyRecommendationItem
 } from "@/lib/types";
-import { normalizeIdentity, normalizeUsername, sanitizeComment } from "@/lib/user-input";
-import { average, formatScore, isQuarterPointScore, safeId, slugify } from "@/lib/utils";
+import { normalizeIdentity, normalizeUsername } from "@/lib/user-input";
+import { average } from "@/lib/utils";
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 
 const PAGE_ROUTE_CACHE_TTL_MS = 1000 * 60 * 2;
@@ -194,7 +207,7 @@ const movieDetailDataMemoryCache = new Map<MovieDetailCacheKey, TimedCache<{
 const pendingListMemoryCache = new Map<PendingListCacheKey, TimedCache<PendingListBase>>();
 const viewedListMemoryCache = new Map<ViewedListCacheKey, TimedCache<ViewedListBase>>();
 
-// The store remains the composition root: user modules never import it.
+// The store remains the composition root: domain modules never import it.
 // Mutations receive the same coordinator used by movies and recommendations.
 const { getProfileSummaryFromState, buildProfileFromState, invalidateProfileCaches } = createProfileReader({
   getStateIndexes,
@@ -206,6 +219,26 @@ export const { updateUserProfile, updateUserCredentialsByAdmin, resetUserCredent
   mutateState,
   findUserById,
   findUserByIdentity,
+  addActivity,
+  invalidateDerivedCaches
+});
+
+export const { markMovieAsWatched, movieSearch, addPendingMovie, removePendingMovie } = createMovieService({
+  mutateState,
+  loadAppState: () => loadAppState(),
+  getMovieById,
+  getMovieByTmdbId,
+  getWatchEntryForMovieFromState,
+  getCurrentBatchFromState,
+  getStateIndexes,
+  addActivity,
+  invalidateDerivedCaches
+});
+export const { upsertRating } = createRatingService({
+  mutateState,
+  findUserById,
+  getMovieById,
+  getStateIndexes,
   addActivity,
   invalidateDerivedCaches
 });
@@ -611,70 +644,6 @@ function loadFallbackState() {
   return initial;
 }
 
-function parseWatchDate(value?: string) {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function mapWatchRecordsToStateEntries(records: Array<{
-  id: string;
-  movieId: string;
-  groupId: string;
-  watchedOn: Date | null;
-  selectedForWeek: string | null;
-}>): WatchEntry[] {
-  return records.map((entry) => ({
-    id: entry.id,
-    movieId: entry.movieId,
-    groupId: entry.groupId,
-    watchedOn: entry.watchedOn?.toISOString(),
-    selectedForWeek: entry.selectedForWeek ?? undefined
-  }));
-}
-
-function mapRatingRecordsToStateEntries(records: Array<{
-  id: string;
-  movieId: string;
-  userId: string;
-  score: number;
-  comment: string | null;
-  watchedOn: Date | null;
-}>): UserRating[] {
-  return records.map((entry) => ({
-    id: entry.id,
-    movieId: entry.movieId,
-    userId: entry.userId,
-    score: entry.score,
-    comment: entry.comment ?? undefined,
-    watchedOn: entry.watchedOn?.toISOString()
-  }));
-}
-
-function isMovie(value: unknown): value is Movie {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as Partial<Movie>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.slug === "string" &&
-    typeof candidate.title === "string" &&
-    typeof candidate.year === "number" &&
-    Array.isArray(candidate.genres) &&
-    Array.isArray(candidate.cast) &&
-    typeof candidate.externalRating === "object"
-  );
-}
-
-function mapMovieRecordsToStateMovies(records: Array<{ data: unknown }>): Movie[] {
-  return records.map((entry) => entry.data).filter(isMovie);
-}
-
 function mapWeeklyBatchRecordsToStateEntries(
   records: Array<{
     id: string;
@@ -889,110 +858,6 @@ async function loadMovieBySlugFromDatabase(slug: string) {
   }
 }
 
-async function syncMoviesToDatabase(movies: Movie[]) {
-  const { prisma } = await import("@/lib/prisma");
-
-  await prisma.$transaction(
-    movies.map((movie) =>
-      prisma.movieRecord.upsert({
-        where: { id: movie.id },
-        create: {
-          id: movie.id,
-          slug: movie.slug,
-          data: movie
-        },
-        update: {
-          slug: movie.slug,
-          data: movie
-        }
-      })
-    )
-  );
-}
-
-async function upsertMovieToDatabase(movie: Movie, client?: Prisma.TransactionClient) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.movieRecord.upsert({
-    where: { id: movie.id },
-    create: {
-      id: movie.id,
-      slug: movie.slug,
-      data: movie
-    },
-    update: {
-      slug: movie.slug,
-      data: movie
-    }
-  });
-}
-
-async function syncPendingMoviesToDatabase(groupId: string, pendingMovieIds: string[]) {
-  const { prisma } = await import("@/lib/prisma");
-
-  await prisma.$transaction([
-    prisma.pendingMovie.deleteMany({ where: { groupId } }),
-    ...(pendingMovieIds.length > 0
-      ? [
-          prisma.pendingMovie.createMany({
-            data: pendingMovieIds.map((movieId, index) => ({
-              groupId,
-              movieId,
-              addedAt: new Date(Date.now() - index * 1000)
-            })),
-            skipDuplicates: true
-          })
-        ]
-      : [])
-  ]);
-}
-
-async function syncWatchEntriesToDatabase(groupId: string, watchEntries: WatchEntry[]) {
-  const { prisma } = await import("@/lib/prisma");
-
-  await prisma.$transaction([
-    prisma.watchEntryRecord.deleteMany({ where: { groupId } }),
-    ...(watchEntries.length > 0
-      ? [
-          prisma.watchEntryRecord.createMany({
-            data: watchEntries.map((entry, index) => ({
-              id: entry.id,
-              movieId: entry.movieId,
-              groupId: entry.groupId,
-              watchedOn: parseWatchDate(entry.watchedOn),
-              selectedForWeek: entry.selectedForWeek,
-              createdAt: parseWatchDate(entry.watchedOn) ?? new Date(Date.now() - index * 1000)
-            })),
-            skipDuplicates: true
-          })
-        ]
-      : [])
-  ]);
-}
-
-async function syncRatingsToDatabase(ratings: UserRating[]) {
-  const { prisma } = await import("@/lib/prisma");
-
-  await prisma.$transaction([
-    prisma.ratingRecord.deleteMany(),
-    ...(ratings.length > 0
-      ? [
-          prisma.ratingRecord.createMany({
-            data: ratings.map((rating, index) => ({
-              id: rating.id,
-              movieId: rating.movieId,
-              userId: rating.userId,
-              score: rating.score,
-              comment: rating.comment,
-              watchedOn: parseWatchDate(rating.watchedOn),
-              createdAt: parseWatchDate(rating.watchedOn) ?? new Date(Date.now() - index * 1000)
-            })),
-            skipDuplicates: true
-          })
-        ]
-      : [])
-  ]);
-}
-
 async function syncWeeklyBatchesToDatabase(groupId: string, weeklyBatches: WeeklyRecommendationBatch[]) {
   const { prisma } = await import("@/lib/prisma");
   const existingBatchIds = (
@@ -1037,91 +902,6 @@ async function syncWeeklyBatchesToDatabase(groupId: string, weeklyBatches: Weekl
         ]
       : [])
   ]);
-}
-
-async function upsertPendingMovieToDatabase(
-  groupId: string,
-  movieId: string,
-  addedAt = new Date(),
-  client?: Prisma.TransactionClient
-) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.pendingMovie.upsert({
-    where: {
-      groupId_movieId: {
-        groupId,
-        movieId
-      }
-    },
-    create: {
-      groupId,
-      movieId,
-      addedAt
-    },
-    update: {
-      addedAt
-    }
-  });
-}
-
-async function removePendingMovieFromDatabase(groupId: string, movieId: string, client?: Prisma.TransactionClient) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.pendingMovie.deleteMany({
-    where: {
-      groupId,
-      movieId
-    }
-  });
-}
-
-async function upsertWatchEntryToDatabase(entry: WatchEntry, client?: Prisma.TransactionClient) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.watchEntryRecord.upsert({
-    where: {
-      id: entry.id
-    },
-    create: {
-      id: entry.id,
-      movieId: entry.movieId,
-      groupId: entry.groupId,
-      watchedOn: parseWatchDate(entry.watchedOn),
-      selectedForWeek: entry.selectedForWeek ?? null,
-      createdAt: parseWatchDate(entry.watchedOn) ?? new Date()
-    },
-    update: {
-      movieId: entry.movieId,
-      groupId: entry.groupId,
-      watchedOn: parseWatchDate(entry.watchedOn),
-      selectedForWeek: entry.selectedForWeek ?? null
-    }
-  });
-}
-
-async function upsertRatingToDatabase(rating: UserRating, client?: Prisma.TransactionClient) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.ratingRecord.upsert({
-    where: {
-      movieId_userId: {
-        movieId: rating.movieId,
-        userId: rating.userId
-      }
-    },
-    create: {
-      id: rating.id,
-      movieId: rating.movieId,
-      userId: rating.userId,
-      score: rating.score,
-      comment: rating.comment,
-      watchedOn: parseWatchDate(rating.watchedOn),
-      createdAt: parseWatchDate(rating.watchedOn) ?? new Date()
-    },
-    update: {
-      id: rating.id,
-      score: rating.score,
-      comment: rating.comment,
-      watchedOn: parseWatchDate(rating.watchedOn)
-    }
-  });
 }
 
 async function insertWeeklyBatchToDatabase(batch: WeeklyRecommendationBatch, client?: Prisma.TransactionClient) {
@@ -1719,36 +1499,6 @@ function addActivity(state: AppState, entry: ActivityItem) {
 
   state.activity.unshift(entry);
   state.activity = state.activity.slice(0, 20);
-}
-
-function movieNeedsHydration(movie: Movie) {
-  const hasGenres = movie.genres.length > 0 && !movie.genres.every((genre) => genre === "Pendiente");
-  const hasDirector = movie.director && movie.director !== "Pendiente";
-  const hasSynopsis = movie.synopsis && movie.synopsis !== "Pendiente de enriquecer desde TMDb.";
-  const hasDuration = movie.durationMinutes > 0;
-  const hasPoster = Boolean(movie.posterUrl);
-
-  const hasCurrentTmdbMetadata =
-    !movie.sourceIds?.tmdb || movie.metadataVersion === TMDB_METADATA_VERSION;
-
-  return !(hasGenres && hasDirector && hasSynopsis && hasDuration && hasPoster && hasCurrentTmdbMetadata);
-}
-
-async function hydrateMovie(state: AppState, movie: Movie | null) {
-  if (!movie || !movieNeedsHydration(movie)) {
-    return false;
-  }
-
-  const previous = JSON.stringify(movie);
-  const enriched = await resolveMovieMetadata(movie);
-  Object.assign(movie, {
-    ...movie,
-    ...enriched,
-    id: movie.id,
-    slug: movie.slug
-  });
-
-  return JSON.stringify(movie) !== previous;
 }
 
 function buildHistoryFromState(state: AppState, filters?: HistoryFilters, currentUserId?: string) {
@@ -2697,53 +2447,6 @@ export async function getViewedPageDataHydrated(input: {
   };
 }
 
-export async function upsertRating(input: { movieId: string; userId: string; score: number; comment?: string }) {
-  if (!isQuarterPointScore(input.score)) {
-    throw new Error("La nota debe estar entre 0 y 10 y avanzar en incrementos de 0,25.");
-  }
-
-  return mutateState(async (state, persistStateChange) => {
-    const comment = sanitizeComment(input.comment);
-    const user = findUserById(state, input.userId);
-    const movie = getMovieById(state, input.movieId);
-    if (!user || !movie) {
-      throw new Error("No se encontró la película o el miembro que quieres valorar.");
-    }
-    const ratingKey = `${input.userId}:${input.movieId}`;
-    const existing = getStateIndexes(state).ratingByUserMovie.get(ratingKey);
-
-    if (existing) {
-      existing.score = input.score;
-      existing.comment = comment;
-    } else {
-      state.ratings.push({
-        id: safeId("rating", `${input.movieId}-${input.userId}`),
-        movieId: input.movieId,
-        userId: input.userId,
-        score: input.score,
-        comment
-      });
-    }
-
-    addActivity(state, {
-      type: "rated",
-      label: `${user.name} puntuó ${movie.title} con un ${formatScore(input.score)}`,
-      movieId: movie.id,
-      userId: user.id,
-      date: new Date().toISOString()
-    });
-
-    invalidateDerivedCaches(state);
-    const nextRating = getStateIndexes(state).ratingByUserMovie.get(ratingKey) as UserRating;
-    await persistStateChange(state, [
-      {
-        run: (client) => upsertRatingToDatabase(nextRating, client)
-      }
-    ]);
-    return nextRating;
-  });
-}
-
 export async function generateBatch() {
   return mutateState(async (state, persistStateChange) => {
     const currentBatch = getCurrentBatchFromState(state);
@@ -2829,83 +2532,6 @@ export async function selectWeeklyMovie(batchId: string, movieId: string) {
   });
 }
 
-export async function markMovieAsWatched(movieId: string, watchedOn = new Date().toISOString()) {
-  return mutateState(async (state, persistStateChange) => {
-    const movie = getMovieById(state, movieId);
-    if (!movie) {
-      throw new Error("No se encontró la película.");
-    }
-
-    const existingEntry = getWatchEntryForMovieFromState(state, movieId);
-    if (existingEntry) {
-      if (!existingEntry.watchedOn || state.pendingMovieIds.includes(movieId)) {
-        existingEntry.watchedOn ??= watchedOn;
-        state.pendingMovieIds = state.pendingMovieIds.filter((id) => id !== movieId);
-        invalidateDerivedCaches(state);
-        await persistStateChange(state, [
-          {
-            run: (client) => upsertWatchEntryToDatabase(existingEntry, client)
-          },
-          {
-            run: (client) => removePendingMovieFromDatabase(state.group.id, movieId, client)
-          }
-        ]);
-      }
-      return existingEntry;
-    }
-
-    const currentBatch = getCurrentBatchFromState(state);
-    const watchEntry = {
-      id: safeId("watch", movieId),
-      movieId,
-      groupId: state.group.id,
-      watchedOn,
-      selectedForWeek: currentBatch?.selectedMovieId === movieId ? currentBatch.weekOf : undefined
-    };
-
-    state.watchEntries.unshift(watchEntry);
-    state.pendingMovieIds = state.pendingMovieIds.filter((pendingMovieId) => pendingMovieId !== movieId);
-    addActivity(state, {
-      type: "watched",
-      label: `${movie.title} pasó a vistas del grupo`,
-      movieId: movie.id,
-      date: watchedOn
-    });
-
-    invalidateDerivedCaches(state);
-    await persistStateChange(state, [
-      {
-        run: (client) => upsertWatchEntryToDatabase(watchEntry, client)
-      },
-      {
-        run: (client) => removePendingMovieFromDatabase(state.group.id, movieId, client)
-      }
-    ]);
-    return watchEntry;
-  });
-}
-
-export async function movieSearch(query: string) {
-  const state = await loadAppState();
-  const results = await searchMovies(query, state.movies);
-  const indexes = getStateIndexes(state);
-
-  return results.map((movie) => {
-    const storedMovie = findStoredMovieForSearchResult(movie, state.movies);
-    const storedMovieId = storedMovie?.id ?? movie.id;
-    const collectionStatus = indexes.watchedMovieIdSet.has(storedMovieId)
-      ? ("already_watched" as const)
-      : indexes.pendingMovieIdSet.has(storedMovieId)
-        ? ("already_pending" as const)
-        : undefined;
-
-    return {
-      ...movie,
-      collectionStatus
-    };
-  });
-}
-
 export async function getMovieDiscoverySuggestions(input: {
   generation?: number;
   excludeTmdbIds?: string[];
@@ -2915,100 +2541,4 @@ export async function getMovieDiscoverySuggestions(input: {
   const seeds = selectDiscoverySeedTmdbIds(state, generation, 4);
   const pool = await fetchMovieDiscoveryPool(seeds, generation, 48);
   return rankDiscoveryMoviesForGroup(state, pool, 5, input.excludeTmdbIds ?? []);
-}
-
-export async function addPendingMovie(movieInput: Movie) {
-  const preparedMovie = movieNeedsHydration(movieInput) ? await resolveMovieMetadata(movieInput) : movieInput;
-  return mutateState(async (state, persistStateChange) => {
-    let movie =
-      (movieInput.sourceIds?.tmdb ? getMovieByTmdbId(state, movieInput.sourceIds.tmdb) : null) ??
-      state.movies.find((entry) => entry.slug === movieInput.slug && entry.year === movieInput.year) ??
-      null;
-
-    if (!movie) {
-      movie = {
-        ...preparedMovie,
-        id: movieInput.sourceIds?.tmdb ? `movie_tmdb_${movieInput.sourceIds.tmdb}` : safeId("movie", movieInput.title),
-        slug: slugify(movieInput.title)
-      };
-      state.movies.push(movie);
-    }
-
-    if (state.watchEntries.some((entry) => entry.movieId === movie.id)) {
-      return {
-        status: "already_watched" as const,
-        movie,
-        message: "Esa película ya figura en vuestras vistas."
-      };
-    }
-
-    if (state.pendingMovieIds.includes(movie.id)) {
-      return {
-        status: "already_pending" as const,
-        movie,
-        message: "Esa película ya está en pendientes."
-      };
-    }
-
-    const addedAt = new Date();
-
-    state.pendingMovieIds.unshift(movie.id);
-    addActivity(state, {
-      type: "queued",
-      label: `${movie.title} se añadió a pendientes`,
-      movieId: movie.id,
-      date: addedAt.toISOString()
-    });
-
-    invalidateDerivedCaches(state);
-    await persistStateChange(state, [
-      {
-        run: (client) => upsertMovieToDatabase(movie, client)
-      },
-      {
-        run: (client) => upsertPendingMovieToDatabase(state.group.id, movie.id, addedAt, client)
-      }
-    ]);
-    return {
-      status: "added" as const,
-      movie,
-      message: "Película añadida a pendientes."
-    };
-  });
-}
-
-export async function removePendingMovie(movieId: string) {
-  return mutateState(async (state, persistStateChange) => {
-    const movie = getMovieById(state, movieId);
-
-    if (!state.pendingMovieIds.includes(movieId)) {
-      return {
-        status: "not_pending" as const,
-        movie,
-        message: "Esa película ya no estaba en pendientes."
-      };
-    }
-
-    state.pendingMovieIds = state.pendingMovieIds.filter((pendingMovieId) => pendingMovieId !== movieId);
-    if (movie) {
-      addActivity(state, {
-        type: "queued",
-        label: `${movie.title} se quitó de pendientes`,
-        movieId: movie.id,
-        date: new Date().toISOString()
-      });
-    }
-    invalidateDerivedCaches(state);
-    await persistStateChange(state, [
-      {
-        run: (client) => removePendingMovieFromDatabase(state.group.id, movieId, client)
-      }
-    ]);
-
-    return {
-      status: "removed" as const,
-      movie,
-      message: "Película quitada de pendientes."
-    };
-  });
 }

@@ -14,6 +14,11 @@
 | [users/authentication.ts](../src/lib/users/authentication.ts) | Login y validación de sesiones con un cargador explícito de credenciales vigentes |
 | [users/service.ts](../src/lib/users/service.ts) | Edición de perfil, gestión administrativa y recuperación de credenciales dentro del coordinador de mutaciones |
 | [users/profiles.ts](../src/lib/users/profiles.ts) | Resúmenes, clasificaciones y distribución de notas de perfiles; cachés por estado e invalidación |
+| [movies/records.ts](../src/lib/movies/records.ts) | Conversión de registros y escrituras de catálogo, pendientes y vistas |
+| [movies/service.ts](../src/lib/movies/service.ts) | Añadir y quitar pendientes, marcar vistas y estado de colección en búsquedas |
+| [movies/metadata.ts](../src/lib/movies/metadata.ts) | Detección y enriquecimiento de metadatos conservando ID y slug locales |
+| [ratings/records.ts](../src/lib/ratings/records.ts) y [ratings/service.ts](../src/lib/ratings/service.ts) | Conversión y escritura de notas; validación, comentarios y actualización por usuario/película |
+| [record-dates.ts](../src/lib/record-dates.ts) | Conversión de fechas opcionales de vistas y notas a registros de base de datos |
 | [types.ts](../src/lib/types.ts) | Tipos de usuarios, películas, notas, tandas y estado agregado |
 | [prisma.ts](../src/lib/prisma.ts) y [schema.prisma](../prisma/schema.prisma) | Cliente y esquema PostgreSQL |
 | [normalized-state.ts](../src/lib/normalized-state.ts) | Composición de tablas normalizadas y snapshot compacto |
@@ -48,7 +53,15 @@ El store crea los servicios de usuarios y les entrega únicamente las dependenci
 
 `authentication.ts` recibe un cargador de credenciales frescas; sus comprobaciones de token y login no añaden caché entre peticiones. `service.ts` recibe `mutateState`, por lo que sus validaciones y persistencia continúan dentro del mismo bloqueo que las películas y recomendaciones. Los tipos compartidos del coordinador se definen en `state-persistence.ts`.
 
-`profiles.ts` conserva por separado los cálculos de la lectura local y de base de datos, incluidas sus reglas de clasificación y distribución; no introduce cambios de estadísticas. El store llama a su invalidación cuando cambia un estado. La carga de páginas, la hidratación de películas y la disponibilidad de la base siguen coordinándose en el store y son candidatas a posteriores extracciones.
+`profiles.ts` conserva por separado los cálculos de la lectura local y de base de datos, incluidas sus reglas de clasificación y distribución; no introduce cambios de estadísticas. El store llama a su invalidación cuando cambia un estado. La carga de páginas y la disponibilidad de la base siguen coordinándose en el store y son candidatas a posteriores extracciones.
+
+### Separación de películas y notas
+
+El store compone `movies/service.ts` y `ratings/service.ts` y conserva sus exports públicos. Ambos reciben el mismo `mutateState` que usuarios y recomendaciones; ninguno importa el store. Los módulos de registros reciben el cliente transaccional del coordinador para guardar catálogo, colección y notas junto al snapshot. Las funciones de sincronización masiva se mantienen solo para la compatibilidad con escrituras históricas diferidas y no se usan en las mutaciones habituales.
+
+Al añadir una pendiente, el servicio prepara los metadatos antes de entrar en el coordinador y comprueba la colección con el estado recibido tras el bloqueo. Así respeta que otro usuario haya marcado la película como vista durante la espera de TMDb. Al marcar una vista, elimina la pendiente en la misma transacción. Las búsquedas resuelven la identidad local para informar si un resultado remoto ya está pendiente o visto.
+
+`movies/metadata.ts` conserva ID y slug locales al enriquecer una película. `ratings/service.ts` conserva los incrementos de 0,25, la nota cero, el límite de comentarios y la identidad de una nota al editarla. La preparación de páginas, los filtros del historial, las consultas con control de disponibilidad y la orquestación de recomendaciones continúan en el store; esta etapa no modifica rutas, reglas funcionales ni esquema.
 
 ## Fuente de verdad
 

@@ -42,7 +42,7 @@ it("keeps credential and database failures distinct from an invalid session", as
 
 it("preserves a raw avatar for mutations while using a delivery URL for reads", () => {
   const avatarUrl = "data:image/png;base64,YQ==";
-  const record = { ...user(), avatarUrl };
+  const record = { ...user(), avatarUrl, isAdmin: false };
   expect(mapUserRecordsToStateUsers([record], { useDeliveryUrls: false })[0].avatarUrl).toBe(avatarUrl);
   expect(mapUserRecordsToStateUsers([record])[0].avatarUrl).toMatch(/^\/api\/users\/test_user\/avatar\?v=/);
   expect(ensureUserCredentials({ ...record, name: "Isma", username: "Isma", passwordHash: "", isAdmin: undefined }))
