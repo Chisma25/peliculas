@@ -6,10 +6,10 @@ import { PrefetchLink } from "@/components/prefetch-link";
 import { PrimaryNav } from "@/components/primary-nav";
 import { UserAvatar } from "@/components/user-avatar";
 import type { DeploymentVersion } from "@/lib/deployment-version";
-import { User } from "@/lib/types";
+import type { PublicUser } from "@/lib/public-user";
 
 type SiteHeaderProps = {
-  user: User | null;
+  user: PublicUser | null;
   deploymentVersion: DeploymentVersion;
 };
 

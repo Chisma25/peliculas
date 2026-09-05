@@ -27,7 +27,7 @@ export function GroupMemberCard({ member, profileSummary, profileHref, canManage
       <span className="member-card-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
       <div className="member-card-topline">
         <div className="member-card-head">
-          <UserAvatar user={member} size="md" />
+          <UserAvatar user={{ name: member.name, avatarUrl: member.avatarUrl }} size="md" />
           <div className="member-card-heading">
             <strong>{member.name}</strong>
             <span>@{member.username}</span>
@@ -55,7 +55,7 @@ export function GroupMemberCard({ member, profileSummary, profileHref, canManage
         <PrefetchLink href={profileHref} className="cinema-text-link">
           Ver perfil <span aria-hidden="true">↗</span>
         </PrefetchLink>
-        {canManage ? <GroupMemberAccessButton member={member} /> : null}
+        {canManage ? <GroupMemberAccessButton member={{ id: member.id, name: member.name, username: member.username, isAdmin: member.isAdmin }} /> : null}
       </div>
     </article>
   );

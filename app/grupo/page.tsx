@@ -39,7 +39,7 @@ export default async function GroupPage() {
               key={member.id}
               style={{ "--cast-index": index } as CSSProperties}
             >
-              <UserAvatar user={member} size="lg" />
+              <UserAvatar user={{ name: member.name, avatarUrl: member.avatarUrl }} size="lg" />
               <span className="group-cast-index" aria-hidden="true">
                 {String(index + 1).padStart(2, "0")}
               </span>

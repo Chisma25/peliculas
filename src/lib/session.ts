@@ -83,10 +83,18 @@ export function getSessionCookieOptions() {
   };
 }
 
-export async function createSessionToken(userId: string) {
+async function credentialTag(userId: string, passwordHash: string) {
+  return signValue(`credentials:${userId}:${passwordHash}`);
+}
+
+export async function createSessionToken(userId: string, passwordHash: string) {
+  if (!passwordHash) {
+    throw new Error("La cuenta no tiene credenciales activas.");
+  }
   const expiresAt = Date.now() + SESSION_TTL_SECONDS * 1000;
-  const encodedUserId = encodeURIComponent(userId);
-  const payload = `${encodedUserId}.${expiresAt}`;
+  const encodedUserId = encodeURIComponent(userId).replace(/\./g, "%2E");
+  const tag = await credentialTag(userId, passwordHash);
+  const payload = `v2.${encodedUserId}.${expiresAt}.${tag}`;
   const signature = await signValue(payload, { requireConfiguredSecret: true });
   if (!signature) {
     throw new Error("No se pudo firmar la sesión.");
@@ -95,17 +103,21 @@ export async function createSessionToken(userId: string) {
   return `${payload}.${signature}`;
 }
 
-export async function verifySessionToken(token?: string | null) {
+// Without passwordHash this only checks the signed envelope. Authorization must
+// also pass the current server-side hash, so password changes revoke old tokens.
+export async function verifySessionToken(token?: string | null, passwordHash?: string) {
   if (!token) {
     return null;
   }
 
-  const [encodedUserId, expiresAtRaw, signature] = token.split(".");
-  if (!encodedUserId || !expiresAtRaw || !signature) {
+  const parts = token.split(".");
+  const [version, encodedUserId, expiresAtRaw, tag, signature] = parts;
+  if (parts.length !== 5 || version !== "v2" || !encodedUserId || !/^\d+$/.test(expiresAtRaw) ||
+      !/^[a-f0-9]{64}$/.test(tag) || !/^[a-f0-9]{64}$/.test(signature)) {
     return null;
   }
 
-  const payload = `${encodedUserId}.${expiresAtRaw}`;
+  const payload = `${version}.${encodedUserId}.${expiresAtRaw}.${tag}`;
   const expected = await signValue(payload);
   if (!expected) {
     return null;
@@ -115,13 +127,19 @@ export async function verifySessionToken(token?: string | null) {
     return null;
   }
 
-  const expiresAt = Number.parseInt(expiresAtRaw, 10);
-  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) {
+  const expiresAt = Number(expiresAtRaw);
+  if (!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now()) {
     return null;
   }
 
   try {
-    return decodeURIComponent(encodedUserId);
+    const userId = decodeURIComponent(encodedUserId);
+    if (passwordHash !== undefined) {
+      if (!passwordHash) return null;
+      const currentTag = await credentialTag(userId, passwordHash);
+      if (!currentTag || !constantTimeEqual(tag, currentTag)) return null;
+    }
+    return userId;
   } catch {
     return null;
   }

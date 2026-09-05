@@ -40,7 +40,11 @@ jobs:
         run: npm run build
 
       - name: Audit production dependencies
+        # Includes the development toolchain as in the existing quality gate.
         run: npm audit --audit-level=low
+
+      - name: Verify security against an isolated local production build
+        run: npm run test:security
 
   authenticated-preview:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false

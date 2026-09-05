@@ -50,7 +50,7 @@ export function ProfileOverview({ profile, mode = "self" }: ProfileOverviewProps
       >
         <div className="profile-command-identity">
           <div className="profile-command-portrait">
-            <UserAvatar user={profile.user} size="lg" />
+            <UserAvatar user={{ name: profile.user.name, avatarUrl: profile.user.avatarUrl }} size="lg" />
           </div>
           <div className="profile-command-copy">
             <p className="cinema-kicker">{isSelf ? "Mi perfil" : "Perfil"}</p>
