@@ -1,7 +1,18 @@
 import type { Prisma } from "@prisma/client";
-import { cookies } from "next/headers";
 import { cache } from "react";
 
+import { getAvatarDeliveryUrl } from "@/lib/avatar-data";
+import { createAuthenticationService } from "@/lib/users/authentication";
+import { createUserService } from "@/lib/users/service";
+import { createProfileReader, buildProfileFromRatings, type ProfileData, type ProfileSummary } from "@/lib/users/profiles";
+import {
+  USER_RECORD_WITH_AVATAR_SELECT,
+  ensureUserCredentials,
+  mapUserRecordsToStateUsers,
+  readUsersFromDatabase,
+  syncUsersToDatabase,
+  upsertUserToDatabase
+} from "@/lib/users/records";
 import {
   ensureDatabaseReadCanProceed,
   failClosedAfterDatabaseReadError,
@@ -42,8 +53,7 @@ import {
   rankUpcomingReleasesForGroup
 } from "@/lib/recommendations";
 import { shouldUseProcessLocalMutableCache } from "@/lib/runtime-cache-policy";
-import { getSessionCookieName as getSessionCookieNameFromSession, verifySessionToken } from "@/lib/session";
-import { commitStateChangeAtomically, StatePersistenceUnavailableError } from "@/lib/state-persistence";
+import { commitStateChangeAtomically, StatePersistenceUnavailableError, type PersistMutation } from "@/lib/state-persistence";
 import { createLocalMutationQueue, withDatabaseMutation } from "@/lib/mutation-lock";
 import { classifyWeeklySelection, isWeeklyBatchCurrent, shouldCarryWeeklySelection } from "@/lib/weekly-selection";
 import {
@@ -59,22 +69,10 @@ import {
   WeeklyRecommendationBatch,
   WeeklyRecommendationItem
 } from "@/lib/types";
-import { getAvatarDeliveryUrl } from "@/lib/avatar-data";
-import {
-  hashPassword,
-  normalizeIdentity,
-  normalizeUsername,
-  sanitizeAvatarDataUrl,
-  sanitizeComment,
-  secureStringMatch,
-  validateDisplayName,
-  validatePassword,
-  validateUsername,
-  verifyPassword
-} from "@/lib/user-input";
+import { normalizeIdentity, normalizeUsername, sanitizeComment } from "@/lib/user-input";
 import { average, formatScore, isQuarterPointScore, safeId, slugify } from "@/lib/utils";
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
-const ADMIN_RESET_CODE = process.env.ADMIN_RESET_CODE?.trim() || "";
+
 const PAGE_ROUTE_CACHE_TTL_MS = 1000 * 60 * 2;
 const MOVIE_DETAIL_CACHE_TTL_MS = 1000 * 60 * 2;
 const UPCOMING_RELEASES_CACHE_TTL_MS = 1000 * 60 * 15;
@@ -102,34 +100,6 @@ type HistoryItem = {
   groupAverage: number;
   ratings: UserRating[];
   userRating: number | undefined;
-};
-
-type ProfileData = {
-  user: User;
-  ratingsCount: number;
-  averageScore: number;
-  topThree: Array<UserRating & { movie: Movie }>;
-  bottomThree: Array<UserRating & { movie: Movie }>;
-  bestScore: number;
-  distribution: Array<{
-    value: number;
-    label: string;
-    count: number;
-    ratio: number;
-    axisLabel: string;
-  }>;
-};
-
-type ProfileSummary = {
-  ratingsCount: number;
-  averageScore: number;
-  bestScore: number;
-};
-
-type ProfileOverview = {
-  topThree: Array<UserRating & { movie: Movie }>;
-  bottomThree: Array<UserRating & { movie: Movie }>;
-  distribution: ProfileData["distribution"];
 };
 
 type DashboardData = {
@@ -194,14 +164,8 @@ type TimedCache<T> = {
   expiresAt: number;
 };
 
-type DatabaseWriteOperation = {
-  run: (client: Prisma.TransactionClient) => Promise<unknown>;
-};
-
 const stateIndexesCache = new WeakMap<AppState, StateIndexes>();
-const profileDataCache = new WeakMap<AppState, Map<string, ProfileData | null>>();
-const profileSummaryCache = new WeakMap<AppState, Map<string, ProfileSummary>>();
-const profileOverviewCache = new WeakMap<AppState, Map<string, ProfileOverview>>();
+
 let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 let snapshotUsersWithAvatarsMemoryCache: TimedCache<User[]> | null = null;
 let upcomingReleasesMemoryCache: TimedCache<UpcomingReleaseSuggestion[]> | null = null;
@@ -230,11 +194,25 @@ const movieDetailDataMemoryCache = new Map<MovieDetailCacheKey, TimedCache<{
 const pendingListMemoryCache = new Map<PendingListCacheKey, TimedCache<PendingListBase>>();
 const viewedListMemoryCache = new Map<ViewedListCacheKey, TimedCache<ViewedListBase>>();
 
+// The store remains the composition root: user modules never import it.
+// Mutations receive the same coordinator used by movies and recommendations.
+const { getProfileSummaryFromState, buildProfileFromState, invalidateProfileCaches } = createProfileReader({
+  getStateIndexes,
+  findUserById
+});
+export const { getSessionCookieName, getSessionUserFromToken, getSessionUser, authenticateUser } =
+  createAuthenticationService(loadUsersForAuthentication);
+export const { updateUserProfile, updateUserCredentialsByAdmin, resetUserCredentials } = createUserService({
+  mutateState,
+  findUserById,
+  findUserByIdentity,
+  addActivity,
+  invalidateDerivedCaches
+});
+
 function invalidateDerivedCaches(state: AppState) {
   stateIndexesCache.delete(state);
-  profileDataCache.delete(state);
-  profileSummaryCache.delete(state);
-  profileOverviewCache.delete(state);
+  invalidateProfileCaches(state);
 }
 
 function cloneState<T>(value: T): T {
@@ -270,19 +248,6 @@ function invalidatePersistentStateCache() {
   movieDetailDataMemoryCache.clear();
   pendingListMemoryCache.clear();
   viewedListMemoryCache.clear();
-}
-
-function ensureUserCredentials(user: User) {
-  const username = user.username?.trim() || user.name || user.email.split("@")[0] || user.id;
-  const passwordHash = typeof user.passwordHash === "string" ? user.passwordHash.trim() : "";
-  return {
-    ...user,
-    username,
-    avatarSeed: user.avatarSeed || slugify(user.name || username),
-    // Legacy accounts without password hash stay blocked until an admin or emergency reset assigns one.
-    passwordHash,
-    isAdmin: user.isAdmin === true
-  };
 }
 
 function normalizeLegacyActivityLabel(label: string) {
@@ -456,21 +421,6 @@ async function loadUsersForAuthentication() {
 }
 
 const loadSnapshotUsersForRequest = cache(async () => loadUsersForRead());
-
-const USER_RECORD_SELECT = {
-  id: true,
-  name: true,
-  username: true,
-  email: true,
-  avatarSeed: true,
-  passwordHash: true,
-  isAdmin: true
-} as const;
-
-const USER_RECORD_WITH_AVATAR_SELECT = {
-  ...USER_RECORD_SELECT,
-  avatarUrl: true
-} as const;
 
 function isAppState(value: unknown): value is AppState {
   if (!value || typeof value !== "object") {
@@ -704,36 +654,6 @@ function mapRatingRecordsToStateEntries(records: Array<{
   }));
 }
 
-function mapUserRecordsToStateUsers(records: Array<{
-  id: string;
-  name: string;
-  username: string;
-  email: string;
-  avatarSeed: string | null;
-  avatarUrl?: string | null;
-  passwordHash: string;
-  isAdmin: boolean;
-}>, options: { useDeliveryUrls?: boolean } = {}): User[] {
-  const useDeliveryUrls = options.useDeliveryUrls ?? true;
-  return records.map((entry) => {
-    const user: User = {
-      id: entry.id,
-      name: entry.name,
-      username: entry.username,
-      email: entry.email,
-      avatarSeed: entry.avatarSeed ?? slugify(entry.name || entry.username),
-      passwordHash: entry.passwordHash,
-      isAdmin: entry.isAdmin
-    };
-
-    if (entry.avatarUrl) {
-      user.avatarUrl = useDeliveryUrls ? getAvatarDeliveryUrl(entry.id, entry.avatarUrl) : entry.avatarUrl;
-    }
-
-    return ensureUserCredentials(user);
-  });
-}
-
 function isMovie(value: unknown): value is Movie {
   if (!value || typeof value !== "object") {
     return false;
@@ -853,13 +773,9 @@ async function loadUsersFromDatabaseUncached(options: { includeAvatarUrls?: bool
 
   try {
     await ensurePreviewDataHygiene();
-    const { prisma } = await import("@/lib/prisma");
-    const rows = await prisma.userRecord.findMany({
-      select: options.includeAvatarUrls ? USER_RECORD_WITH_AVATAR_SELECT : USER_RECORD_SELECT,
-      orderBy: { name: "asc" }
-    });
+    const users = await readUsersFromDatabase(options);
     markDatabaseReadHealthy();
-    return mapUserRecordsToStateUsers(rows);
+    return users;
   } catch (error) {
     markDatabaseReadFailure("users read", error);
     return null;
@@ -912,63 +828,6 @@ async function loadUsersForRead(options: { includeAvatarUrls?: boolean } = {}): 
   }
 
   return users;
-}
-
-async function syncUsersToDatabase(users: User[]) {
-  const { prisma } = await import("@/lib/prisma");
-
-  await prisma.$transaction(
-    users.map((user) =>
-      prisma.userRecord.upsert({
-        where: { id: user.id },
-        create: {
-          id: user.id,
-          name: user.name,
-          username: user.username,
-          email: user.email,
-          avatarSeed: user.avatarSeed ?? null,
-          avatarUrl: user.avatarUrl ?? null,
-          passwordHash: user.passwordHash,
-          isAdmin: Boolean(user.isAdmin)
-        },
-        update: {
-          name: user.name,
-          username: user.username,
-          email: user.email,
-          avatarSeed: user.avatarSeed ?? null,
-          avatarUrl: user.avatarUrl ?? null,
-          passwordHash: user.passwordHash,
-          isAdmin: Boolean(user.isAdmin)
-        }
-      })
-    )
-  );
-}
-
-async function upsertUserToDatabase(user: User, client?: Prisma.TransactionClient) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.userRecord.upsert({
-    where: { id: user.id },
-    create: {
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      email: user.email,
-      avatarSeed: user.avatarSeed ?? null,
-      avatarUrl: user.avatarUrl ?? null,
-      passwordHash: user.passwordHash,
-      isAdmin: Boolean(user.isAdmin)
-    },
-    update: {
-      name: user.name,
-      username: user.username,
-      email: user.email,
-      avatarSeed: user.avatarSeed ?? null,
-      avatarUrl: user.avatarUrl ?? null,
-      passwordHash: user.passwordHash,
-      isAdmin: Boolean(user.isAdmin)
-    }
-  });
 }
 
 async function loadMovieCatalogFromDatabaseUncached() {
@@ -1545,7 +1404,6 @@ async function loadAppStateForRead() {
 
 const loadAppState = cache(loadAppStateForRead);
 
-type PersistMutation = (state: AppState, operations: DatabaseWriteOperation[]) => Promise<void>;
 const runLocalMutation = createLocalMutationQueue();
 
 async function mutateState<T>(action: (state: AppState, persist: PersistMutation) => Promise<T>): Promise<T> {
@@ -1711,75 +1569,6 @@ function getMovieAverageFromState(state: AppState, movieId: string) {
   return getStateIndexes(state).movieAverageById.get(movieId) ?? 0;
 }
 
-function getProfileSummaryFromState(state: AppState, userId: string): ProfileSummary {
-  const cachedSummaries = profileSummaryCache.get(state);
-  const cachedSummary = cachedSummaries?.get(userId);
-  if (cachedSummary) {
-    return cachedSummary;
-  }
-
-  const userRatings = getStateIndexes(state).ratingsByUserId.get(userId) ?? [];
-  const summary = {
-    ratingsCount: userRatings.length,
-    averageScore: average(userRatings.map((rating) => rating.score)),
-    bestScore: userRatings.reduce((best, rating) => Math.max(best, rating.score), 0)
-  };
-
-  const nextSummaries = cachedSummaries ?? new Map<string, ProfileSummary>();
-  nextSummaries.set(userId, summary);
-  profileSummaryCache.set(state, nextSummaries);
-
-  return summary;
-}
-
-function getProfileOverviewFromState(state: AppState, userId: string): ProfileOverview {
-  const cachedOverviews = profileOverviewCache.get(state);
-  const cachedOverview = cachedOverviews?.get(userId);
-  if (cachedOverview) {
-    return cachedOverview;
-  }
-
-  const indexes = getStateIndexes(state);
-  const ratedMovies = (indexes.ratingsByUserId.get(userId) ?? [])
-    .map((rating) => ({
-      ...rating,
-      movie: indexes.moviesById.get(rating.movieId)
-    }))
-    .filter((rating): rating is UserRating & { movie: Movie } => Boolean(rating.movie));
-
-  const topThree = [...ratedMovies].sort((left, right) => right.score - left.score || right.movie.year - left.movie.year).slice(0, 3);
-  const bottomThree = [...ratedMovies].sort((left, right) => left.score - right.score || right.movie.year - left.movie.year).slice(0, 3);
-
-  const distributionStep = 0.5;
-  const distributionBins = Array.from({ length: Math.floor(10 / distributionStep) + 1 }, (_, index) => ({
-    value: Number((index * distributionStep).toFixed(1)),
-    label: (index * distributionStep).toFixed(1),
-    count: 0
-  }));
-
-  for (const rating of ratedMovies) {
-    const bucket = Math.max(0, Math.min(distributionBins.length - 1, Math.round(rating.score / distributionStep)));
-    distributionBins[bucket].count += 1;
-  }
-
-  const maxDistributionCount = Math.max(...distributionBins.map((item) => item.count), 1);
-  const overview = {
-    topThree,
-    bottomThree,
-    distribution: distributionBins.map((item, index) => ({
-      ...item,
-      ratio: item.count / maxDistributionCount,
-      axisLabel: index % 2 === 0 ? item.label : ""
-    }))
-  };
-
-  const nextOverviews = cachedOverviews ?? new Map<string, ProfileOverview>();
-  nextOverviews.set(userId, overview);
-  profileOverviewCache.set(state, nextOverviews);
-
-  return overview;
-}
-
 function getGroupStatsFromState(state: AppState) {
   const { groupAverageScore } = getStateIndexes(state);
   return {
@@ -1802,48 +1591,6 @@ function buildDashboardDataFromState(state: AppState): DashboardOverviewData {
 
 function getDatabaseReadGroup() {
   return cloneState(loadFallbackState().group);
-}
-
-function buildRatingDistribution(ratings: UserRating[]): ProfileOverview["distribution"] {
-  const distributionStep = 0.5;
-  const distributionBins = Array.from({ length: Math.floor(10 / distributionStep) + 1 }, (_, index) => ({
-    value: Number((index * distributionStep).toFixed(1)),
-    label: (index * distributionStep).toFixed(1),
-    count: 0
-  }));
-
-  for (const rating of ratings) {
-    const bucket = Math.max(0, Math.min(distributionBins.length - 1, Math.round(rating.score / distributionStep)));
-    distributionBins[bucket].count += 1;
-  }
-
-  const maxDistributionCount = Math.max(...distributionBins.map((item) => item.count), 1);
-  return distributionBins.map((item, index) => ({
-    ...item,
-    ratio: item.count / maxDistributionCount,
-    axisLabel: index % 2 === 0 ? item.label : ""
-  }));
-}
-
-function buildProfileFromRatings(user: User, ratings: UserRating[], moviesById: Map<string, Movie>): ProfileData {
-  const ratedMovies = ratings
-    .map((rating) => ({
-      ...rating,
-      movie: moviesById.get(rating.movieId)
-    }))
-    .filter((rating): rating is UserRating & { movie: Movie } => Boolean(rating.movie));
-  const topThree = [...ratedMovies].sort((left, right) => right.score - left.score || right.movie.year - left.movie.year).slice(0, 3);
-  const bottomThree = [...ratedMovies].sort((left, right) => left.score - right.score || right.movie.year - left.movie.year).slice(0, 3);
-
-  return {
-    user,
-    ratingsCount: ratings.length,
-    averageScore: average(ratings.map((rating) => rating.score)),
-    topThree,
-    bottomThree,
-    bestScore: ratings.reduce((best, rating) => Math.max(best, rating.score), 0) || topThree[0]?.score || 0,
-    distribution: buildRatingDistribution(ratings)
-  };
 }
 
 async function hydrateMoviesForDatabaseRead(movies: Movie[]) {
@@ -2567,69 +2314,6 @@ async function getGroupPageDataFromDatabase() {
   }
 }
 
-function buildProfileFromState(state: AppState, userId: string): ProfileData | null {
-  const cachedProfiles = profileDataCache.get(state);
-  if (cachedProfiles?.has(userId)) {
-    return cachedProfiles.get(userId) ?? null;
-  }
-
-  const user = findUserById(state, userId);
-  if (!user) {
-    return null;
-  }
-
-  const summary = getProfileSummaryFromState(state, userId);
-  const overview = getProfileOverviewFromState(state, userId);
-
-  const profile = {
-    user: {
-      ...user,
-      avatarUrl: user.avatarUrl ? getAvatarDeliveryUrl(user.id, user.avatarUrl) : undefined
-    },
-    ratingsCount: summary.ratingsCount,
-    averageScore: summary.averageScore,
-    topThree: overview.topThree,
-    bottomThree: overview.bottomThree,
-    bestScore: summary.bestScore || overview.topThree[0]?.score || 0,
-    distribution: overview.distribution
-  };
-
-  const nextProfiles = cachedProfiles ?? new Map<string, ProfileData | null>();
-  nextProfiles.set(userId, profile);
-  profileDataCache.set(state, nextProfiles);
-
-  return profile;
-}
-
-export function getSessionCookieName() {
-  return getSessionCookieNameFromSession();
-}
-
-export async function getSessionUserFromToken(token?: string | null) {
-  const userId = await verifySessionToken(token);
-  if (!userId) {
-    return null;
-  }
-
-  // Proxy and route handlers can run in separate processes. Never authorize
-  // using a process cache that can outlive a password change in another process.
-  const users = await loadUsersForAuthentication();
-  const user = users.find((user) => user.id === userId);
-  if (!user || !(await verifySessionToken(token, user.passwordHash))) {
-    return null;
-  }
-  return user;
-}
-
-const getSessionUserForRequest = cache(async () => {
-  const cookieStore = await cookies();
-  return getSessionUserFromToken(cookieStore.get(getSessionCookieNameFromSession())?.value);
-});
-
-export async function getSessionUser() {
-  return getSessionUserForRequest();
-}
-
 export async function listMembers() {
   const state = await loadAppState();
   return listMembersFromState(state);
@@ -3011,232 +2695,6 @@ export async function getViewedPageDataHydrated(input: {
     featuredHistory,
     pagedHistory
   };
-}
-
-export async function authenticateUser(username: string, password: string) {
-  const users = await loadUsersForAuthentication();
-  const normalizedIdentifier = normalizeUsername(username);
-  const user =
-    users.find(
-      (entry) =>
-        normalizeUsername(entry.username) === normalizedIdentifier ||
-        normalizeIdentity(entry.name) === normalizedIdentifier
-    ) ?? null;
-  if (!user) {
-    return null;
-  }
-
-  return verifyPassword(password, user.passwordHash) ? user : null;
-}
-
-export async function updateUserProfile(
-  userId: string,
-  input: {
-    name: string;
-    username: string;
-    password?: string;
-    avatarAction?: "keep" | "replace" | "remove";
-    avatarDataUrl?: string;
-  }
-) {
-  return mutateState(async (state, persistStateChange) => {
-    const user = findUserById(state, userId);
-    if (!user) {
-      throw new Error("No se encontró el usuario.");
-    }
-
-    const nextName = input.name.trim();
-    const nextUsername = input.username.trim();
-    if (!nextName) {
-      throw new Error("El nombre visible es obligatorio.");
-    }
-    if (!nextUsername) {
-      throw new Error("El usuario es obligatorio.");
-    }
-    validateDisplayName(nextName);
-    validateUsername(nextUsername);
-
-    const usernameTaken = state.users.some(
-      (entry) => entry.id !== userId && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
-    );
-    if (usernameTaken) {
-      throw new Error("Ese usuario ya lo está usando otra persona.");
-    }
-
-    const previousName = user.name;
-    user.name = nextName;
-    user.username = nextUsername;
-    user.avatarSeed = slugify(nextName);
-    if (input.avatarAction === "remove") {
-      user.avatarUrl = undefined;
-    } else if (input.avatarAction === "replace") {
-      const nextAvatar = sanitizeAvatarDataUrl(input.avatarDataUrl);
-      if (!nextAvatar) {
-        throw new Error("No se recibió la nueva imagen del avatar.");
-      }
-      user.avatarUrl = nextAvatar;
-    }
-    if (input.password?.trim()) {
-      validatePassword(input.password.trim());
-      user.passwordHash = hashPassword(input.password.trim());
-    }
-
-    addActivity(state, {
-      type: "rated",
-      label: previousName === nextName ? `${nextName} actualizó su perfil` : `${previousName} ahora aparece como ${nextName}`,
-      userId: user.id,
-      date: new Date().toISOString()
-    });
-
-    invalidateDerivedCaches(state);
-    await persistStateChange(
-      state,
-      [
-        {
-          run: (client) => upsertUserToDatabase(user, client)
-        }
-      ]
-    );
-    return user;
-  });
-}
-
-export async function updateUserCredentialsByAdmin(
-  adminUserId: string,
-  input: {
-    userId: string;
-    username: string;
-    password?: string;
-  }
-) {
-  return mutateState(async (state, persistStateChange) => {
-    const adminUser = findUserById(state, adminUserId);
-    if (!adminUser?.isAdmin) {
-      throw new Error("No tienes permisos para gestionar cuentas del grupo.");
-    }
-
-    const targetUser = findUserById(state, input.userId);
-    if (!targetUser) {
-      throw new Error("No se encontró la cuenta que quieres editar.");
-    }
-
-    const nextUsername = input.username.trim();
-    const nextPassword = input.password?.trim() ?? "";
-
-    if (!nextUsername) {
-      throw new Error("El usuario no puede quedar vacío.");
-    }
-    validateUsername(nextUsername);
-
-    const usernameTaken = state.users.some(
-      (entry) => entry.id !== targetUser.id && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
-    );
-    if (usernameTaken) {
-      throw new Error("Ese usuario ya lo está usando otra persona.");
-    }
-
-    const previousUsername = targetUser.username;
-    targetUser.username = nextUsername;
-
-    if (nextPassword) {
-      validatePassword(nextPassword);
-      targetUser.passwordHash = hashPassword(nextPassword);
-    }
-
-    addActivity(state, {
-      type: "rated",
-      label:
-        previousUsername === nextUsername
-          ? `${adminUser.name} actualizó el acceso de ${targetUser.name}`
-          : `${adminUser.name} cambió el usuario de ${targetUser.name} a @${nextUsername}`,
-      userId: targetUser.id,
-      date: new Date().toISOString()
-    });
-
-    invalidateDerivedCaches(state);
-    await persistStateChange(
-      state,
-      [
-        {
-          run: (client) => upsertUserToDatabase(targetUser, client)
-        }
-      ]
-    );
-
-    return {
-      id: targetUser.id,
-      name: targetUser.name,
-      username: targetUser.username
-    };
-  });
-}
-
-export async function resetUserCredentials(input: {
-  adminCode: string;
-  identifier: string;
-  username: string;
-  password: string;
-}) {
-  if (!ADMIN_RESET_CODE) {
-    throw new Error("El reset no esta disponible todavía. Falta configurar ADMIN_RESET_CODE.");
-  }
-
-  if (!secureStringMatch(input.adminCode.trim(), ADMIN_RESET_CODE)) {
-    throw new Error("El codigo de administración no es valido.");
-  }
-
-  return mutateState(async (state, persistStateChange) => {
-    const user = findUserByIdentity(state, input.identifier);
-    if (!user) {
-      throw new Error("No se encontró ninguna cuenta con ese usuario o nombre visible.");
-    }
-
-    const nextUsername = input.username.trim();
-    const nextPassword = input.password.trim();
-
-    if (!nextUsername) {
-      throw new Error("El nuevo usuario es obligatorio.");
-    }
-
-    if (!nextPassword) {
-      throw new Error("La nueva contraseña es obligatoria.");
-    }
-    validateUsername(nextUsername);
-    validatePassword(nextPassword);
-
-    const usernameTaken = state.users.some(
-      (entry) => entry.id !== user.id && normalizeUsername(entry.username) === normalizeUsername(nextUsername)
-    );
-    if (usernameTaken) {
-      throw new Error("Ese usuario ya lo está usando otra persona.");
-    }
-
-    user.username = nextUsername;
-    user.passwordHash = hashPassword(nextPassword);
-
-    addActivity(state, {
-      type: "rated",
-      label: `Se restableció el acceso de ${user.name}`,
-      userId: user.id,
-      date: new Date().toISOString()
-    });
-
-    invalidateDerivedCaches(state);
-    await persistStateChange(
-      state,
-      [
-        {
-          run: (client) => upsertUserToDatabase(user, client)
-        }
-      ]
-    );
-
-    return {
-      id: user.id,
-      name: user.name,
-      username: user.username
-    };
-  });
 }
 
 export async function upsertRating(input: { movieId: string; userId: string; score: number; comment?: string }) {

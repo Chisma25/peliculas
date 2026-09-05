@@ -1,3 +1,12 @@
+import type { Prisma } from "@prisma/client";
+import type { AppState } from "@/lib/types";
+
+export type DatabaseWriteOperation = {
+  run: (client: Prisma.TransactionClient) => Promise<unknown>;
+};
+export type PersistMutation = (state: AppState, operations: DatabaseWriteOperation[]) => Promise<void>;
+export type StateMutationRunner = <T>(action: (state: AppState, persist: PersistMutation) => Promise<T>) => Promise<T>;
+
 type CommitStateChangeInput = {
   usesDatabase: boolean;
   canWriteDatabase: boolean;
