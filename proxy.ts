@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { getSessionCookieName, verifySessionToken } from "@/lib/session";
+import { getSessionCookieName } from "@/lib/session";
+import { getSessionUserFromToken } from "@/lib/store";
+import { operationalErrorResponse } from "@/lib/operational-errors";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,7 +13,7 @@ export async function proxy(request: NextRequest) {
   const isAuthApi = pathname.startsWith("/api/auth");
   const isPublicApi = isAuthApi || pathname === "/api/version" || pathname === "/api/health";
   const isNextAsset = pathname.startsWith("/_next");
-  const isFile = /\.[^/]+$/.test(pathname);
+  const isFile = pathname.startsWith("/brand/") || pathname === "/icon.svg" || pathname === "/favicon.ico";
 
   if (!isApiRoute && !isNextAsset && !isFile && !["GET", "HEAD"].includes(request.method)) {
     return NextResponse.redirect(new URL(pathname || "/", request.url), 303);
@@ -22,9 +24,19 @@ export async function proxy(request: NextRequest) {
   }
 
   const session = request.cookies.get(getSessionCookieName())?.value;
-  const userId = await verifySessionToken(session);
-  if (userId) {
-    return NextResponse.next();
+  try {
+    if (await getSessionUserFromToken(session)) {
+      return NextResponse.next();
+    }
+  } catch (error) {
+    return operationalErrorResponse(error, {
+      scope: "proxy/session",
+      fallbackMessage: "El acceso no está disponible temporalmente."
+    });
+  }
+
+  if (isApiRoute) {
+    return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
   }
 
   const loginUrl = new URL("/login", request.url);

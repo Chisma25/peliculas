@@ -1,20 +1,9 @@
-import { createHmac } from "node:crypto";
-
 import { expect, test } from "@playwright/test";
 
 const username = process.env.E2E_USERNAME;
 const password = process.env.E2E_PASSWORD;
-const sessionUserId = process.env.E2E_SESSION_USER_ID;
 const ratingMovieId = process.env.E2E_RATING_MOVIE_ID;
 const ratingMovieSlug = process.env.E2E_RATING_MOVIE_SLUG;
-
-function createDevelopmentSessionToken(userId: string) {
-  const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
-  const payload = `${encodeURIComponent(userId)}.${expiresAt}`;
-  const secret = process.env.SESSION_SECRET?.trim() || "cine-semanal-dev-session-secret";
-  const signature = createHmac("sha256", secret).update(payload).digest("hex");
-  return `${payload}.${signature}`;
-}
 
 test("login stays focused and hides authenticated navigation", async ({ page }) => {
   await page.context().clearCookies();
@@ -53,29 +42,12 @@ test("exposes a public, non-cached deployment identity", async ({ request }) => 
 
 test.describe("authenticated Preview smoke tests", () => {
   test.skip(
-    !sessionUserId && (!username || !password),
-    "Set E2E_SESSION_USER_ID or E2E_USERNAME and E2E_PASSWORD to run authenticated flows."
+    !username || !password,
+    "Set E2E_USERNAME and E2E_PASSWORD to run authenticated flows."
   );
 
-  test.beforeEach(async ({ page, baseURL }) => {
-    if (username && password) {
-      await page.goto("/");
-      return;
-    }
-
-    if (sessionUserId) {
-      await page.context().addCookies([
-        {
-          name: "cine.session",
-          value: createDevelopmentSessionToken(sessionUserId),
-          url: new URL("/", baseURL ?? "http://127.0.0.1:3000").origin
-        }
-      ]);
-      await page.goto("/");
-      return;
-    }
-
-    throw new Error("No hay un método de autenticación E2E configurado.");
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
   });
 
   test("loads protected pages and keeps the group HTML payload lean", async ({ page }) => {
@@ -87,6 +59,7 @@ test.describe("authenticated Preview smoke tests", () => {
     const html = (await response?.text()) ?? "";
 
     expect(html).not.toContain("data:image/");
+    expect(html).not.toContain("passwordHash");
     expect(Buffer.byteLength(html, "utf8")).toBeLessThan(250_000);
     await expect(page.getByRole("heading", { name: "Cine club" })).toBeVisible();
   });

@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
   let sessionToken: string;
   try {
-    sessionToken = await createSessionToken(user.id);
+    sessionToken = await createSessionToken(user.id, user.passwordHash);
   } catch {
     return NextResponse.json(
       {

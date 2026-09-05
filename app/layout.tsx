@@ -10,6 +10,7 @@ import { DataUnavailableError } from "@/lib/data-availability";
 import { getDeploymentVersion } from "@/lib/deployment-version";
 import { getSessionUser } from "@/lib/store";
 import type { User } from "@/lib/types";
+import { toPublicUser } from "@/lib/public-user";
 
 const interfaceFont = Geist({
   subsets: ["latin"],
@@ -42,7 +43,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <div className="ambient ambient-one" />
           <div className="ambient ambient-two" />
           <NavigationMemory />
-          <SiteHeader user={user} deploymentVersion={deploymentVersion} />
+          <SiteHeader user={user ? toPublicUser(user) : null} deploymentVersion={deploymentVersion} />
           <main className="page-shell">{children}</main>
         </div>
       </body>

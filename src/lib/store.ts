@@ -28,7 +28,6 @@ import {
   TMDB_METADATA_VERSION
 } from "@/lib/movie-provider";
 import {
-  hasNormalizedDatabaseState,
   mergeNormalizedState,
   toCompactSnapshotState,
   type NormalizedStateCollections
@@ -88,8 +87,6 @@ const APP_REGISTRATION_FALLBACK_DATE = "2026-03-14T17:09:52.000Z";
 
 const REMOVED_TEST_USER_IDS = new Set(["user_xisma25"]);
 const PREVIEW_TECHNICAL_MOVIE_TITLES = new Set(["F1 Review 1987", "F1 Review 2006"]);
-const DEFAULT_ADMIN_IDS = new Set(["user_isma"]);
-const DEFAULT_ADMIN_IDENTITIES = new Set(["isma"]);
 
 type HistoryFilters = {
   genre?: string;
@@ -287,11 +284,7 @@ function ensureUserCredentials(user: User) {
     avatarSeed: user.avatarSeed || slugify(user.name || username),
     // Legacy accounts without password hash stay blocked until an admin or emergency reset assigns one.
     passwordHash,
-    isAdmin:
-      Boolean(user.isAdmin) ||
-      DEFAULT_ADMIN_IDS.has(user.id) ||
-      DEFAULT_ADMIN_IDENTITIES.has(normalizeUsername(user.name)) ||
-      DEFAULT_ADMIN_IDENTITIES.has(normalizeUsername(username))
+    isAdmin: user.isAdmin === true
   };
 }
 
@@ -459,12 +452,13 @@ function getStateIndexes(state: AppState): StateIndexes {
   return indexes;
 }
 
-async function loadSnapshotUsersCached() {
-  return loadUsersForRead();
+async function loadUsersForAuthentication() {
+  return shouldUseDatabase()
+    ? (await loadUsersFromDatabaseUncached({ includeAvatarUrls: true })) ?? []
+    : (loadLocalStateFromDisk() ?? await loadAppStateUncached()).users;
 }
 
 const loadSnapshotUsersForRequest = cache(async () => loadUsersForRead());
-const loadSessionUsersForRequest = cache(async () => loadUsersForRead({ includeAvatarUrls: true }));
 
 const USER_RECORD_SELECT = {
   id: true,
@@ -1420,10 +1414,10 @@ async function loadSnapshotStateUncached() {
     }
 
     const parsed = isAppState(snapshot.data) ? ensureStateIntegrity(snapshot.data) : null;
-    markDatabaseReadHealthy();
     if (!parsed) {
-      return null;
+      throw new Error("El snapshot guardado tiene un formato inválido.");
     }
+    markDatabaseReadHealthy();
 
     return parsed;
   } catch (error) {
@@ -1440,14 +1434,10 @@ async function loadDatabaseStateUncached() {
   try {
     await ensurePreviewDataHygiene();
     const snapshotState = await loadSnapshotStateUncached();
-    if (!snapshotState && shouldFailClosedOnDatabaseError()) {
-      failClosedAfterDatabaseReadError();
-    }
-    const baseState = snapshotState ?? loadFallbackState();
+    // A missing snapshot is not a failed query. Only use the configured group
+    // context; all collections come from normalized tables, including empties.
+    const baseState = snapshotState ?? { ...buildInitialState(), activity: [] };
     const normalizedCollections = await loadNormalizedStateCollections(baseState.group.id);
-    if (!snapshotState && !hasNormalizedDatabaseState(normalizedCollections)) {
-      return null;
-    }
     markDatabaseReadHealthy();
 
     return ensureStateIntegrity(mergeNormalizedState(baseState, normalizedCollections));
@@ -2614,16 +2604,25 @@ export function getSessionCookieName() {
   return getSessionCookieNameFromSession();
 }
 
-const getSessionUserForRequest = cache(async () => {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(getSessionCookieNameFromSession())?.value;
+export async function getSessionUserFromToken(token?: string | null) {
   const userId = await verifySessionToken(token);
   if (!userId) {
     return null;
   }
 
-  const users = await loadSessionUsersForRequest();
-  return users.find((user) => user.id === userId) ?? null;
+  // Proxy and route handlers can run in separate processes. Never authorize
+  // using a process cache that can outlive a password change in another process.
+  const users = await loadUsersForAuthentication();
+  const user = users.find((user) => user.id === userId);
+  if (!user || !(await verifySessionToken(token, user.passwordHash))) {
+    return null;
+  }
+  return user;
+}
+
+const getSessionUserForRequest = cache(async () => {
+  const cookieStore = await cookies();
+  return getSessionUserFromToken(cookieStore.get(getSessionCookieNameFromSession())?.value);
 });
 
 export async function getSessionUser() {
@@ -3013,7 +3012,7 @@ export async function getViewedPageDataHydrated(input: {
 }
 
 export async function authenticateUser(username: string, password: string) {
-  const users = await loadSnapshotUsersCached();
+  const users = await loadUsersForAuthentication();
   const normalizedIdentifier = normalizeUsername(username);
   const user =
     users.find(

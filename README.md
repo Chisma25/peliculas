@@ -4,11 +4,12 @@ App web privada para reemplazar un Excel compartido de peliculas vistas, notas i
 
 ## Lo que incluye la app ahora mismo
 
-- Dashboard con tanda semanal de 5 peliculas y seleccion destacada.
+- Dashboard con tanda semanal de 3 peliculas y seleccion destacada; hasta 5 sugerencias en Pendientes.
 - Vista de `Vistas` con peliculas ya vistas y notas por persona.
 - Ficha detallada de pelicula con notas del grupo.
 - Lista de `Pendientes` para guardar candidatas fuera de la tanda semanal.
 - Busqueda libre en TMDb con caratulas y metadatos.
+- Descubrimiento bajo demanda en Explorar, con regeneración de propuestas.
 - Login por usuario y contrasena.
 - Perfil propio editable y perfiles del grupo en solo lectura.
 - Reset de emergencia por codigo de administracion en `/reset-credenciales`.
@@ -26,7 +27,7 @@ App web privada para reemplazar un Excel compartido de peliculas vistas, notas i
 
 ## Desarrollo local
 
-1. Instala Node.js 20 o superior.
+1. Instala Node.js 24.x.
 2. Copia `.env.example` a `.env.local`.
 3. Rellena `TMDB_API_KEY`.
 4. Instala dependencias con `npm ci`.
@@ -47,6 +48,7 @@ se publica después de que la persistencia durable haya terminado correctamente.
 npm test
 npm run lint
 npm run build
+npm run test:security
 ```
 
 Los E2E se pueden ejecutar contra una Preview ya desplegada sin guardar credenciales en el repositorio:
@@ -62,6 +64,17 @@ npm run test:e2e
 La suite comprueba login público, sesión autenticada, peso del HTML de Grupo, ausencia de avatares base64,
 deduplicación de TMDb y navegación móvil. Si no se define `E2E_BASE_URL`, Playwright intenta arrancar la app
 localmente en `127.0.0.1:3000`.
+
+`test:security` requiere el build previo y arranca su propia instancia local con datos y credenciales
+ficticias en un directorio temporal. Comprueba permisos, ausencia de hashes en HTML/RSC y revocación
+de sesiones en páginas y API tras cambios de contraseña, gestión administrativa y reset de emergencia.
+Nunca se conecta a una base remota. Los E2E autenticados utilizan el login real con
+`E2E_USERNAME` y `E2E_PASSWORD`; ya no se admiten cookies fabricadas solo con un ID de usuario.
+
+El override de `deepmerge-ts` a 8.0.0 está limitado a `@prisma/config` para cubrir
+GHSA-ggr8-5vv4-36mx mientras Prisma 6 mantenga su dependencia anterior. La aplicación utiliza
+`schema.prisma` sin configuración TypeScript personalizada. Verificar `prisma generate`, build
+y pruebas al actualizar este override o Prisma.
 
 ## Diagnóstico y copias de seguridad
 
@@ -124,9 +137,9 @@ servidos realmente. Se puede contrastar un dominio con un commit concreto median
 npm run deploy:verify -- --url=https://cine-semanal.vercel.app --expected-commit=SHA --expected-ref=main --expected-environment=production
 ```
 
-El workflow `Deploy and verify production` se ejecuta tras cada push a `main`: construye ese commit con la
-configuración de Producción, publica el artefacto precompilado y comprueba que el dominio sirve exactamente
-el SHA fusionado. Requiere los secretos `VERCEL_TOKEN`, `VERCEL_ORG_ID` y `VERCEL_PROJECT_ID` en GitHub.
+Vercel construye y despliega automáticamente los cambios de `main` mediante su integración con GitHub.
+El workflow `Verify production deployment` espera ese despliegue y comprueba que el dominio de Producción
+sirve exactamente el SHA fusionado, la rama `main` y el entorno `production`.
 
 El workflow `Daily production health` se ejecuta cada mañana y también puede lanzarse manualmente. Verifica
 el SHA desplegado y consulta `/api/health`, que comprueba la conexión con Neon, los recuentos principales,
@@ -138,6 +151,18 @@ La ruta solo acepta el secreto `HEALTHCHECK_SECRET`, compartido con
 
 - Las cuentas del grupo ya no dependen de credenciales semilla dentro del código.
 - Si una cuenta pierde acceso, usa el reset de emergencia o la gestión de acceso desde una cuenta administradora.
+- En una instalación local nueva, configura `ADMIN_RESET_CODE` y asigna una contraseña a la cuenta inicial
+  desde `/reset-credenciales`. El reset recupera credenciales, pero no concede permisos administrativos.
+- El rol de administrador depende exclusivamente de `UserRecord.isAdmin` (o `isAdmin` en el estado local).
+  La primera asignación debe realizarse explícitamente por quien administra los datos. Cambiar el nombre,
+  el usuario o coincidir con una identidad histórica nunca concede permisos.
+- Solo se envían campos públicos de perfil a los componentes cliente; los hashes permanecen en el servidor.
+- Las sesiones v2 están vinculadas a las credenciales actuales mediante HMAC, sin incluir el hash de
+  contraseña en la cookie. Cambiar o restablecer la contraseña revoca las sesiones anteriores; un cambio
+  desde el perfil renueva únicamente la sesión del navegador que lo solicita. El servidor comprueba las
+  credenciales actuales en cada petición protegida, sin cachés de autenticación entre peticiones.
+- Al desplegar por primera vez sesiones v2, todos los miembros deben volver a iniciar sesión. No hay cambios
+  de esquema ni migración de datos para esta actualización.
 
 ## Preparar despliegue en Vercel + PostgreSQL
 
@@ -206,6 +231,9 @@ conexión directa. Las plantillas completas están en `.env.example`, `.env.prev
 - La persistencia remota conserva un snapshot JSON compacto para contexto agregado, pero usuarios, películas, notas, vistas, pendientes y recomendaciones proceden siempre de sus tablas normalizadas.
 - El snapshot no puede repoblar ni sobrescribir automáticamente una tabla normalizada, aunque esa tabla esté vacía.
 - Esto evita resucitar datos eliminados y permite arrancar desde las tablas normalizadas aunque el snapshot falte o esté desactualizado.
+- Si el snapshot no existe se utiliza el contexto inicial del grupo sin actividad histórica, y se leen
+  las tablas incluso si están vacías. Un fallo de consulta o un snapshot malformado bloquean la lectura en
+  Preview/Producción en lugar de sustituir datos por el estado inicial.
 - Si no existe `TMDB_API_KEY`, la app sigue funcionando, pero no podra enriquecer peliculas ni mostrar caratulas reales.
 - En produccion deberias configurar siempre `SESSION_SECRET` con una cadena larga, aleatoria y privada.
 - La nota externa muestra la fuente real disponible; Rotten Tomatoes se trata como preferencia, no como dependencia obligatoria.
@@ -214,6 +242,7 @@ conexión directa. Las plantillas completas están en `.env.example`, `.env.prev
 
 - `POST /api/auth/login`
 - `GET /api/movies/search?q=...`
+- `GET /api/movies/discover?generation=...&exclude=...`
 - `POST /api/weekly-recommendations/generate`
 - `POST /api/weekly-recommendations/select`
 - `POST /api/pending/add`

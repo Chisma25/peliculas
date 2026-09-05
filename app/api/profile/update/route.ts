@@ -5,6 +5,7 @@ import { getAvatarDeliveryUrl } from "@/lib/avatar-data";
 import { operationalErrorResponse } from "@/lib/operational-errors";
 import { ensureSameOrigin } from "@/lib/request-security";
 import { updateUserProfile } from "@/lib/store";
+import { createSessionToken, getSessionCookieName, getSessionCookieOptions } from "@/lib/session";
 
 export async function POST(request: Request) {
   const originError = ensureSameOrigin(request);
@@ -35,10 +36,14 @@ export async function POST(request: Request) {
       avatarDataUrl
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       message: "Perfil actualizado.",
       avatarUrl: user.avatarUrl ? getAvatarDeliveryUrl(user.id, user.avatarUrl) : null
     });
+    if (password.trim()) {
+      response.cookies.set(getSessionCookieName(), await createSessionToken(user.id, user.passwordHash), getSessionCookieOptions());
+    }
+    return response;
   } catch (error) {
     return operationalErrorResponse(error, {
       scope: "profile/update",

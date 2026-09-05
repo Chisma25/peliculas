@@ -177,7 +177,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 <article key={member.id} className="cinema-rating-row" style={{ "--rating-order": index } as CSSProperties}>
                   <span className="cinema-rating-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
                   <div className="cinema-rating-person">
-                    <UserAvatar user={member} size="sm" />
+                    <UserAvatar user={{ name: member.name, avatarUrl: member.avatarUrl }} size="sm" />
                     <div>
                       <strong>{member.name}</strong>
                       <span>@{member.username}</span>
