@@ -136,6 +136,7 @@ export function MovieDiscovery() {
             {status === "loading" ? "Buscando..." : hasMovies ? "Ver otras" : "Generar selección"}
             <span aria-hidden="true">↗</span>
           </button>
+          <a className="discovery-search-link" href="#explorar-peliculas">Buscar por título <span aria-hidden="true">↓</span></a>
         </div>
       </div>
 

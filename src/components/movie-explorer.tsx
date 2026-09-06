@@ -135,7 +135,7 @@ export function MovieExplorer() {
     if (cachedResults && retryCount === 0) {
       setResults(cachedResults);
       setSearchStatus("success");
-      setStatus(cachedResults.length > 0 ? `${cachedResults.length} resultados encontrados.` : "No se han encontrado coincidencias.");
+      setStatus(cachedResults.length > 0 ? `${cachedResults.length} ${cachedResults.length === 1 ? "resultado encontrado" : "resultados encontrados"}.` : "No se han encontrado coincidencias.");
       return;
     }
 
@@ -157,7 +157,7 @@ export function MovieExplorer() {
         searchCache.current.set(cacheKey, nextResults);
         setResults(nextResults);
         setSearchStatus("success");
-        setStatus(nextResults.length > 0 ? `${nextResults.length} resultados encontrados.` : "No se han encontrado coincidencias.");
+        setStatus(nextResults.length > 0 ? `${nextResults.length} ${nextResults.length === 1 ? "resultado encontrado" : "resultados encontrados"}.` : "No se han encontrado coincidencias.");
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
