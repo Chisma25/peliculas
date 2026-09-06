@@ -131,3 +131,29 @@ it("invalidates upcoming suggestions when their movie is added to pending", asyn
   expect(await store.getUpcomingDashboardReleasesHydrated()).toEqual([]);
   expect(provider.upcoming).toHaveBeenCalledTimes(2);
 });
+
+it.each([
+  { first: [0], second: [8], expected: 4, scenario: "zero and positive movie averages" },
+  { first: [0, 0], second: [8], expected: 4, scenario: "equal movie weights despite different rating counts" },
+  { first: [], second: [8], expected: 8, scenario: "unrated watched movies" },
+  { first: [0], second: [], expected: 0, scenario: "only zero ratings" },
+  { first: [], second: [], expected: 0, scenario: "no rated watched movies" }
+])("computes the dashboard group average with $scenario", async ({ first, second, expected }) => {
+  state.ratings = [first, second, [], [10]].flatMap((scores, index) =>
+    scores.map((score, userIndex) => ({
+      id: `rating_${index}_${userIndex}`, movieId: `film_${index}`, userId: state.users[userIndex].id, score
+    }))
+  );
+  writeFileSync(join(directory, "runtime-state.json"), JSON.stringify(state));
+
+  // film_2 is watched without ratings; film_3 has a rating but is still pending.
+  expect((await store.getDashboardOverviewHydrated()).stats).toMatchObject({
+    watchedCount: 3, pendingCount: 2, averageScore: expected
+  });
+});
+
+it("refreshes the dashboard average when a movie's last positive rating becomes zero", async () => {
+  expect((await store.getDashboardOverviewHydrated()).stats.averageScore).toBe(5.625);
+  await store.upsertRating({ movieId: "film_1", userId: state.users[0].id, score: 0 });
+  expect((await store.getDashboardOverviewHydrated()).stats.averageScore).toBe(1.5);
+});

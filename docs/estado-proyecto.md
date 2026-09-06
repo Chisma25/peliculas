@@ -43,10 +43,13 @@ La tercera etapa añadió regresiones de historial, paginación, notas por usuar
 | Experiencia de uso | Completar una comprobación en móviles físicos, incluyendo teclado de iOS y Android | La revisión en navegador con tamaños móviles está hecha; la simulación de anchura y altura no sustituye al teclado real |
 | Integridad de datos | Evaluar relaciones foráneas e historial de migraciones; revisar datos existentes antes de añadir restricciones | Plan compatible con la base real, probado en Preview y con vuelta atrás |
 | Herramientas administrativas | Revisar consistencia de exports y coordinación de scripts con escrituras del grupo | Copias consistentes y operaciones administrativas con garantías explícitas; hoy exigen coordinación del operador |
-| Estadísticas | Revisar la exclusión de medias iguales a cero en el resumen global | Regla acordada y prueba que cubra notas cero y ausencia de notas por separado |
 | Escala y seguridad | Reevaluar bloqueo global y rate limiting por instancia si se amplía el uso | Cambios justificados por la carga y los requisitos, con pruebas adecuadas |
 
 La documentación se ha separado en guías de funcionalidad, arquitectura, desarrollo, operación y API. La instrucción antigua de sembrar datos tras cambiar el esquema queda retirada. Esto no implica haber implementado las mejoras de la tabla anterior.
+
+## Media de películas vistas
+
+La «Nota del grupo» del inicio incluye las medias iguales a cero y excluye las películas vistas sin notas. Mantiene el mismo peso por película y el valor 0 cuando no hay ninguna vista valorada. Se añadieron seis regresiones: cero combinado con notas positivas, distinto número de valoraciones por película, vistas sin notas, solo ceros, ninguna vista valorada y edición de una nota positiva a cero con actualización del resumen. Las películas no vistas se mantienen fuera del cálculo. Tres de esos casos fallaban con el filtro anterior.
 
 ## Revisión de uso en navegador
 
