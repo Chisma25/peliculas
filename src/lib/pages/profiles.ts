@@ -1,3 +1,4 @@
+import { StatePersistenceUnavailableError } from "@/lib/state-persistence";
 import { getAvatarDeliveryUrl } from "@/lib/avatar-data";
 import { hydrateMovie } from "@/lib/movies/metadata";
 
@@ -91,6 +92,7 @@ export function createProfilePageReader({
       markDatabaseReadHealthy();
       return cloneState(profile);
     } catch (error) {
+      if (error instanceof StatePersistenceUnavailableError) throw error;
       markDatabaseReadFailure("profile page read", error);
       return null;
     }
@@ -176,6 +178,7 @@ export function createProfilePageReader({
       markDatabaseReadHealthy();
       return cloneState(groupData);
     } catch (error) {
+      if (error instanceof StatePersistenceUnavailableError) throw error;
       markDatabaseReadFailure("group page read", error);
       return null;
     }

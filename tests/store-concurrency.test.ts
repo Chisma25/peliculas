@@ -7,9 +7,10 @@ import type { AppState, Movie } from "@/lib/types";
 import { hashPassword, verifyPassword } from "@/lib/user-input";
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+const metadataProvider = vi.hoisted(() => ({ resolve: vi.fn() }));
 vi.mock("@/lib/movie-provider", () => ({
   TMDB_METADATA_VERSION: 999,
-  resolveMovieMetadata: async (movie: Movie) => movie
+  resolveMovieMetadata: metadataProvider.resolve
 }));
 
 const databaseUrl = process.env.CONCURRENCY_DATABASE_URL;
@@ -47,6 +48,7 @@ describe.each(databaseUrl ? ["local", "database"] as const : ["local"] as const)
 
   beforeEach(async () => {
     vi.resetModules();
+    metadataProvider.resolve.mockReset().mockImplementation(async (movie: Movie) => movie);
     directory = mkdtempSync(join(tmpdir(), "cine-concurrency-"));
     vi.stubEnv("APP_DATA_DIR", directory);
     vi.stubEnv("APP_ENV", "test");
@@ -178,5 +180,78 @@ describe.each(databaseUrl ? ["local", "database"] as const : ["local"] as const)
     }
     await otherStore.updateUserProfile("alpha", { name: "Saved afterwards", username: "alpha" });
     expect((await persisted()).users.find(user => user.id === "alpha")?.name).toBe("Saved afterwards");
+  });
+
+  it.runIf(backend === "database")("shares one page refresh across instances without losing concurrent ratings or activity", async () => {
+    await store.addPendingMovie(state.movies[0]);
+    const [first, second] = await Promise.all([
+      store.getPendingPageDataHydrated({}),
+      otherStore.getPendingPageDataHydrated({}),
+      otherStore.upsertRating({ movieId: state.movies[1].id, userId: "alpha", score: 7.25 })
+    ]);
+    expect(first.batch?.id).toBe(second.batch?.id);
+    expect(await prisma!.weeklyBatchRecord.count()).toBe(1);
+    expect(first.pagedPending.map(movie => movie.id)).toEqual([state.movies[0].id]);
+    const saved = await persisted();
+    expect(saved.ratings).toHaveLength(1);
+    expect(saved.activity.map(entry => entry.type).sort()).toEqual(["queued", "rated"]);
+  });
+
+  it.runIf(backend === "database")("rolls back a page-generated batch when the snapshot fails and allows a later retry", async () => {
+    await store.addPendingMovie(state.movies[0]);
+    await prisma!.$executeRawUnsafe('ALTER TABLE "AppSnapshot" ADD CONSTRAINT fail_test_snapshot CHECK (id <> \'main\') NOT VALID');
+    try {
+      await expect(store.getPendingPageDataHydrated({})).rejects.toMatchObject({ name: "StatePersistenceUnavailableError" });
+      expect(await prisma!.weeklyBatchRecord.count()).toBe(0);
+      expect(await prisma!.weeklyBatchItemRecord.count()).toBe(0);
+      expect((await persisted()).activity).toHaveLength(1);
+    } finally {
+      await prisma!.$executeRawUnsafe('ALTER TABLE "AppSnapshot" DROP CONSTRAINT fail_test_snapshot');
+    }
+    expect((await otherStore.getPendingPageDataHydrated({})).batch?.items).toHaveLength(3);
+    expect(await prisma!.weeklyBatchRecord.count()).toBe(1);
+  });
+
+  it.runIf(backend === "database")("keeps newer metadata and user writes when a slow page enrichment finishes last", async () => {
+    const movie = { ...state.movies[0], director: "Pendiente" };
+    await prisma!.movieRecord.update({ where: { id: movie.id }, data: { data: JSON.parse(JSON.stringify(movie)) } });
+    let finish!: (movie: Movie) => void;
+    let started!: () => void;
+    const preparing = new Promise<void>(resolve => { started = resolve; });
+    metadataProvider.resolve
+      .mockImplementationOnce(() => { started(); return new Promise<Movie>(resolve => { finish = resolve; }); })
+      .mockImplementation(async (movie: Movie) => ({ ...movie, director: "Newer metadata" }));
+    const slow = store.getMovieDetailDataHydrated(movie.slug);
+    await preparing;
+    try {
+      // Both must finish while TMDb is still waiting: no network inside the lock.
+      const fast = await otherStore.getMovieDetailDataHydrated(movie.slug);
+      expect(fast?.movie.director).toBe("Newer metadata");
+      await otherStore.upsertRating({ movieId: movie.id, userId: "alpha", score: 8.25 });
+      await otherStore.markMovieAsWatched(movie.id);
+    } finally {
+      finish({ ...movie, director: "Older slow response" });
+    }
+    expect((await slow)?.movie.director).toBe("Newer metadata");
+    const row = await prisma!.movieRecord.findUniqueOrThrow({ where: { id: movie.id } });
+    expect(row.data).toMatchObject({ director: "Newer metadata", slug: movie.slug });
+    const saved = await persisted();
+    expect(saved.ratings).toHaveLength(1);
+    expect(saved.watchEntries).toHaveLength(1);
+    expect(saved.activity).toHaveLength(2);
+  });
+
+  it.runIf(backend === "database")("rolls back enriched metadata when snapshot persistence fails, then releases the lock", async () => {
+    const movie = { ...state.movies[0], director: "Pendiente" };
+    await prisma!.movieRecord.update({ where: { id: movie.id }, data: { data: JSON.parse(JSON.stringify(movie)) } });
+    metadataProvider.resolve.mockImplementation(async (movie: Movie) => ({ ...movie, director: "Enriched" }));
+    await prisma!.$executeRawUnsafe('ALTER TABLE "AppSnapshot" ADD CONSTRAINT fail_test_snapshot CHECK (id <> \'main\') NOT VALID');
+    try {
+      await expect(store.getMovieDetailDataHydrated(movie.slug)).rejects.toMatchObject({ name: "StatePersistenceUnavailableError" });
+      expect((await prisma!.movieRecord.findUniqueOrThrow({ where: { id: movie.id } })).data).toEqual(movie);
+    } finally {
+      await prisma!.$executeRawUnsafe('ALTER TABLE "AppSnapshot" DROP CONSTRAINT fail_test_snapshot');
+    }
+    expect((await otherStore.getMovieDetailDataHydrated(movie.slug))?.movie.director).toBe("Enriched");
   });
 });

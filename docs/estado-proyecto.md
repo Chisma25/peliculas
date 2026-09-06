@@ -2,9 +2,9 @@
 
 [Inicio](../README.md) · [Arquitectura](arquitectura.md) · [Operación](operacion.md)
 
-Revisión documental: **5 de septiembre de 2026**. Base funcional inicial de esta documentación: `0542d31` (PR #21); la organización del código se actualiza con cada extracción descrita abajo. Este documento reúne el contexto útil del análisis inicial que se conservaba fuera del repositorio; no copia datos personales, secretos ni exports. Los apartados actuales sustituyen el diagnóstico antiguo como referencia de trabajo.
+Revisión documental: **6 de septiembre de 2026**. Base funcional inicial de esta documentación: `0542d31` (PR #21); la organización del código se actualiza con cada extracción descrita abajo. Este documento reúne el contexto útil del análisis inicial que se conservaba fuera del repositorio; no copia datos personales, secretos ni exports. Los apartados actuales sustituyen el diagnóstico antiguo como referencia de trabajo.
 
-Infraestructura consultada en esa fecha: Neon PostgreSQL **17**, región `aws-eu-central-1`. La suite de concurrencia utiliza PostgreSQL **16** desechable en CI; esta diferencia de versión se debe tener en cuenta al introducir SQL específico de una versión.
+Infraestructura consultada el 5 de septiembre de 2026: Neon PostgreSQL **17**, región `aws-eu-central-1`. La suite de concurrencia utiliza PostgreSQL **16** desechable en CI; esta diferencia de versión se debe tener en cuenta al introducir SQL específico de una versión.
 
 ## Entregas realizadas
 
@@ -14,6 +14,7 @@ Infraestructura consultada en esa fecha: Neon PostgreSQL **17**, región `aws-eu
 | [PR #21](https://github.com/Chisma25/peliculas/pull/21), `0542d31` | Lectura y escritura de mutaciones bajo bloqueo compartido; cola local; rechazo de selección ya vista | 143 pruebas generales; ejecución de concurrencia con 19 casos aprobados y 1 omitido entre variantes local/PostgreSQL; Preview 39 aprobadas y 5 omitidas; identidad y salud de Producción verificadas |
 | [PR #23](https://github.com/Chisma25/peliculas/pull/23), `21be03d` | Separación de registros, autenticación, edición y perfiles de usuarios | 148 pruebas generales; concurrencia con 19 casos aprobados y 1 omitido; Preview 39 aprobadas y 5 omitidas; identidad y salud de Producción verificadas |
 | [PR #24](https://github.com/Chisma25/peliculas/pull/24), `d2d1171` | Separación de películas, pendientes, vistas y notas | 152 pruebas generales; concurrencia con 19 casos aprobados y 1 omitido; Preview 39 aprobadas y 5 omitidas; identidad y salud de Producción verificadas |
+| [PR #25](https://github.com/Chisma25/peliculas/pull/25), `6dbafb6` | Separación de recomendaciones y preparación de páginas | 158 pruebas generales; concurrencia con 19 casos aprobados y 1 omitido; Preview 39 aprobadas y 5 omitidas; identidad y salud de Producción verificadas |
 
 En PR #21 las nueve nuevas regresiones locales fallaban sobre el código anterior. La variante PostgreSQL añadió una avería real al guardar el snapshot y verificó que la modificación de la cuenta se deshacía completa. El caso específico de PostgreSQL se omite en la variante local. Los E2E incluyen casos condicionales; sus omisiones no representan cobertura completa de todas las acciones.
 
@@ -33,11 +34,10 @@ Los fallos de permisos por nombre, exposición de hashes, sesiones no revocadas 
 
 Las tres etapas de separación están implementadas: usuarios; películas y notas; recomendaciones y datos de páginas. `src/lib/recommendations/` coordina tandas y sugerencias, y `src/lib/pages/` prepara inicio, pendientes, vistas, perfiles y fichas. Los índices compartidos están en `state-readers.ts`. Se mantienen los exports públicos y el coordinador común; el store conserva composición, carga de estado, disponibilidad, persistencia y compatibilidad histórica.
 
-La tercera etapa añade regresiones del historial, paginación, notas por usuario, invalidación entre pantallas y renovación de recomendaciones. Durante la extracción se identificaron escrituras preexistentes en lecturas de páginas que aún quedan fuera del coordinador y se documentaron sus límites en [Arquitectura](arquitectura.md#escrituras-y-concurrencia).
+La tercera etapa añadió regresiones de historial, paginación, notas por usuario e invalidación entre pantallas. La entrega posterior coordina las dos escrituras durante lecturas que se detectaron entonces: renovar la tanda desde Pendientes y guardar metadatos enriquecidos. Ambas usan el bloqueo compartido y el guardado conjunto del snapshot. Incluye pruebas de respuestas tardías, lecturas concurrentes, rollback y reintento. Los límites se explican en [Arquitectura](arquitectura.md#escrituras-y-concurrencia).
 
 | Área | Siguiente trabajo | Criterio de cierre |
 | --- | --- | --- |
-| Escrituras durante lecturas | Coordinar la renovación de tandas desde Pendientes y la sincronización de metadatos con las mutaciones del grupo | Pruebas de carreras y fallos que cubran estas rutas de lectura, además de las diez entradas actuales |
 | Organización del código | Evaluar separar la infraestructura de carga, disponibilidad y compatibilidad histórica si dificulta los siguientes cambios | Responsabilidades claras y mejora justificada; las tres extracciones funcionales están completadas |
 | Experiencia de uso | Revisión visual manual, especialmente móvil, del recorrido buscar → pendiente → elegir → vista → valorar | Hallazgos concretos corregidos y comprobados en navegador; los E2E actuales no sustituyen esta revisión |
 | Integridad de datos | Evaluar relaciones foráneas e historial de migraciones; revisar datos existentes antes de añadir restricciones | Plan compatible con la base real, probado en Preview y con vuelta atrás |
