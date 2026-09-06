@@ -38,7 +38,8 @@ Las páginas del grupo requieren sesión. Los perfiles ajenos son de consulta; l
 - Quitar de Pendientes no elimina la película del catálogo, sus notas ni su historial.
 - Cada persona tiene como máximo una valoración por película. Guardar de nuevo actualiza esa nota y comentario.
 - Las notas admiten **0–10**, incluidos ambos extremos, en pasos de **0,25**. El formulario acepta coma o punto decimal y ofrece botones para subir o bajar un paso; rechaza entradas vacías, texto incompleto y notas fuera de rango. Un comentario puede tener hasta **1.000 caracteres**; el formulario muestra y aplica ese límite, y dejarlo vacío elimina su contenido.
-- La media de una película se calcula con sus notas registradas. Actualmente el resumen global promedia las medias de películas vistas cuyo valor es mayor que cero: una media cero queda excluida de ese resumen. Es una limitación a revisar, no una restricción para puntuar con cero.
+- La media de una película se calcula con sus notas registradas. La «Nota del grupo» del inicio promedia las medias de las películas vistas que tengan al menos una nota, **incluido el cero**. Cada película pesa lo mismo, aunque tenga distinto número de valoraciones. Las vistas sin notas y las películas aún no vistas quedan fuera del cálculo; si no hay ninguna vista valorada, el resumen muestra 0.
+- La media de la pantalla Grupo se calcula sobre todas las valoraciones de sus miembros, ponderando sus medias personales por el número de notas. Puede diferir de la del inicio, que promedia por película vista.
 
 Fuentes: [store.ts](../src/lib/store.ts), [user-input.ts](../src/lib/user-input.ts), [types.ts](../src/lib/types.ts) y [schema.prisma](../prisma/schema.prisma).
 

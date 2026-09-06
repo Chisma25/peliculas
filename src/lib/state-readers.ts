@@ -88,7 +88,9 @@ export function createStateReader() {
     }
 
     const groupAverageScore = average(
-      state.watchEntries.map((entry) => movieAverageById.get(entry.movieId) ?? 0).filter((value) => value > 0)
+      state.watchEntries
+        .map((entry) => movieAverageById.get(entry.movieId))
+        .filter((value): value is number => value !== undefined)
     );
 
     const indexes = {
