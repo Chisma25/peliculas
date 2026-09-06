@@ -1,3 +1,4 @@
+import { StatePersistenceUnavailableError } from "@/lib/state-persistence";
 import { hydrateMovie } from "@/lib/movies/metadata";
 import { mapWatchRecordsToStateEntries } from "@/lib/movies/records";
 import { APP_REGISTRATION_FALLBACK_DATE, HistoryFilters, HistoryItem, ViewedListBase } from "@/lib/pages/types";
@@ -370,6 +371,7 @@ export function createHistoryPageReader({
         pagedHistory
       };
     } catch (error) {
+      if (error instanceof StatePersistenceUnavailableError) throw error;
       markDatabaseReadFailure("viewed page read", error);
       return null;
     }

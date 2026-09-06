@@ -17,6 +17,7 @@
 | [users/profiles.ts](../src/lib/users/profiles.ts) | Resúmenes, clasificaciones y distribución de notas de perfiles; cachés por estado e invalidación |
 | [movies/records.ts](../src/lib/movies/records.ts) | Conversión de registros y escrituras de catálogo, pendientes y vistas |
 | [movies/service.ts](../src/lib/movies/service.ts) | Añadir y quitar pendientes, marcar vistas y estado de colección en búsquedas |
+| [movies/metadata-writer.ts](../src/lib/movies/metadata-writer.ts) | Preparación fuera del bloqueo, comprobación de cambios concurrentes y guardado transaccional de metadatos desde páginas |
 | [movies/metadata.ts](../src/lib/movies/metadata.ts) | Detección y enriquecimiento de metadatos conservando ID y slug locales |
 | [ratings/records.ts](../src/lib/ratings/records.ts) y [ratings/service.ts](../src/lib/ratings/service.ts) | Conversión y escritura de notas; validación, comentarios y actualización por usuario/película |
 | [record-dates.ts](../src/lib/record-dates.ts) | Conversión de fechas opcionales de vistas y notas a registros de base de datos |
@@ -64,7 +65,7 @@ El store crea los servicios de usuarios y les entrega únicamente las dependenci
 
 ### Separación de películas y notas
 
-El store compone `movies/service.ts` y `ratings/service.ts` y conserva sus exports públicos. Ambos reciben el mismo `mutateState` que usuarios y recomendaciones; ninguno importa el store. Los módulos de registros reciben el cliente transaccional del coordinador para guardar catálogo, colección y notas junto al snapshot. Las funciones de sincronización masiva se mantienen para escrituras históricas diferidas y, en el caso del catálogo, para guardar metadatos enriquecidos durante lecturas; no se usan en las mutaciones habituales de colección o notas.
+El store compone `movies/service.ts` y `ratings/service.ts` y conserva sus exports públicos. Ambos reciben el mismo `mutateState` que usuarios y recomendaciones; ninguno importa el store. Los módulos de registros reciben el cliente transaccional del coordinador para guardar catálogo, colección y notas junto al snapshot. Las funciones de sincronización masiva se mantienen para bootstrap local y compatibilidad histórica. Las escrituras de metadatos desde páginas usan operaciones por película dentro del coordinador.
 
 Al añadir una pendiente, el servicio prepara los metadatos antes de entrar en el coordinador y comprueba la colección con el estado recibido tras el bloqueo. Así respeta que otro usuario haya marcado la película como vista durante la espera de TMDb. Al marcar una vista, elimina la pendiente en la misma transacción. Las búsquedas resuelven la identidad local para informar si un resultado remoto ya está pendiente o visto.
 
@@ -72,9 +73,9 @@ Al añadir una pendiente, el servicio prepara los metadatos antes de entrar en e
 
 ### Recomendaciones y preparación de páginas
 
-`recommendations/service.ts` recibe el coordinador compartido para `getCurrentBatch`, `generateBatch` y `selectWeeklyMovie`. Mantiene la validación de tandas, la selección entre recomendaciones o pendientes y el descarte de selecciones ya vistas. El algoritmo de puntuación permanece en `recommendations.ts`. `recommendations/suggestions.ts` reúne consultas al proveedor, enriquecimiento y resultados de estrenos, cartelera y descubrimiento.
+`recommendations/service.ts` recibe el coordinador compartido para `getCurrentBatch`, `generateBatch` y `selectWeeklyMovie`. `loadStateWithCurrentBatch` comparte la renovación entre `getCurrentBatch` y la lectura PostgreSQL de Pendientes: lee el estado tras adquirir el bloqueo, valida la tanda, guarda sus cambios junto al snapshot y devuelve ese mismo estado para preparar la página. Mantiene la validación de tandas, la selección entre recomendaciones o pendientes y el descarte de selecciones ya vistas. El algoritmo de puntuación permanece en `recommendations.ts`. `recommendations/suggestions.ts` reúne consultas al proveedor, enriquecimiento y resultados de estrenos, cartelera y descubrimiento.
 
-Cada módulo de `pages/` prepara una familia de pantallas, conserva las rutas de lectura local y PostgreSQL y recibe del store cargadores de datos y controles de disponibilidad. No importa `store.ts`. La composición es unidireccional: store → servicios/lectores → reglas y registros. Las consultas de catálogo y usuarios, la reconstrucción del estado, el control de fallos y el guardado de metadatos durante lecturas permanecen en el store.
+Cada módulo de `pages/` prepara una familia de pantallas, conserva las rutas de lectura local y PostgreSQL y recibe del store cargadores de datos y controles de disponibilidad. No importa `store.ts`. La composición es unidireccional: store → servicios/lectores → reglas y registros. Las consultas de catálogo y usuarios, la reconstrucción del estado y el control de fallos permanecen en el store; este conecta el escritor de metadatos con el coordinador compartido.
 
 El store crea una instancia de cada lector y comparte sus índices. Tras una mutación invalida los índices, cálculos de perfil y cachés de páginas y sugerencias, conservando los momentos de invalidación anteriores. Los filtros, el orden de desempate, la paginación y las claves que separan las notas por usuario se mantienen. No se unifican los cálculos locales y SQL en esta extracción; por ejemplo, el desempate del destacado de Vistas sigue siendo distinto entre ambas rutas cuando las medias coinciden.
 
@@ -102,7 +103,7 @@ Sin `DATABASE_URL`, se usa `APP_DATA_DIR/runtime-state.json` o `data/runtime-sta
 
 ## Escrituras y concurrencia
 
-Las diez entradas que usan `mutateState` son `getCurrentBatch`, `updateUserProfile`, `updateUserCredentialsByAdmin`, `resetUserCredentials`, `upsertRating`, `generateBatch`, `selectWeeklyMovie`, `markMovieAsWatched`, `addPendingMovie` y `removePendingMovie`.
+Las diez operaciones públicas coordinadas son `getCurrentBatch`, `updateUserProfile`, `updateUserCredentialsByAdmin`, `resetUserCredentials`, `upsertRating`, `generateBatch`, `selectWeeklyMovie`, `markMovieAsWatched`, `addPendingMovie` y `removePendingMovie`. También pasan por `mutateState` la renovación desde la lectura PostgreSQL de Pendientes y el guardado de metadatos enriquecidos desde páginas.
 
 En PostgreSQL:
 
@@ -114,9 +115,11 @@ En PostgreSQL:
 
 El bloqueo es común a la base, no al proceso ni al snapshot. Prisma espera hasta 10 segundos para adquirir una transacción; esta tiene un límite de 30 segundos, incluida la espera por el bloqueo. Los fallos Prisma se presentan como indisponibilidad temporal. La consulta de metadatos de una película añadida se prepara antes de entrar en la transacción.
 
-Esta coordinación cubre las diez entradas indicadas. **Los scripts administrativos, la consola SQL y la reproducción de escrituras históricas no quedan protegidos automáticamente por ella.** No deben ejecutarse en paralelo con escrituras de usuarios. El bloqueo global es adecuado para el grupo actual; debe reevaluarse antes de ampliar mucho el uso.
+Esta coordinación cubre las operaciones y escrituras de páginas indicadas. **Los scripts administrativos, la consola SQL y la reproducción de escrituras históricas no quedan protegidos automáticamente por ella.** No deben ejecutarse en paralelo con escrituras de usuarios. El bloqueo global es adecuado para el grupo actual; debe reevaluarse antes de ampliar mucho el uso.
 
-Hay además dos escrituras preexistentes durante lecturas que esta extracción conserva: `getPendingPageDataFromDatabase` puede renovar y guardar una tanda directamente, y `hydrateMoviesForDatabaseRead` sincroniza metadatos enriquecidos del catálogo. Esas rutas no usan `mutateState`, ni el bloqueo compartido ni el guardado conjunto del snapshot. Su coordinación con mutaciones concurrentes sigue pendiente; las pruebas de las diez entradas no demuestran esa garantía para todas las lecturas de páginas.
+`hydrateMoviesForDatabaseRead` deduplica películas y prepara copias enriquecidas antes de bloquear. Dentro de la transacción compara cada película vigente con la copia que inició la consulta. Si ha cambiado, conserva la versión vigente; si ha desaparecido, no la recrea. Guarda solo los metadatos aceptados junto al snapshot y actualiza los objetos de la página después del commit. Si TMDb no aporta cambios, no abre una mutación. Los fallos de persistencia se propagan, sin devolver una lectura alternativa que aparente haber guardado los cambios.
+
+La renovación de tanda y el enriquecimiento posterior son transacciones separadas: un fallo de metadatos no deshace una tanda que ya se confirmó. Tampoco se bloquea toda la renderización; otros usuarios pueden seguir modificando el grupo después de obtener los datos de una página. Estas garantías protegen las escrituras, no convierten la pantalla en una vista inmóvil de la base.
 
 En modo archivo, una cola dentro del proceso ordena lectura, modificación y reemplazo atómico del archivo. Solo se admite una instancia local. No ofrece coordinación entre procesos o equipos.
 

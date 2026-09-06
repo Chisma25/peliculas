@@ -1,8 +1,8 @@
 import { RecommendationMetric, WeeklyRecommendationBatch, WeeklyRecommendationItem } from "@/lib/types";
 import type { Prisma } from "@prisma/client";
 
-// Normal mutations supply the shared transaction client. The standalone and
-// bulk paths remain available for existing page refreshes and deferred writes.
+// Mutations and page refreshes supply the shared transaction client. Standalone and
+// bulk paths remain available for legacy deferred writes.
 export function mapWeeklyBatchRecordsToStateEntries(
   records: Array<{
     id: string;

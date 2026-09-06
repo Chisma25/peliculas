@@ -14,8 +14,7 @@ type Dependencies = {
   addActivity: (state: AppState, entry: ActivityItem) => void;
 };
 
-// Explicit mutations share the store's coordinator. ensureDashboardBatch only
-// prepares state; its caller owns persistence, including the legacy page read.
+// Page refreshes and explicit mutations share the same coordinator and state.
 export function createRecommendationService({
   getStateIndexes,
   getMovieById,
@@ -90,7 +89,7 @@ export function createRecommendationService({
     };
   }
 
-  async function getCurrentBatch() {
+  async function loadStateWithCurrentBatch() {
     return mutateState(async (state, persistStateChange) => {
       const { batch, changed } = await ensureDashboardBatch(state);
       if (changed && batch) {
@@ -100,8 +99,12 @@ export function createRecommendationService({
           }
         ]);
       }
-      return batch;
+      return state;
     });
+  }
+
+  async function getCurrentBatch() {
+    return getCurrentBatchFromState(await loadStateWithCurrentBatch());
   }
 
   async function generateBatch() {
@@ -189,5 +192,5 @@ export function createRecommendationService({
     });
   }
 
-  return { ensureDashboardBatch, getCurrentBatch, generateBatch, selectWeeklyMovie };
+  return { loadStateWithCurrentBatch, getCurrentBatch, generateBatch, selectWeeklyMovie };
 }

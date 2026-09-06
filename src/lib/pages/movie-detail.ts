@@ -1,3 +1,4 @@
+import { StatePersistenceUnavailableError } from "@/lib/state-persistence";
 import { hydrateMovie } from "@/lib/movies/metadata";
 import { mapWatchRecordsToStateEntries } from "@/lib/movies/records";
 
@@ -87,6 +88,7 @@ export function createMovieDetailPageReader({
       markDatabaseReadHealthy();
       return detailData;
     } catch (error) {
+      if (error instanceof StatePersistenceUnavailableError) throw error;
       markDatabaseReadFailure("movie detail read", error);
       return null;
     }

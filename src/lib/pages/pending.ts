@@ -1,22 +1,17 @@
+import { StatePersistenceUnavailableError } from "@/lib/state-persistence";
 import { hydrateMovie } from "@/lib/movies/metadata";
 import { PendingListBase } from "@/lib/pages/types";
 import { generatePendingWeeklyOptions } from "@/lib/recommendations";
-import { insertWeeklyBatchToDatabase } from "@/lib/recommendations/records";
 import type { createRecommendationService } from "@/lib/recommendations/service";
 import { readTimedCache, TimedCache, writeTimedCacheWithTtl, PAGE_ROUTE_CACHE_TTL_MS } from "@/lib/state-cache";
 import type { createStateReader } from "@/lib/state-readers";
-import { AppState, Movie, User } from "@/lib/types";
+import { AppState, Movie } from "@/lib/types";
 
 type Dependencies = {
   listPendingFromState: ReturnType<typeof createStateReader>["listPendingFromState"];
   getCurrentBatchFromState: ReturnType<typeof createStateReader>["getCurrentBatchFromState"];
   shouldAttemptDatabaseRead: () => boolean;
-  getDatabaseReadGroup: () => AppState["group"];
-  loadUsersForRead: (options?: { includeAvatarUrls?: boolean }) => Promise<User[]>;
-  loadMovieCatalogFromDatabaseUncached: () => Promise<Movie[] | null>;
-  loadNormalizedCollections: (groupId: string) => Promise<Pick<AppState, "pendingMovieIds" | "watchEntries" | "ratings" | "weeklyBatches">>;
-  ensureStateIntegrity: (source: AppState) => AppState;
-  ensureDashboardBatch: ReturnType<typeof createRecommendationService>["ensureDashboardBatch"];
+  loadStateWithCurrentBatch: ReturnType<typeof createRecommendationService>["loadStateWithCurrentBatch"];
   getMovieById: ReturnType<typeof createStateReader>["getMovieById"];
   hydrateMoviesForDatabaseRead: (movies: Movie[]) => Promise<void>;
   markDatabaseReadHealthy: () => void;
@@ -29,12 +24,7 @@ export function createPendingPageReader({
   listPendingFromState,
   getCurrentBatchFromState,
   shouldAttemptDatabaseRead,
-  getDatabaseReadGroup,
-  loadUsersForRead,
-  loadMovieCatalogFromDatabaseUncached,
-  loadNormalizedCollections,
-  ensureStateIntegrity,
-  ensureDashboardBatch,
+  loadStateWithCurrentBatch,
   getMovieById,
   hydrateMoviesForDatabaseRead,
   markDatabaseReadHealthy,
@@ -105,34 +95,12 @@ export function createPendingPageReader({
     }
 
     try {
-      const group = getDatabaseReadGroup();
       const search = input.search?.trim() ?? "";
       const activeGenre = input.genre?.trim() ?? "";
       const currentPage = input.page && input.page > 0 ? input.page : 1;
       const itemsPerPage = input.pageSize && input.pageSize > 0 ? input.pageSize : 15;
-      const [users, movies, normalizedCollections] = await Promise.all([
-        loadUsersForRead(),
-        loadMovieCatalogFromDatabaseUncached(),
-        loadNormalizedCollections(group.id)
-      ]);
-      if (!movies) {
-        return null;
-      }
-      const state = ensureStateIntegrity({
-        users,
-        group,
-        movies,
-        watchEntries: normalizedCollections.watchEntries,
-        ratings: normalizedCollections.ratings,
-        pendingMovieIds: normalizedCollections.pendingMovieIds,
-        weeklyBatches: normalizedCollections.weeklyBatches,
-        activity: []
-      });
+      const state = await loadStateWithCurrentBatch();
       pendingListMemoryCache.clear();
-    const ensuredBatch = await ensureDashboardBatch(state);
-      if (ensuredBatch.changed && ensuredBatch.batch) {
-        await insertWeeklyBatchToDatabase(ensuredBatch.batch);
-      }
       const { batch, genres, totalPendingCount, filteredPendingIds, weeklyOptions } = getPendingListBaseFromState(
         state,
         search,
@@ -167,6 +135,7 @@ export function createPendingPageReader({
         weeklyOptions: weeklyOptionsWithMovies
       };
     } catch (error) {
+      if (error instanceof StatePersistenceUnavailableError) throw error;
       markDatabaseReadFailure("pending page read", error);
       return null;
     }

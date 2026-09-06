@@ -1,4 +1,4 @@
-import { hydrateMovie } from "@/lib/movies/metadata";
+import { createMovieMetadataWriter } from "@/lib/movies/metadata-writer";
 import {
   isMovie,
   mapMovieRecordsToStateMovies,
@@ -147,7 +147,9 @@ export const { upsertRating } = createRatingService({
   invalidateDerivedCaches
 });
 
-const { ensureDashboardBatch, getCurrentBatch, generateBatch, selectWeeklyMovie } = createRecommendationService({
+const { hydrateMoviesForDatabaseRead } = createMovieMetadataWriter({ mutateState, invalidateDerivedCaches });
+
+const { loadStateWithCurrentBatch, getCurrentBatch, generateBatch, selectWeeklyMovie } = createRecommendationService({
   getStateIndexes,
   getMovieById,
   getCurrentBatchFromState,
@@ -186,12 +188,7 @@ const { invalidatePendingPageCache, getPendingPageDataHydrated, listPendingHydra
   listPendingFromState,
   getCurrentBatchFromState,
   shouldAttemptDatabaseRead,
-  getDatabaseReadGroup,
-  loadUsersForRead,
-  loadMovieCatalogFromDatabaseUncached,
-  loadNormalizedCollections,
-  ensureStateIntegrity,
-  ensureDashboardBatch,
+  loadStateWithCurrentBatch,
   getMovieById,
   hydrateMoviesForDatabaseRead,
   markDatabaseReadHealthy,
@@ -681,26 +678,6 @@ async function loadUsersForRead(options: { includeAvatarUrls?: boolean } = {}): 
   return users;
 }
 
-async function loadMovieCatalogFromDatabaseUncached() {
-  if (!shouldAttemptDatabaseRead()) {
-    return null;
-  }
-
-  try {
-    await ensurePreviewDataHygiene();
-    const { prisma } = await import("@/lib/prisma");
-    const rows = await prisma.movieRecord.findMany({
-      orderBy: [{ slug: "asc" }],
-      select: { data: true }
-    });
-    markDatabaseReadHealthy();
-    return mapMovieRecordsToStateMovies(rows);
-  } catch (error) {
-    markDatabaseReadFailure("movie catalog read", error);
-    return null;
-  }
-}
-
 async function loadMoviesByIdsFromDatabase(movieIds: string[]) {
   const uniqueMovieIds = [...new Set(movieIds)].filter(Boolean);
   if (uniqueMovieIds.length === 0 || !shouldAttemptDatabaseRead()) {
@@ -1009,23 +986,6 @@ async function mutateState<T>(action: (state: AppState, persist: PersistMutation
 
 function getDatabaseReadGroup() {
   return cloneState(loadFallbackState().group);
-}
-
-async function hydrateMoviesForDatabaseRead(movies: Movie[]) {
-  const changedMovies: Movie[] = [];
-  const hydrationState = loadFallbackState();
-  await Promise.all(
-    movies.map(async (movie) => {
-      const changed = await hydrateMovie(hydrationState, movie);
-      if (changed) {
-        changedMovies.push(movie);
-      }
-    })
-  );
-
-  if (changedMovies.length > 0 && shouldAttemptDatabaseWrite()) {
-    await syncMoviesToDatabase(changedMovies).catch((error) => markDatabaseWriteFailure("movie hydration sync", error));
-  }
 }
 
 function addActivity(state: AppState, entry: ActivityItem) {
