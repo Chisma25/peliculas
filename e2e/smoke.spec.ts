@@ -70,7 +70,7 @@ test.describe("authenticated Preview smoke tests", () => {
 
     const matrixLink = page.locator('a[href="https://www.themoviedb.org/movie/603"]');
     await expect(matrixLink).toHaveCount(1);
-    await expect(page.getByText("resultados encontrados.")).toBeVisible();
+    await expect(page.getByText(/resultado(?:s)? encontrado(?:s)?\./)).toBeVisible();
   });
 
   test("prioritizes canonical movies across translated and reused titles", async ({ page }) => {
@@ -78,7 +78,7 @@ test.describe("authenticated Preview smoke tests", () => {
     const search = page.getByRole("searchbox", { name: "Buscar por título" });
 
     await search.fill("Perfect Days");
-    await expect(page.getByText("resultados encontrados.")).toBeVisible();
+    await expect(page.getByText(/resultado(?:s)? encontrado(?:s)?\./)).toBeVisible();
     await expect(page.locator(".explorer-card").first().getByText("Días perfectos", { exact: true })).toBeVisible();
 
     await search.fill("Fight Club");
@@ -178,6 +178,84 @@ test.describe("authenticated Preview smoke tests", () => {
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
 
+  test("keeps narrow mobile headings and discovery frames visible and offers direct search", async ({ page }, testInfo) => {
+    test.skip(!testInfo.project.name.startsWith("mobile"), "Mobile-only layout assertion.");
+
+    for (const width of [320, 360, 390]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/pendientes");
+      const heading = await page.getByRole("heading", { name: "Pendientes", exact: true }).boundingBox();
+      const contentWidth = await page.evaluate(() => document.documentElement.clientWidth);
+      expect(heading).not.toBeNull();
+      expect(heading!.x).toBeGreaterThanOrEqual(15);
+      expect(heading!.x + heading!.width).toBeLessThanOrEqual(contentWidth - 14);
+      const navigationLabels = await page.getByRole("navigation", { name: "Principal" }).locator("a").evaluateAll((links) =>
+        links.map((link) => {
+          const range = document.createRange();
+          range.selectNodeContents(link);
+          const text = range.getBoundingClientRect();
+          const box = link.getBoundingClientRect();
+          return { textLeft: text.left, textRight: text.right, left: box.left, right: box.right };
+        })
+      );
+      for (const label of navigationLabels) {
+        expect(label.textLeft).toBeGreaterThanOrEqual(label.left);
+        expect(label.textRight).toBeLessThanOrEqual(label.right);
+      }
+
+      await page.goto("/explorar");
+      const shortcut = page.getByRole("link", { name: "Buscar por título", exact: true });
+      await expect(shortcut).toBeInViewport({ ratio: 1 });
+      const frames = await page.locator(".discovery-idle-frame").evaluateAll((elements) =>
+        elements.map((element) => {
+          const { left, right } = element.getBoundingClientRect();
+          return { left, right };
+        })
+      );
+      expect(frames).toHaveLength(5);
+      for (let i = 0; i < frames.length; i++) {
+        expect(frames[i].right).toBeLessThanOrEqual(contentWidth - 14);
+        if (i > 0) expect(frames[i].left).toBeGreaterThan(frames[i - 1].right);
+      }
+      await shortcut.click();
+      await expect(page.getByRole("searchbox", { name: "Buscar por título" })).toBeInViewport({ ratio: 1 });
+    }
+  });
+
+  test("accepts decimal commas and rejects incomplete or invalid ratings", async ({ page }) => {
+    const savedScores: string[] = [];
+    await page.route("**/api/ratings/create-or-update", async (route) => {
+      const body = route.request().postData() ?? "";
+      const score = body.match(/name="score"\r\n\r\n([^\r\n]+)/)?.[1];
+      savedScores.push(score ?? "missing");
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "Valoración actualizada." }) });
+    });
+    await page.goto("/vistas");
+    await page.locator('a[href^="/peliculas/"]').first().click();
+    await page.getByRole("button", { name: /Editar mi valoración|Valorar película/ }).click();
+    const score = page.getByRole("textbox", { name: "Nota", exact: true });
+    const submit = page.getByRole("button", { name: /Actualizar valoración|Guardar valoración/ });
+    await expect(score).toHaveAttribute("inputmode", "decimal");
+    await expect(page.getByRole("textbox", { name: "Comentario opcional", exact: true })).toHaveAttribute("maxlength", "1000");
+    for (const invalid of ["", "8abc", "7,3", "10,25"]) {
+      await score.fill(invalid);
+      await submit.click();
+      await expect(page.getByRole("dialog").getByRole("alert")).toContainText("0,25");
+    }
+    expect(savedScores).toEqual([]);
+    await score.fill("0");
+    await expect(page.getByRole("button", { name: "Restar 0,25 a la nota" })).toBeDisabled();
+    await score.fill("10,00");
+    await expect(page.getByRole("button", { name: "Sumar 0,25 a la nota" })).toBeDisabled();
+    await score.fill("8,25");
+    await page.getByRole("button", { name: "Sumar 0,25 a la nota" }).click();
+    await expect(score).toHaveValue("8.5");
+    await score.fill("8,25");
+    await submit.click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+    expect(savedScores).toEqual(["8.25"]);
+  });
+
   test("does not preload every primary screen while navigation is idle", async ({ page }) => {
     const routeRequests: string[] = [];
     page.on("request", (request) => {
@@ -218,7 +296,7 @@ test.describe("authenticated Preview smoke tests", () => {
     await trigger.click();
 
     const dialog = page.getByRole("dialog");
-    const scoreInput = page.getByRole("spinbutton", { name: "Nota" });
+    const scoreInput = page.getByRole("textbox", { name: "Nota", exact: true });
     await expect(dialog).toBeVisible();
     await expect(scoreInput).toBeFocused();
 
@@ -416,7 +494,7 @@ test.describe("authenticated Preview smoke tests", () => {
     await page.goto(`/peliculas/${ratingMovieSlug}`);
     await page.getByRole("button", { name: "Editar mi valoración" }).click();
 
-    const scoreInput = page.getByRole("spinbutton", { name: /Nota/ });
+    const scoreInput = page.getByRole("textbox", { name: "Nota", exact: true });
     const commentInput = page.getByRole("textbox", { name: "Comentario opcional" });
     const initialScore = Number.parseFloat(await scoreInput.inputValue());
     const initialComment = await commentInput.inputValue();
@@ -427,7 +505,7 @@ test.describe("authenticated Preview smoke tests", () => {
     }).format(nextScore);
 
     try {
-      await scoreInput.fill(String(nextScore));
+      await scoreInput.fill(String(nextScore).replace(".", ","));
       await page.getByRole("button", { name: "Actualizar valoración" }).click();
 
       const ownRating = page.locator("article").filter({ hasText: `@${username}` });

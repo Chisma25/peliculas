@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { AccessibleDialog } from "@/components/accessible-dialog";
 import { isQuarterPointScore } from "@/lib/utils";
+import { useMounted } from "@/lib/use-mounted";
 
 type RatingPanelProps = {
   movieId: string;
@@ -12,8 +13,16 @@ type RatingPanelProps = {
   initialComment?: string;
 };
 
+function parseScore(value: string) {
+  const trimmed = value.trim();
+  return /^(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(trimmed)
+    ? Number(trimmed.replace(",", "."))
+    : Number.NaN;
+}
+
 export function RatingPanel({ movieId, initialScore, initialComment }: RatingPanelProps) {
   const router = useRouter();
+  const mounted = useMounted();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isPending, setIsPending] = useState(false);
@@ -35,7 +44,7 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
   }
 
   function adjustScore(direction: -1 | 1) {
-    const parsedScore = Number.parseFloat(score.replace(",", "."));
+    const parsedScore = parseScore(score);
     const baseScore = Number.isFinite(parsedScore) ? Math.round(parsedScore * 4) / 4 : 5;
     updateScore(String(Math.min(10, Math.max(0, baseScore + direction * 0.25))));
   }
@@ -69,6 +78,7 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
       <button
         type="button"
         className="primary-button"
+        disabled={!mounted}
         onClick={() => {
           setMessage("");
           setError("");
@@ -102,7 +112,7 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
             noValidate
             onSubmit={(event) => {
               event.preventDefault();
-              const numericScore = Number.parseFloat(score.replace(",", "."));
+              const numericScore = parseScore(score);
               if (!isQuarterPointScore(numericScore)) {
                 setError("Escribe una nota entre 0 y 10 que avance de 0,25 en 0,25.");
                 return;
@@ -123,18 +133,16 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
                   className="rating-step-button"
                   aria-label="Restar 0,25 a la nota"
                   onClick={() => adjustScore(-1)}
-                  disabled={isPending || Number.parseFloat(score) <= 0}
+                  disabled={isPending || parseScore(score) <= 0}
                 >
                   −
                 </button>
                 <input
                   id="rating-score"
-                  type="number"
+                  type="text"
                   name="score"
-                  step="0.25"
-                  min="0"
-                  max="10"
                   inputMode="decimal"
+                  autoComplete="off"
                   value={score}
                   onChange={(event) => updateScore(event.target.value)}
                   data-dialog-autofocus
@@ -147,7 +155,7 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
                   className="rating-step-button"
                   aria-label="Sumar 0,25 a la nota"
                   onClick={() => adjustScore(1)}
-                  disabled={isPending || Number.parseFloat(score) >= 10}
+                  disabled={isPending || parseScore(score) >= 10}
                 >
                   +
                 </button>
@@ -169,10 +177,13 @@ export function RatingPanel({ movieId, initialScore, initialComment }: RatingPan
               <textarea
                 name="comment"
                 rows={4}
+                maxLength={1000}
+                aria-describedby="rating-comment-help"
                 defaultValue={initialComment ?? ""}
                 placeholder="Qué te ha gustado, qué te ha sorprendido o cualquier apunte que quieras dejar."
               />
             </label>
+            <p className="body-copy" id="rating-comment-help">Máximo 1.000 caracteres.</p>
 
             <div className="modal-actions">
               <button type="button" className="secondary-button" onClick={closeDialog} disabled={isPending}>

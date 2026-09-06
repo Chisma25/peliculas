@@ -20,7 +20,7 @@ Es el recorrido habitual, no una cadena obligatoria: valorar una película exist
 | `/` | Película seleccionada, recomendaciones, estadísticas, cartelera y próximos estrenos |
 | `/vistas` | Historial del grupo con búsqueda, filtros, ordenación y notas |
 | `/pendientes` | Candidatas guardadas y hasta cinco sugerencias entre ellas |
-| `/explorar` | Descubrimiento de películas y regeneración de propuestas |
+| `/explorar` | Descubrimiento de películas, regeneración de propuestas y acceso directo a la búsqueda por título |
 | `/peliculas/[slug]` | Metadatos, notas del grupo y valoración propia |
 | `/perfil` | Datos propios, avatar, credenciales y estadísticas personales |
 | `/grupo` y `/grupo/[username]` | Miembros y perfiles consultables del grupo |
@@ -37,7 +37,7 @@ Las páginas del grupo requieren sesión. Los perfiles ajenos son de consulta; l
 - Marcar como vista retira la película de Pendientes. Repetir la operación conserva el registro existente; rellena la fecha si faltaba y elimina un pendiente residual.
 - Quitar de Pendientes no elimina la película del catálogo, sus notas ni su historial.
 - Cada persona tiene como máximo una valoración por película. Guardar de nuevo actualiza esa nota y comentario.
-- Las notas admiten **0–10**, incluidos ambos extremos, en pasos de **0,25**. Un comentario puede tener hasta **1.000 caracteres**; vacío elimina su contenido.
+- Las notas admiten **0–10**, incluidos ambos extremos, en pasos de **0,25**. El formulario acepta coma o punto decimal y ofrece botones para subir o bajar un paso; rechaza entradas vacías, texto incompleto y notas fuera de rango. Un comentario puede tener hasta **1.000 caracteres**; el formulario muestra y aplica ese límite, y dejarlo vacío elimina su contenido.
 - La media de una película se calcula con sus notas registradas. Actualmente el resumen global promedia las medias de películas vistas cuyo valor es mayor que cero: una media cero queda excluida de ese resumen. Es una limitación a revisar, no una restricción para puntuar con cero.
 
 Fuentes: [store.ts](../src/lib/store.ts), [user-input.ts](../src/lib/user-input.ts), [types.ts](../src/lib/types.ts) y [schema.prisma](../prisma/schema.prisma).
