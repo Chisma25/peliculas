@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -26,26 +26,32 @@ model TmdbCacheEntry {
 }
 
 model UserRecord {
-  id           String   @id
+  id           String         @id
   name         String
-  username     String   @unique
+  username     String         @unique
   email        String
   avatarSeed   String?
   avatarUrl    String?
   passwordHash String
-  isAdmin      Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isAdmin      Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  ratings      RatingRecord[]
 
   @@index([username])
 }
 
 model MovieRecord {
-  id        String   @id
-  slug      String   @unique
-  data      Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String                  @id
+  slug              String                  @unique
+  data              Json
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  pendingEntries    PendingMovie[]
+  watchEntry        WatchEntryRecord?
+  ratings           RatingRecord[]
+  weeklyItems       WeeklyBatchItemRecord[]
+  selectedInBatches WeeklyBatchRecord[]
 
   @@index([slug])
 }
@@ -53,33 +59,38 @@ model MovieRecord {
 model PendingMovie {
   groupId String
   movieId String
-  addedAt DateTime @default(now())
+  addedAt DateTime    @default(now())
+  movie   MovieRecord @relation(fields: [movieId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@id([groupId, movieId])
   @@index([groupId, addedAt])
+  @@index([movieId])
 }
 
 model WatchEntryRecord {
-  id              String   @id
-  movieId         String   @unique
+  id              String      @id
+  movieId         String      @unique
   groupId         String
   watchedOn       DateTime?
   selectedForWeek String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  movie           MovieRecord @relation(fields: [movieId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([groupId, watchedOn])
 }
 
 model RatingRecord {
-  id        String   @id
+  id        String      @id
   movieId   String
   userId    String
   score     Float
   comment   String?
   watchedOn DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  movie     MovieRecord @relation(fields: [movieId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user      UserRecord  @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([movieId, userId])
   @@index([movieId])
@@ -94,8 +105,10 @@ model WeeklyBatchRecord {
   updatedAt       DateTime                @updatedAt
   selectedMovieId String?
   items           WeeklyBatchItemRecord[]
+  selectedMovie   MovieRecord?            @relation(fields: [selectedMovieId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([groupId, createdAt])
+  @@index([selectedMovieId])
 }
 
 model WeeklyBatchItemRecord {
@@ -108,6 +121,8 @@ model WeeklyBatchItemRecord {
   reasons  Json
   metrics  Json?
   batch    WeeklyBatchRecord @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  movie    MovieRecord       @relation(fields: [movieId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([batchId, position])
+  @@index([movieId])
 }

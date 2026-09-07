@@ -95,7 +95,9 @@ En despliegues con base de datos, las colecciones proceden de tablas normalizada
 | `AppSnapshot` | JSON agregado identificado por `APP_SNAPSHOT_ID` |
 | `TmdbCacheEntry` | Respuestas del proveedor con fecha de caducidad |
 
-La única relación foránea declarada en Prisma es elemento → tanda. Otras relaciones y la exclusión entre Pendientes y Vistas dependen del código y de los controles de integridad. Cambiar `APP_SNAPSHOT_ID` **no aísla las tablas**. Para separar Preview y Producción se necesitan bases o ramas de Neon independientes.
+Las claves foráneas enlazan notas con usuario y película; pendientes, vistas y elementos de tanda con película; selección semanal con película; y elemento con tanda. Las seis relaciones con usuarios/películas usan `ON DELETE RESTRICT`: rechazan borrar un registro referenciado, sin eliminar sus notas ni listas. La selección admite `null`. Se conserva la cascada existente de tanda a sus elementos. Los campos de referencia tienen índices para las comprobaciones y consultas.
+
+El grupo sigue en el contexto JSON, sin tabla normalizada a la que referenciar `groupId` o sus miembros. Las referencias internas de JSON, la exclusión entre Pendientes y Vistas y el rango de las notas siguen dependiendo del código y de los controles de integridad. Cambiar `APP_SNAPSHOT_ID` **no aísla las tablas**. Para separar Preview y Producción se necesitan bases o ramas de Neon independientes.
 
 Si falta el snapshot, se utiliza el contexto inicial del grupo y se leen las tablas, incluso vacías. En Preview/Producción, una consulta fallida o un snapshot malformado bloquea el acceso en lugar de sustituirlo por datos locales. El store conserva rutas de bootstrap y recuperación locales para desarrollo; no son un procedimiento de recuperación de Producción.
 

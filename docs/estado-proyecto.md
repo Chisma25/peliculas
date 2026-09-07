@@ -41,11 +41,17 @@ La tercera etapa añadió regresiones de historial, paginación, notas por usuar
 | --- | --- | --- |
 | Organización del código | Evaluar separar la infraestructura de carga, disponibilidad y compatibilidad histórica si dificulta los siguientes cambios | Responsabilidades claras y mejora justificada; las tres extracciones funcionales están completadas |
 | Experiencia de uso | Completar una comprobación en móviles físicos, incluyendo teclado de iOS y Android | La revisión en navegador con tamaños móviles está hecha; la simulación de anchura y altura no sustituye al teclado real |
-| Integridad de datos | Evaluar relaciones foráneas e historial de migraciones; revisar datos existentes antes de añadir restricciones | Plan compatible con la base real, probado en Preview y con vuelta atrás |
+| Integridad de datos | Evaluar la normalización del grupo y las referencias internas de JSON si se amplía el modelo | Las relaciones entre tablas ya están protegidas; los límites restantes están documentados en Arquitectura |
 | Herramientas administrativas | Revisar consistencia de exports y coordinación de scripts con escrituras del grupo | Copias consistentes y operaciones administrativas con garantías explícitas; hoy exigen coordinación del operador |
 | Escala y seguridad | Reevaluar bloqueo global y rate limiting por instancia si se amplía el uso | Cambios justificados por la carga y los requisitos, con pruebas adecuadas |
 
 La documentación se ha separado en guías de funcionalidad, arquitectura, desarrollo, operación y API. La instrucción antigua de sembrar datos tras cambiar el esquema queda retirada. Esto no implica haber implementado las mejoras de la tabla anterior.
+
+## Integridad referencial y migraciones
+
+El 7 de septiembre de 2026 se revisaron Preview y Producción: sin referencias huérfanas en notas, pendientes, vistas, elementos ni selecciones de tanda, y sin notas fuera de rango. Ambas bases coincidían con el esquema anterior de Prisma. Se adopta un baseline y una migración aditiva con seis claves foráneas restrictivas y tres índices. Se conserva la cascada de tanda a elementos y la selección opcional. La carga inicial guarda usuarios y películas antes de sus referencias.
+
+La suite PostgreSQL añade 14 casos de referencias inexistentes, borrados rechazados, selección nula y cascada existente. Solo se ejecuta contra una base local desechable; las pruebas normales sin PostgreSQL los omiten. La CI aplica todas las migraciones desde cero y comprueba ausencia de diferencias con el esquema Prisma. El procedimiento de adopción, entrega y recuperación está en [Operación](operacion.md#cambios-de-esquema-y-mantenimiento). El rango de notas, la exclusión entre listas y las referencias JSON siguen validándose en la aplicación.
 
 ## Media de películas vistas
 
