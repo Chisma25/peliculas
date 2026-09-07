@@ -53,7 +53,7 @@ const prisma = new PrismaClient();
 try {
   const tables = await readDatabaseTables(prisma);
   const integrity = analyzeDatabaseIntegrity(tables);
-  const payload = buildBackupPayload({ target, tables });
+  const payload = buildBackupPayload({ target, tables, consistency: "repeatable-read" });
 
   payload.metadata.checkpointLabel = label;
   payload.metadata.integrity = {

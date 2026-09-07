@@ -2,6 +2,8 @@ import { PrismaClient } from "@prisma/client";
 
 import { parseArguments, prepareDatabaseTarget } from "./lib/database-operations.mjs";
 
+import { cleanTechnicalMovies } from "../src/lib/database-maintenance.mjs";
+
 const args = parseArguments();
 const target = prepareDatabaseTarget(args);
 const apply = args.apply === true;
@@ -14,13 +16,11 @@ if (apply && confirmation !== "preview") {
   throw new Error("Para aplicar cambios añade --confirm=preview.");
 }
 
-const TECHNICAL_TITLES = new Set(["F1 Review 1987", "F1 Review 2006"]);
+
 const prisma = new PrismaClient();
 
 try {
-  const records = await prisma.movieRecord.findMany();
-  const targets = records.filter((record) => TECHNICAL_TITLES.has(record.data?.title));
-  const movieIds = targets.map((record) => record.id);
+  const targets = await cleanTechnicalMovies(prisma, { apply });
 
   console.log(
     JSON.stringify(
@@ -39,31 +39,7 @@ try {
     )
   );
 
-  if (apply && movieIds.length > 0) {
-    await prisma.$transaction(async (database) => {
-      const snapshots = await database.appSnapshot.findMany();
-      for (const snapshot of snapshots) {
-        if (!Array.isArray(snapshot.data?.movies)) continue;
-        const nextMovies = snapshot.data.movies.filter((movie) => !movieIds.includes(movie.id));
-        if (nextMovies.length !== snapshot.data.movies.length) {
-          await database.appSnapshot.update({
-            where: { id: snapshot.id },
-            data: { data: { ...snapshot.data, movies: nextMovies } }
-          });
-        }
-      }
-      await database.weeklyBatchRecord.updateMany({
-        where: { selectedMovieId: { in: movieIds } },
-        data: { selectedMovieId: null }
-      });
-      await database.weeklyBatchItemRecord.deleteMany({ where: { movieId: { in: movieIds } } });
-      await database.ratingRecord.deleteMany({ where: { movieId: { in: movieIds } } });
-      await database.watchEntryRecord.deleteMany({ where: { movieId: { in: movieIds } } });
-      await database.pendingMovie.deleteMany({ where: { movieId: { in: movieIds } } });
-      await database.movieRecord.deleteMany({ where: { id: { in: movieIds } } });
-    });
-    console.log(`Registros técnicos eliminados de Preview: ${movieIds.length}.`);
-  }
+  if (apply) console.log(`Registros técnicos eliminados de Preview: ${targets.length}.`);
 } finally {
   await prisma.$disconnect();
 }

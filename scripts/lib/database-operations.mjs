@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { withConsistentRead } from "../../src/lib/database-transactions.mjs";
 
 export function parseArguments(argv = process.argv.slice(2)) {
   const parsed = {};
@@ -97,6 +98,10 @@ export function prepareDatabaseTarget(args) {
 }
 
 export async function readDatabaseTables(prisma) {
+  return withConsistentRead(prisma, readTables);
+}
+
+async function readTables(prisma) {
   const [
     appSnapshots,
     tmdbCacheEntries,
@@ -136,12 +141,13 @@ export function checksumTables(tables) {
   return createHash("sha256").update(JSON.stringify(tables)).digest("hex");
 }
 
-export function buildBackupPayload({ target, tables, exportedAt = new Date().toISOString() }) {
+export function buildBackupPayload({ target, tables, exportedAt = new Date().toISOString(), consistency }) {
   return {
     metadata: {
       format: "cine-semanal-database-export",
       version: 1,
       exportedAt,
+      ...(consistency ? { consistency } : {}),
       environment: target.environment,
       databaseHost: target.databaseHost,
       databaseName: target.databaseName,

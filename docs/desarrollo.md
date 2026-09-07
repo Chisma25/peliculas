@@ -84,10 +84,13 @@ $env:CONCURRENCY_DATABASE_URL=$env:DATABASE_URL
 npx prisma migrate deploy
 npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
 npx vitest run tests/database-relations.test.ts
+npx vitest run tests/administrative-concurrency.test.mjs
 npx vitest run tests/store-concurrency.test.ts
 ```
 
 Las suites **vacían tablas entre casos** y rechazan hosts remotos u otros nombres de base. Ejecutarlas secuencialmente, como en la receta, para que no borren los datos de la otra. La de relaciones verifica referencias inexistentes, borrados restringidos, selección nula y cascada de tanda a elementos. La de concurrencia ejecuta la variante local y la de PostgreSQL con módulos independientes; incluye un fallo real de snapshot para verificar rollback de la cuenta. Los casos específicos de PostgreSQL se omiten en la variante de archivo. No deben existir `VERCEL_ENV` ni otras variables de despliegue contradictorias en esa terminal.
+
+La suite administrativa añade diez casos PostgreSQL: export durante un commit de la app, transacciones de solo lectura, espera por el bloqueo, rollback completo del seed, protección frente a metadatos antiguos o películas eliminadas y limpieza de referencias/snapshot. Inyecta fallos dentro de la base desechable para comprobar que no quedan operaciones a medias. Incluye además una prueba sin base de datos que rechaza un seed incompleto o con referencias inválidas antes de abrir una transacción.
 
 Al terminar, elimina solo el contenedor desechable que creaste y cierra esa terminal para no reutilizar sus variables:
 

@@ -1,4 +1,5 @@
 import { createMovieMetadataWriter } from "@/lib/movies/metadata-writer";
+import { cleanTechnicalMovies } from "@/lib/database-maintenance.mjs";
 import {
   isMovie,
   mapMovieRecordsToStateMovies,
@@ -84,7 +85,6 @@ const LIVE_STATE_CACHE_TTL_MS = 1000 * 60 * 10;
 const DEFERRED_WRITE_FLUSH_TTL_MS = 1000 * 60;
 
 const REMOVED_TEST_USER_IDS = new Set(["user_xisma25"]);
-const PREVIEW_TECHNICAL_MOVIE_TITLES = new Set(["F1 Review 1987", "F1 Review 2006"]);
 
 let snapshotUsersMemoryCache: TimedCache<User[]> | null = null;
 let snapshotUsersWithAvatarsMemoryCache: TimedCache<User[]> | null = null;
@@ -435,26 +435,8 @@ async function ensurePreviewDataHygiene() {
 
   previewDataHygienePromise = (async () => {
     const { prisma } = await import("@/lib/prisma");
-    const records = await prisma.movieRecord.findMany({ select: { id: true, data: true } });
-    const movieIds = records
-      .filter((record) => PREVIEW_TECHNICAL_MOVIE_TITLES.has((record.data as Partial<Movie>)?.title ?? ""))
-      .map((record) => record.id);
-    if (movieIds.length === 0) {
-      return;
-    }
-
-    await prisma.$transaction(async (database) => {
-      await database.weeklyBatchRecord.updateMany({
-        where: { selectedMovieId: { in: movieIds } },
-        data: { selectedMovieId: null }
-      });
-      await database.weeklyBatchItemRecord.deleteMany({ where: { movieId: { in: movieIds } } });
-      await database.ratingRecord.deleteMany({ where: { movieId: { in: movieIds } } });
-      await database.watchEntryRecord.deleteMany({ where: { movieId: { in: movieIds } } });
-      await database.pendingMovie.deleteMany({ where: { movieId: { in: movieIds } } });
-      await database.movieRecord.deleteMany({ where: { id: { in: movieIds } } });
-    });
-    invalidatePersistentStateCache();
+    const removed = await cleanTechnicalMovies(prisma, { apply: true });
+    if (removed.length > 0) invalidatePersistentStateCache();
   })().catch((error) => {
     previewDataHygienePromise = null;
     console.error("[store] No se pudo limpiar la información técnica de Preview.", error);

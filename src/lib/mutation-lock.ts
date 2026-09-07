@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { StatePersistenceUnavailableError } from "@/lib/state-persistence";
+import { withCoordinatedWrite } from "@/lib/database-transactions.mjs";
 
 // The normalized tables are shared by every snapshot in this database, so the
 // lock must be database-wide, not keyed by a process or APP_SNAPSHOT_ID.
@@ -8,12 +9,7 @@ export async function withDatabaseMutation<T>(
   action: (client: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
   try {
-    return await prisma.$transaction(async (client) => {
-      // Transaction-scoped locks also work with Neon's pooled connections and
-      // are released automatically on both commit and rollback.
-      await client.$executeRaw`SELECT pg_advisory_xact_lock(1128877637, 1)`;
-      return action(client);
-    }, { isolationLevel: "ReadCommitted", maxWait: 10_000, timeout: 30_000 });
+    return await withCoordinatedWrite(prisma, action);
   } catch (error) {
     // Validation errors keep their actionable messages; database/lock failures
     // become a retryable 503 without exposing database details to the browser.

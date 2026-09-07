@@ -58,6 +58,7 @@ jobs:
           npx prisma migrate deploy
           npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
           npx vitest run tests/database-relations.test.ts
+          npx vitest run tests/administrative-concurrency.test.mjs
           npx vitest run tests/store-concurrency.test.ts
 
       - name: Run lint

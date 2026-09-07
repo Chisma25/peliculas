@@ -2,7 +2,7 @@
 
 [Inicio](../README.md) · [Arquitectura](arquitectura.md) · [Operación](operacion.md)
 
-Revisión documental: **6 de septiembre de 2026**. Base funcional inicial de esta documentación: `0542d31` (PR #21); la organización del código se actualiza con cada extracción descrita abajo. Este documento reúne el contexto útil del análisis inicial que se conservaba fuera del repositorio; no copia datos personales, secretos ni exports. Los apartados actuales sustituyen el diagnóstico antiguo como referencia de trabajo.
+Revisión documental: **8 de septiembre de 2026**. Base funcional inicial de esta documentación: `0542d31` (PR #21); la organización del código se actualiza con cada extracción descrita abajo. Este documento reúne el contexto útil del análisis inicial que se conservaba fuera del repositorio; no copia datos personales, secretos ni exports. Los apartados actuales sustituyen el diagnóstico antiguo como referencia de trabajo.
 
 Infraestructura consultada el 5 de septiembre de 2026: Neon PostgreSQL **17**, región `aws-eu-central-1`. La suite de concurrencia utiliza PostgreSQL **16** desechable en CI; esta diferencia de versión se debe tener en cuenta al introducir SQL específico de una versión.
 
@@ -42,10 +42,17 @@ La tercera etapa añadió regresiones de historial, paginación, notas por usuar
 | Organización del código | Evaluar separar la infraestructura de carga, disponibilidad y compatibilidad histórica si dificulta los siguientes cambios | Responsabilidades claras y mejora justificada; las tres extracciones funcionales están completadas |
 | Experiencia de uso | Completar una comprobación en móviles físicos, incluyendo teclado de iOS y Android | La revisión en navegador con tamaños móviles está hecha; la simulación de anchura y altura no sustituye al teclado real |
 | Integridad de datos | Evaluar la normalización del grupo y las referencias internas de JSON si se amplía el modelo | Las relaciones entre tablas ya están protegidas; los límites restantes están documentados en Arquitectura |
-| Herramientas administrativas | Revisar consistencia de exports y coordinación de scripts con escrituras del grupo | Copias consistentes y operaciones administrativas con garantías explícitas; hoy exigen coordinación del operador |
 | Escala y seguridad | Reevaluar bloqueo global y rate limiting por instancia si se amplía el uso | Cambios justificados por la carga y los requisitos, con pruebas adecuadas |
 
 La documentación se ha separado en guías de funcionalidad, arquitectura, desarrollo, operación y API. La instrucción antigua de sembrar datos tras cambiar el esquema queda retirada. Esto no implica haber implementado las mejoras de la tabla anterior.
+
+## Copias y herramientas administrativas
+
+Exports y checkpoints leen todas las tablas desde una instantánea PostgreSQL coherente de solo lectura, sin detener las mutaciones de la app. Las copias nuevas registran esa garantía en sus metadatos; el checksum sigue verificando el archivo por separado. Los diagnósticos de integridad y la comparación de restauración comparten este mecanismo.
+
+Seed, reparación de metadatos y limpieza técnica de Preview usan el bloqueo de la app y confirman sus escrituras junto con los snapshots. La reparación descarta revisiones antiguas tras consultar TMDb, la limpieza revalida los títulos y el seed se deshace completo ante un fallo. La suite administrativa cubre concurrencia y rollback con PostgreSQL desechable. No requiere cambios de esquema.
+
+El seed sigue reemplazando datos y exige revisar el archivo y planificar su aplicación. Las rutas históricas de compatibilidad y la consola SQL quedan fuera de esta coordinación. La restauración por script sigue siendo solo una simulación y no hay subida automática de exports a almacenamiento externo. Véanse las garantías y procedimientos en [Operación](operacion.md).
 
 ## Integridad referencial y migraciones
 
