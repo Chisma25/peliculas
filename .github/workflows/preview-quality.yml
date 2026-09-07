@@ -55,7 +55,9 @@ jobs:
           DIRECT_URL: postgresql://cine_test:local_test_only@127.0.0.1:5432/cine_concurrency_test
           CONCURRENCY_DATABASE_URL: postgresql://cine_test:local_test_only@127.0.0.1:5432/cine_concurrency_test
         run: |
-          npx prisma db push --skip-generate
+          npx prisma migrate deploy
+          npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
+          npx vitest run tests/database-relations.test.ts
           npx vitest run tests/store-concurrency.test.ts
 
       - name: Run lint

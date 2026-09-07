@@ -45,7 +45,7 @@ El `GITHUB_TOKEN` de los workflows lo proporciona Actions. Las plantillas `.env.
 ## Entrega habitual
 
 1. Abrir una PR hacia `main`. La integración de GitHub con Vercel crea la Preview de la rama.
-2. Esperar `quality`: instalación, Vitest, concurrencia con PostgreSQL desechable, lint, build, auditoría y pruebas HTTP aisladas de seguridad.
+2. Esperar `quality`: instalación, Vitest, migraciones y relaciones/concurrencia con PostgreSQL desechable, lint, build, auditoría y pruebas HTTP aisladas de seguridad. Si cambia el esquema, aplicar la migración revisada primero en Preview antes de validar sus flujos; seguir el apartado de cambios de esquema para Producción.
 3. Esperar `authenticated-preview`: localiza el despliegue del mismo commit y ejecuta los flujos de navegador con la cuenta de Preview.
 4. Fusionar la PR con las comprobaciones requeridas aprobadas y la rama actualizada. No se ejecuta un seed.
 5. Vercel construye y publica automáticamente `main`. El workflow `Verify production deployment` verifica el dominio de Producción contra el SHA fusionado.
@@ -66,7 +66,7 @@ Este procedimiento es para una base nueva y vacía. No es el proceso de actualiz
 3. En una terminal limpia y desde la raíz, aplicar el esquema al destino verificado:
 
 ```powershell
-node --env-file=.env.preview.local node_modules/prisma/build/index.js db push
+node --env-file=.env.preview.local node_modules/prisma/build/index.js migrate deploy
 ```
 
 4. Solo si se quiere importar el archivo local a esa base nueva, confirmar el entorno y cargarlo:
@@ -85,7 +85,26 @@ El script lee `APP_DATA_DIR/runtime-state.json` o `data/runtime-state.json`. Cre
 
 **No ejecutar `db:seed` después de cada cambio de esquema.** El esquema describe estructuras; el seed reemplaza datos con una fuente local.
 
-Actualmente hay [schema.prisma](../prisma/schema.prisma), pero no un historial versionado de migraciones Prisma. Cada cambio estructural requiere revisar el efecto de `db push`, probarlo primero en Preview y preparar cualquier transformación de datos por separado. No añadir `--accept-data-loss` para superar una advertencia sin analizar qué elimina.
+El historial está en [prisma/migrations](../prisma/migrations). `20260907000000_baseline` representa el esquema anterior a las relaciones y `20260907000100_relational_integrity` añade seis claves foráneas y tres índices, sin transformar filas. La segunda migración es transaccional, espera como máximo 5 segundos para cada bloqueo y limita cada sentencia a 60 segundos; ante un fallo no deja restricciones aplicadas a medias.
+
+Para una base **existente que aún no tenga historial**, comparar primero su esquema con el baseline y comprobar integridad/copia. Solo si coincide, registrar el baseline sin ejecutar sus `CREATE TABLE`:
+
+```powershell
+node --env-file=.env.preview.local node_modules/prisma/build/index.js migrate resolve --applied 20260907000000_baseline
+```
+
+Este registro se hizo una sola vez en Preview y Producción al adoptar Migrate. No repetirlo para futuras migraciones ni para una base vacía: en una vacía, `migrate deploy` crea todo. Es el procedimiento de [baselining de Prisma](https://www.prisma.io/docs/orm/v6/prisma-migrate/getting-started).
+
+Para actualizaciones, revisar el SQL, probarlo en Preview, esperar CI y aplicar al destino verificado con una terminal limpia y sus variables privadas:
+
+```powershell
+node --env-file=.env.preview.local node_modules/prisma/build/index.js migrate deploy
+node --env-file=.env.preview.local node_modules/prisma/build/index.js migrate status
+```
+
+En Producción usar su propio archivo y hacerlo antes del despliegue de código que requiera la estructura. Vercel no aplica migraciones automáticamente. No usar `db push`, `migrate reset`, `--accept-data-loss` ni un seed para actualizar una base compartida. La CI instala el historial desde cero y compara el esquema resultante con Prisma, además de probar las claves foráneas y las mutaciones concurrentes.
+
+Si esta migración de relaciones falla por datos inválidos o por un bloqueo, conservar el error, verificar que la transacción se deshizo y resolver la causa; marcar **solo esa ejecución fallida** con `migrate resolve --rolled-back 20260907000100_relational_integrity` antes de reintentar. No marcar como fallida una migración aplicada correctamente. Para volver al código anterior pueden mantenerse estas relaciones, compatibles con las operaciones normales. Si fuera necesario retirar las restricciones, preparar una nueva migración compensatoria y actualizar Prisma; no editar ni borrar el historial aplicado ni restaurar los datos encima de escrituras posteriores.
 
 Antes de una reparación o transformación de datos, crear una copia, acordar una ventana sin escrituras y preparar una vuelta atrás. La app no tiene un interruptor de mantenimiento documentado: el operador debe detener efectivamente las escrituras y coordinar al grupo. Los scripts administrativos no adquieren el bloqueo de las mutaciones normales.
 

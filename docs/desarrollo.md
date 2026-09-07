@@ -81,11 +81,13 @@ $env:DATABASE_ENVIRONMENT="development"
 $env:DATABASE_URL="postgresql://cine_test:local_test_only@127.0.0.1:5432/cine_concurrency_test"
 $env:DIRECT_URL=$env:DATABASE_URL
 $env:CONCURRENCY_DATABASE_URL=$env:DATABASE_URL
-npx prisma db push --skip-generate
+npx prisma migrate deploy
+npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
+npx vitest run tests/database-relations.test.ts
 npx vitest run tests/store-concurrency.test.ts
 ```
 
-La suite **vacía tablas entre casos** y rechaza hosts remotos u otros nombres de base. Ejecuta la variante local y la de PostgreSQL con módulos independientes; incluye un fallo real de snapshot para verificar rollback de la cuenta. El caso de rollback PostgreSQL se omite en la variante de archivo. No deben existir `VERCEL_ENV` ni otras variables de despliegue contradictorias en esa terminal.
+Las suites **vacían tablas entre casos** y rechazan hosts remotos u otros nombres de base. Ejecutarlas secuencialmente, como en la receta, para que no borren los datos de la otra. La de relaciones verifica referencias inexistentes, borrados restringidos, selección nula y cascada de tanda a elementos. La de concurrencia ejecuta la variante local y la de PostgreSQL con módulos independientes; incluye un fallo real de snapshot para verificar rollback de la cuenta. Los casos específicos de PostgreSQL se omiten en la variante de archivo. No deben existir `VERCEL_ENV` ni otras variables de despliegue contradictorias en esa terminal.
 
 Al terminar, elimina solo el contenedor desechable que creaste y cierra esa terminal para no reutilizar sus variables:
 

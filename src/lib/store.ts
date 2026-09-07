@@ -869,7 +869,9 @@ async function loadAppStateUncached() {
     try {
       await Promise.all([
         syncUsersToDatabase(initial.users),
-        syncMoviesToDatabase(initial.movies),
+        syncMoviesToDatabase(initial.movies)
+      ]);
+      await Promise.all([
         syncRatingsToDatabase(initial.ratings),
         syncPendingMoviesToDatabase(initial.group.id, initial.pendingMovieIds),
         syncWatchEntriesToDatabase(initial.group.id, initial.watchEntries),
