@@ -77,7 +77,7 @@ node --env-file=.env.preview.local scripts/bootstrap-db.mjs
 Remove-Item Env:CONFIRM_DATABASE_SEED
 ```
 
-El script lee `APP_DATA_DIR/runtime-state.json` o `data/runtime-state.json`. Crea/actualiza usuarios y películas, **borra y reconstruye** pendientes, vistas y tandas del grupo, y **reemplaza todas las notas**. También sustituye el snapshot. No es una migración incremental ni una restauración transaccional completa: sus fases pueden confirmarse por separado.
+El script lee `APP_DATA_DIR/runtime-state.json` o `data/runtime-state.json`. Verifica el destino y la integridad del archivo antes de escribir. Crea/actualiza usuarios y películas, **borra y reconstruye** pendientes, vistas y tandas del grupo, y **reemplaza todas las notas**. También sustituye el snapshot. Todas las fases comparten una transacción y el bloqueo de las mutaciones de la app: se confirman juntas o se deshacen juntas. Sigue siendo una sustitución explícita de datos, no una migración incremental; el bloqueo no convierte un archivo antiguo en una fuente actualizada.
 
 5. Ejecutar `db:health`, comprobar acceso y un flujo funcional en Preview. Preparar Producción por separado, con sus propios datos revisados. Si se necesita una carga inicial allí, usar su archivo privado y confirmación `production`, nunca reutilizar el destino por accidente.
 
@@ -106,7 +106,7 @@ En Producción usar su propio archivo y hacerlo antes del despliegue de código 
 
 Si esta migración de relaciones falla por datos inválidos o por un bloqueo, conservar el error, verificar que la transacción se deshizo y resolver la causa; marcar **solo esa ejecución fallida** con `migrate resolve --rolled-back 20260907000100_relational_integrity` antes de reintentar. No marcar como fallida una migración aplicada correctamente. Para volver al código anterior pueden mantenerse estas relaciones, compatibles con las operaciones normales. Si fuera necesario retirar las restricciones, preparar una nueva migración compensatoria y actualizar Prisma; no editar ni borrar el historial aplicado ni restaurar los datos encima de escrituras posteriores.
 
-Antes de una reparación o transformación de datos, crear una copia, acordar una ventana sin escrituras y preparar una vuelta atrás. La app no tiene un interruptor de mantenimiento documentado: el operador debe detener efectivamente las escrituras y coordinar al grupo. Los scripts administrativos no adquieren el bloqueo de las mutaciones normales.
+Antes de modificar datos, crear una copia y preparar una vuelta atrás. La reparación de metadatos y la limpieza de Preview adquieren el bloqueo de las mutaciones normales y vuelven a comprobar sus objetivos dentro de la transacción. El seed también lo adquiere, pero reemplaza datos con el archivo elegido: usar una ventana planificada sin escrituras para revisar esa sustitución. La consola SQL, las migraciones y la reproducción de escrituras históricas no adquieren automáticamente este bloqueo; requieren coordinación del operador. La app no tiene un interruptor de mantenimiento documentado.
 
 ## Diagnóstico y copias
 
@@ -131,7 +131,9 @@ Usa el nombre real generado por el checkpoint. Para Producción, cambia tanto `-
 
 Estos JSON contienen datos privados y hashes. Los `.json` de `data` se ignoran en Git; otros destinos o temporales `.partial` requieren el mismo cuidado. Copiarlos a almacenamiento privado es una tarea del operador: no hay subida automática de exports a almacenamiento externo.
 
-La lectura de tablas del export/checkpoint usa consultas independientes. **El checksum valida el archivo, no garantiza una instantánea consistente de la base durante escrituras concurrentes.** Para un punto de recuperación, detener escrituras durante la exportación o usar un snapshot de Neon; verificar después la integridad.
+Export, checkpoint, salud de la base y comparación de restauración leen todas sus tablas en una transacción `RepeatableRead` de solo lectura. Ven el estado confirmado al comenzar la primera consulta de datos, aunque otros usuarios guarden después; no adquieren el bloqueo de las escrituras de la app. El límite de la transacción es de 30 segundos: si falla, el comando no publica una copia parcial como válida. La creación del archivo ocurre después de leer la base.
+
+Las nuevas copias incluyen `metadata.consistency: "repeatable-read"`. El checksum sigue verificando el contenido del archivo; la transacción aporta la coherencia temporal entre tablas. Las copias antiguas sin esa marca siguen siendo verificables, pero no acreditan esa garantía. `exportedAt` indica cuándo se construyó el export, no la hora exacta de la instantánea PostgreSQL. Verificar siempre la integridad: una lectura coherente también puede recoger inconsistencias que ya existían. El diagnóstico privado `/api/health` utiliza la misma clase de lectura para evitar falsas alertas debidas a cambios entre consultas.
 
 ### Copias de Neon
 
@@ -169,4 +171,6 @@ Para un fallo solo de código, valorar restaurar el despliegue anterior en Verce
 | Producción no coincide con `main` | Estado del despliegue, alias del dominio y `/api/version` |
 | Salud degradada | Leer las incidencias; preparar copia y diagnóstico antes de modificar filas |
 
-Herramientas de mantenimiento adicionales: `db:repair-movie-metadata` consulta TMDb y simula por defecto; escribir exige `--apply --confirm=ENTORNO`. `db:clean-preview` elimina títulos técnicos concretos, solo admite Preview y exige `--apply --confirm=preview`. Ambas aceptan `--environment`/`--env-file`; revisar sus [scripts](../scripts) y el resultado de simulación antes de aplicar. La limpieza técnica de Preview también tiene una ruta automática de compatibilidad en el store.
+Herramientas de mantenimiento adicionales: `db:repair-movie-metadata` consulta TMDb y simula por defecto; escribir exige `--apply --confirm=ENTORNO`. Prepara los datos externos antes de bloquear y omite las películas modificadas o eliminadas durante esa espera (código 2 si hay omisiones o fallos). Guarda los metadatos aceptados y su representación en los snapshots juntos.
+
+`db:clean-preview` elimina títulos técnicos concretos, solo admite Preview y exige `--apply --confirm=preview`. Selecciona de nuevo los títulos después de adquirir el bloqueo y elimina las referencias normalizadas y del snapshot en la misma transacción. Su simulación es de solo lectura. La limpieza automática de compatibilidad del store usa esta misma operación. Ambas herramientas aceptan `--environment`/`--env-file`; revisar sus [scripts](../scripts) y el resultado de simulación antes de aplicar. Un fallo durante la escritura deshace la operación completa.

@@ -17,7 +17,7 @@ const prisma = new PrismaClient();
 
 try {
   const tables = await readDatabaseTables(prisma);
-  const payload = buildBackupPayload({ target, tables });
+  const payload = buildBackupPayload({ target, tables, consistency: "repeatable-read" });
   const defaultFilename = join(
     "data",
     `database-export-${target.environment}-${safeTimestamp()}.json`

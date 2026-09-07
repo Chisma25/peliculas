@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
 import { parseArguments, prepareDatabaseTarget } from "./lib/database-operations.mjs";
+import { applyMovieMetadataChanges } from "../src/lib/database-maintenance.mjs";
 
 const args = parseArguments();
 const target = prepareDatabaseTarget(args);
@@ -133,15 +134,9 @@ try {
   );
 
   if (apply && changes.length > 0) {
-    await prisma.$transaction(
-      changes.map(({ record, nextData }) =>
-        prisma.movieRecord.update({
-          where: { id: record.id },
-          data: { data: nextData }
-        })
-      )
-    );
-    console.log(`Metadatos actualizados: ${changes.length}.`);
+    const result = await applyMovieMetadataChanges(prisma, changes);
+    console.log(`Metadatos actualizados: ${result.updated}. Omitidos por cambios concurrentes: ${result.skipped.length}.`);
+    if (result.skipped.length > 0) process.exitCode = 2;
   }
 
   if (failures.length > 0) {

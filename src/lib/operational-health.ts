@@ -1,3 +1,5 @@
+import { withConsistentRead } from "@/lib/database-transactions.mjs";
+
 const QUARTER_EPSILON = 1e-9;
 
 export type OperationalHealthData = {
@@ -76,33 +78,35 @@ export function analyzeOperationalHealth(data: OperationalHealthData): Operation
 
 async function readOperationalHealthData(): Promise<OperationalHealthData> {
   const { prisma } = await import("@/lib/prisma");
-  const [
-    users,
-    movies,
-    pendingMovies,
-    watchEntries,
-    ratings,
-    weeklyBatches,
-    weeklyBatchItems
-  ] = await Promise.all([
-    prisma.userRecord.findMany({ select: { id: true } }),
-    prisma.movieRecord.findMany({ select: { id: true } }),
-    prisma.pendingMovie.findMany({ select: { groupId: true, movieId: true } }),
-    prisma.watchEntryRecord.findMany({ select: { groupId: true, movieId: true } }),
-    prisma.ratingRecord.findMany({ select: { id: true, movieId: true, userId: true, score: true } }),
-    prisma.weeklyBatchRecord.findMany({ select: { id: true, selectedMovieId: true } }),
-    prisma.weeklyBatchItemRecord.findMany({ select: { batchId: true, movieId: true } })
-  ]);
+  return withConsistentRead(prisma, async (prisma) => {
+    const [
+      users,
+      movies,
+      pendingMovies,
+      watchEntries,
+      ratings,
+      weeklyBatches,
+      weeklyBatchItems
+    ] = await Promise.all([
+      prisma.userRecord.findMany({ select: { id: true } }),
+      prisma.movieRecord.findMany({ select: { id: true } }),
+      prisma.pendingMovie.findMany({ select: { groupId: true, movieId: true } }),
+      prisma.watchEntryRecord.findMany({ select: { groupId: true, movieId: true } }),
+      prisma.ratingRecord.findMany({ select: { id: true, movieId: true, userId: true, score: true } }),
+      prisma.weeklyBatchRecord.findMany({ select: { id: true, selectedMovieId: true } }),
+      prisma.weeklyBatchItemRecord.findMany({ select: { batchId: true, movieId: true } })
+    ]);
 
-  return {
-    users,
-    movies,
-    pendingMovies,
-    watchEntries,
-    ratings,
-    weeklyBatches,
-    weeklyBatchItems
-  };
+    return {
+      users,
+      movies,
+      pendingMovies,
+      watchEntries,
+      ratings,
+      weeklyBatches,
+      weeklyBatchItems
+    };
+  });
 }
 
 export async function runOperationalHealthCheck(timeoutMs = 8_000) {
