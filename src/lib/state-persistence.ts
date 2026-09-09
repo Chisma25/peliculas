@@ -10,7 +10,6 @@ export type StateMutationRunner = <T>(action: (state: AppState, persist: Persist
 type CommitStateChangeInput = {
   usesDatabase: boolean;
   canWriteDatabase: boolean;
-  flushDeferredWrites: () => Promise<boolean>;
   runDatabaseTransaction: () => Promise<void>;
   writeLocalState: () => void | Promise<void>;
   publishCommittedState: () => void;
@@ -27,11 +26,6 @@ export async function commitStateChangeAtomically(input: CommitStateChangeInput)
   if (input.usesDatabase) {
     if (!input.canWriteDatabase) {
       throw new StatePersistenceUnavailableError("Database writes are temporarily unavailable.");
-    }
-
-    const deferredWritesFlushed = await input.flushDeferredWrites();
-    if (!deferredWritesFlushed) {
-      throw new StatePersistenceUnavailableError("Deferred database writes could not be flushed.");
     }
 
     await input.runDatabaseTransaction();

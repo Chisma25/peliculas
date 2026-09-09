@@ -2,7 +2,7 @@
 
 [Inicio](../README.md) · [Arquitectura](arquitectura.md) · [Operación](operacion.md)
 
-Revisión documental: **8 de septiembre de 2026**. Base funcional inicial de esta documentación: `0542d31` (PR #21); la organización del código se actualiza con cada extracción descrita abajo. Este documento reúne el contexto útil del análisis inicial que se conservaba fuera del repositorio; no copia datos personales, secretos ni exports. Los apartados actuales sustituyen el diagnóstico antiguo como referencia de trabajo.
+Revisión documental: **9 de septiembre de 2026**. Base funcional inicial de esta documentación: `0542d31` (PR #21); la organización del código se actualiza con cada extracción descrita abajo. Este documento reúne el contexto útil del análisis inicial que se conservaba fuera del repositorio; no copia datos personales, secretos ni exports. Los apartados actuales sustituyen el diagnóstico antiguo como referencia de trabajo.
 
 Infraestructura consultada el 5 de septiembre de 2026: Neon PostgreSQL **17**, región `aws-eu-central-1`. La suite de concurrencia utiliza PostgreSQL **16** desechable en CI; esta diferencia de versión se debe tener en cuenta al introducir SQL específico de una versión.
 
@@ -27,24 +27,33 @@ Los fallos de permisos por nombre, exposición de hashes, sesiones no revocadas 
 - Usar tablas normalizadas como fuente de verdad; el snapshot solo aporta contexto agregado.
 - Rechazar fallos de lectura en despliegues antes que devolver datos locales como si fueran los reales.
 - Coordinar las mutaciones de todas las instancias con un bloqueo de PostgreSQL; publicar la caché tras el commit.
+- Mantener la importación de datos como una operación explícita y revisada; las lecturas no reproducen colas antiguas ni repueblan tablas desde copias locales.
 - Separar datos de Preview y Producción; probar con cuentas y datos dedicados.
 - Entregar por PR, comprobaciones obligatorias, despliegue automático y verificación del dominio.
 - Conservar la recomendación basada en reglas y ponderaciones; su puntuación no se presenta como probabilidad.
 
 ## Trabajo pendiente
 
-Las tres etapas de separación están implementadas: usuarios; películas y notas; recomendaciones y datos de páginas. `src/lib/recommendations/` coordina tandas y sugerencias, y `src/lib/pages/` prepara inicio, pendientes, vistas, perfiles y fichas. Los índices compartidos están en `state-readers.ts`. Se mantienen los exports públicos y el coordinador común; el store conserva composición, carga de estado, disponibilidad, persistencia y compatibilidad histórica.
+Las tres etapas de separación están implementadas: usuarios; películas y notas; recomendaciones y datos de páginas. `src/lib/recommendations/` coordina tandas y sugerencias, y `src/lib/pages/` prepara inicio, pendientes, vistas, perfiles y fichas. Los índices compartidos están en `state-readers.ts`. Se mantienen los exports públicos y el coordinador común; el store conserva composición, carga de estado, disponibilidad y persistencia. La importación automática, el relleno de usuarios desde copias y la reproducción de la cola histórica se han retirado.
 
 La tercera etapa añadió regresiones de historial, paginación, notas por usuario e invalidación entre pantallas. La entrega posterior coordina las dos escrituras durante lecturas que se detectaron entonces: renovar la tanda desde Pendientes y guardar metadatos enriquecidos. Ambas usan el bloqueo compartido y el guardado conjunto del snapshot. Incluye pruebas de respuestas tardías, lecturas concurrentes, rollback y reintento. Los límites se explican en [Arquitectura](arquitectura.md#escrituras-y-concurrencia).
 
 | Área | Siguiente trabajo | Criterio de cierre |
 | --- | --- | --- |
-| Organización del código | Evaluar separar la infraestructura de carga, disponibilidad y compatibilidad histórica si dificulta los siguientes cambios | Responsabilidades claras y mejora justificada; las tres extracciones funcionales están completadas |
+| Organización del código | Evaluar separar la infraestructura de carga y disponibilidad si dificulta los siguientes cambios | Responsabilidades claras y mejora justificada; las tres extracciones funcionales y la retirada de escrituras históricas están completadas |
 | Experiencia de uso | Completar una comprobación en móviles físicos, incluyendo teclado de iOS y Android | La revisión en navegador con tamaños móviles está hecha; la simulación de anchura y altura no sustituye al teclado real |
 | Integridad de datos | Evaluar la normalización del grupo y las referencias internas de JSON si se amplía el modelo | Las relaciones entre tablas ya están protegidas; los límites restantes están documentados en Arquitectura |
 | Escala y seguridad | Reevaluar bloqueo global y rate limiting por instancia si se amplía el uso | Cambios justificados por la carga y los requisitos, con pruebas adecuadas |
 
 La documentación se ha separado en guías de funcionalidad, arquitectura, desarrollo, operación y API. La instrucción antigua de sembrar datos tras cambiar el esquema queda retirada. Esto no implica haber implementado las mejoras de la tabla anterior.
+
+## Retirada de escrituras históricas
+
+El 9 de septiembre de 2026 se retiraron del store la reproducción de la cola diferida, la importación automática del estado local y el relleno de usuarios desde el respaldo. La revisión encontró que la app ya no producía entradas nuevas de cola y que estas rutas podían aplicar datos antiguos fuera del coordinador. También se eliminaron sus funciones de sincronización masiva. Las escrituras puntuales de usuarios, películas, notas y tandas exigen ahora el cliente transaccional del coordinador, sin abrir una transacción independiente como alternativa.
+
+El modo archivo sin `DATABASE_URL` conserva su lectura y guardado local. Una base vacía sigue siendo válida y no provoca una importación. El respaldo de lectura en desarrollo no se vuelca a PostgreSQL; Preview y Producción siguen rechazando fallos de datos. La carga inicial mediante seed permanece como una importación explícita de datos revisados, con las garantías y límites descritos en [Operación](operacion.md#instalación-inicial-con-postgresql).
+
+Cualquier `runtime-write-queue.json` antiguo queda intacto. Su recuperación requiere revisar cada entrada frente a los datos actuales, sin reproducción masiva ni seed como atajo. La retirada no implica que esas entradas se hayan aplicado o conciliado; el procedimiento está en [Operación](operacion.md#archivos-de-escrituras-históricas).
 
 ## Copias y herramientas administrativas
 
@@ -52,7 +61,7 @@ Exports y checkpoints leen todas las tablas desde una instantánea PostgreSQL co
 
 Seed, reparación de metadatos y limpieza técnica de Preview usan el bloqueo de la app y confirman sus escrituras junto con los snapshots. La reparación descarta revisiones antiguas tras consultar TMDb, la limpieza revalida los títulos y el seed se deshace completo ante un fallo. La suite administrativa cubre concurrencia y rollback con PostgreSQL desechable. No requiere cambios de esquema.
 
-El seed sigue reemplazando datos y exige revisar el archivo y planificar su aplicación. Las rutas históricas de compatibilidad y la consola SQL quedan fuera de esta coordinación. La restauración por script sigue siendo solo una simulación y no hay subida automática de exports a almacenamiento externo. Véanse las garantías y procedimientos en [Operación](operacion.md).
+El seed sigue reemplazando datos y exige revisar el archivo y planificar su aplicación. La consola SQL y las migraciones quedan fuera de esta coordinación; las rutas históricas de escritura de la app se han retirado. La restauración por script sigue siendo solo una simulación y no hay subida automática de exports a almacenamiento externo. Véanse las garantías y procedimientos en [Operación](operacion.md).
 
 ## Integridad referencial y migraciones
 

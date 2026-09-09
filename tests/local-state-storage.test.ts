@@ -50,22 +50,4 @@ describe("local state storage", () => {
     expect(loaded).toEqual(state);
   });
 
-  it("keeps only the newest deferred snapshot while preserving other writes", async () => {
-    createTestDirectory();
-    const { loadDeferredWriteQueue, saveDeferredWriteQueue } = await import("../src/lib/local-state-storage");
-    const firstState = structuredClone(seedState);
-    const latestState = structuredClone(seedState);
-    latestState.group.name = "Estado más reciente";
-
-    saveDeferredWriteQueue([
-      { type: "snapshot-backup", state: firstState },
-      { type: "pending-remove", groupId: "group_main", movieId: "movie_test" },
-      { type: "snapshot-backup", state: latestState }
-    ]);
-
-    expect(loadDeferredWriteQueue()).toEqual([
-      { type: "pending-remove", groupId: "group_main", movieId: "movie_test" },
-      { type: "snapshot-backup", state: latestState }
-    ]);
-  });
 });

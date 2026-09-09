@@ -30,6 +30,10 @@ El reset no convierte la cuenta en administradora. Si necesitas probar administr
 
 `APP_DATA_DIR` permite usar un directorio de datos independiente. `runtime-state.json`, sus exportaciones y los archivos de sesión E2E están excluidos de Git. Si decides empezar de nuevo, conserva o renombra antes tu archivo local: contiene tus cambios.
 
+Al configurar `DATABASE_URL`, las colecciones se leen de PostgreSQL, también cuando están vacías. El store no importa `runtime-state.json` ni repuebla usuarios automáticamente. Para cargar datos iniciales revisados en una base nueva, sigue [Instalación inicial con PostgreSQL](operacion.md#instalación-inicial-con-postgresql). En desarrollo, un fallo de lectura puede mostrar el respaldo local; esa lectura no se escribe después en la base. En Preview y Producción se conserva el rechazo ante fallos de datos.
+
+La cola dentro del proceso sigue ordenando los guardados del modo archivo. El antiguo `runtime-write-queue.json` ya no participa en lecturas ni mutaciones y se conserva intacto si existe. Consulta [el procedimiento para archivos históricos](operacion.md#archivos-de-escrituras-históricas) antes de intentar recuperar sus entradas.
+
 ## Variables de entorno
 
 | Variable | Uso |
@@ -118,7 +122,7 @@ Se prueban Chromium de escritorio y Pixel 7, navegación, búsqueda, imágenes y
 ## Preparar una contribución
 
 1. Parte de `main` actualizado y abre una rama; usamos el prefijo `codex/` en este trabajo.
-2. Mantén separadas reglas, acceso a datos y presentación. Consulta [Arquitectura](arquitectura.md) antes de añadir otra responsabilidad al store.
+2. Mantén separadas reglas, acceso a datos y presentación. Las funciones de escritura de registros deben recibir el cliente transaccional del coordinador; no deben abrir transacciones independientes ni importar el cliente global como respaldo. Consulta [Arquitectura](arquitectura.md) antes de añadir otra responsabilidad al store.
 3. Añade pruebas cuando cambies reglas o corrijas fallos; ejecuta las comprobaciones apropiadas.
 4. Actualiza la guía afectada en la misma PR. Documenta limitaciones y evita promesas que el código no cumple.
 5. Abre PR a `main` y espera las comprobaciones obligatorias. Para publicar, sigue [Operación](operacion.md#entrega-habitual).

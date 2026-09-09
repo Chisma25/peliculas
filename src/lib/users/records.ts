@@ -3,8 +3,8 @@ import type { User } from "@/lib/types";
 import { getAvatarDeliveryUrl } from "@/lib/avatar-data";
 import { slugify } from "@/lib/utils";
 
-// Database representation and writes. Transaction clients are supplied by the
-// caller; this module never opens a nested transaction for normal mutations.
+// Database representation and writes. Every write requires the transaction client
+// supplied by the shared coordinator; this module never opens a transaction.
 export const USER_RECORD_SELECT = {
   id: true,
   name: true,
@@ -72,40 +72,8 @@ export function mapUserRecordsToStateUsers(records: Array<{
   });
 }
 
-export async function syncUsersToDatabase(users: User[]) {
-  const { prisma } = await import("@/lib/prisma");
-
-  await prisma.$transaction(
-    users.map((user) =>
-      prisma.userRecord.upsert({
-        where: { id: user.id },
-        create: {
-          id: user.id,
-          name: user.name,
-          username: user.username,
-          email: user.email,
-          avatarSeed: user.avatarSeed ?? null,
-          avatarUrl: user.avatarUrl ?? null,
-          passwordHash: user.passwordHash,
-          isAdmin: Boolean(user.isAdmin)
-        },
-        update: {
-          name: user.name,
-          username: user.username,
-          email: user.email,
-          avatarSeed: user.avatarSeed ?? null,
-          avatarUrl: user.avatarUrl ?? null,
-          passwordHash: user.passwordHash,
-          isAdmin: Boolean(user.isAdmin)
-        }
-      })
-    )
-  );
-}
-
-export async function upsertUserToDatabase(user: User, client?: Prisma.TransactionClient) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.userRecord.upsert({
+export async function upsertUserToDatabase(user: User, client: Prisma.TransactionClient) {
+  await client.userRecord.upsert({
     where: { id: user.id },
     create: {
       id: user.id,

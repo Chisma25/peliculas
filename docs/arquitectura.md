@@ -26,7 +26,7 @@
 | [normalized-state.ts](../src/lib/normalized-state.ts) | Composición de tablas normalizadas y snapshot compacto |
 | [state-persistence.ts](../src/lib/state-persistence.ts) y [mutation-lock.ts](../src/lib/mutation-lock.ts) | Confirmación durable, bloqueo transaccional y cola local |
 | [database-transactions.mjs](../src/lib/database-transactions.mjs) y [database-maintenance.mjs](../src/lib/database-maintenance.mjs) | Transacciones compartidas con scripts; lecturas coherentes, reparación y limpieza coordinadas |
-| [local-state-storage.ts](../src/lib/local-state-storage.ts) | Archivo local y compatibilidad con la cola histórica de escrituras |
+| [local-state-storage.ts](../src/lib/local-state-storage.ts) | Lectura y reemplazo atómico del archivo de estado local |
 | [session.ts](../src/lib/session.ts), [api-session.ts](../src/lib/api-session.ts), [public-user.ts](../src/lib/public-user.ts) | Sesiones, resolución de usuario y proyección de campos públicos |
 | [user-input.ts](../src/lib/user-input.ts) y [request-security.ts](../src/lib/request-security.ts) | Credenciales, validación, origen y límites de intentos |
 | [movie-provider.ts](../src/lib/movie-provider.ts) y [movie-search.ts](../src/lib/movie-search.ts) | TMDb, enriquecimiento, ranking y deduplicación de búsquedas |
@@ -66,7 +66,7 @@ El store crea los servicios de usuarios y les entrega únicamente las dependenci
 
 ### Separación de películas y notas
 
-El store compone `movies/service.ts` y `ratings/service.ts` y conserva sus exports públicos. Ambos reciben el mismo `mutateState` que usuarios y recomendaciones; ninguno importa el store. Los módulos de registros reciben el cliente transaccional del coordinador para guardar catálogo, colección y notas junto al snapshot. Las funciones de sincronización masiva se mantienen para bootstrap local y compatibilidad histórica. Las escrituras de metadatos desde páginas usan operaciones por película dentro del coordinador.
+El store compone `movies/service.ts` y `ratings/service.ts` y conserva sus exports públicos. Ambos reciben el mismo `mutateState` que usuarios y recomendaciones; ninguno importa el store. Las funciones de escritura de los módulos de registros exigen el cliente transaccional del coordinador para guardar catálogo, colección y notas junto al snapshot. No abren transacciones independientes ni recurren al cliente global. Las funciones antiguas de sincronización masiva se han retirado. Las escrituras de metadatos desde páginas usan operaciones por película dentro del coordinador.
 
 Al añadir una pendiente, el servicio prepara los metadatos antes de entrar en el coordinador y comprueba la colección con el estado recibido tras el bloqueo. Así respeta que otro usuario haya marcado la película como vista durante la espera de TMDb. Al marcar una vista, elimina la pendiente en la misma transacción. Las búsquedas resuelven la identidad local para informar si un resultado remoto ya está pendiente o visto.
 
@@ -100,9 +100,11 @@ Las claves foráneas enlazan notas con usuario y película; pendientes, vistas y
 
 El grupo sigue en el contexto JSON, sin tabla normalizada a la que referenciar `groupId` o sus miembros. Las referencias internas de JSON, la exclusión entre Pendientes y Vistas y el rango de las notas siguen dependiendo del código y de los controles de integridad. Cambiar `APP_SNAPSHOT_ID` **no aísla las tablas**. Para separar Preview y Producción se necesitan bases o ramas de Neon independientes.
 
-Si falta el snapshot, se utiliza el contexto inicial del grupo y se leen las tablas, incluso vacías. En Preview/Producción, una consulta fallida o un snapshot malformado bloquea el acceso en lugar de sustituirlo por datos locales. El store conserva rutas de bootstrap y recuperación locales para desarrollo; no son un procedimiento de recuperación de Producción.
+Si falta el snapshot, se utiliza el contexto inicial del grupo y se leen las tablas, incluso vacías. La carga de estado no importa datos locales a PostgreSQL ni repuebla usuarios desde el snapshot. En Preview/Producción, una consulta fallida o un snapshot malformado bloquea el acceso en lugar de sustituirlo por datos locales. En desarrollo se conserva la lectura de respaldo desde memoria o archivo ante fallos de la base; esa lectura no se vuelca después a PostgreSQL. Las mutaciones con base de datos necesitan leer y guardar el estado dentro de su transacción.
 
 Sin `DATABASE_URL`, se usa `APP_DATA_DIR/runtime-state.json` o `data/runtime-state.json`. El estado inicial se construye con [demo-data.ts](../src/lib/demo-data.ts) y [manual-history.ts](../src/lib/manual-history.ts). Ese archivo no se sincroniza automáticamente con Producción.
+
+La reproducción automática de la cola histórica se ha retirado: la app ya no generaba entradas nuevas y una entrada antigua podía sobrescribir datos vigentes. Si existe `runtime-write-queue.json`, la app lo deja intacto: no lo lee, aplica ni borra. Su posible recuperación requiere comparar las entradas con los datos actuales; el procedimiento está en [Operación](operacion.md#archivos-de-escrituras-históricas).
 
 ## Escrituras y concurrencia
 
@@ -110,7 +112,7 @@ Las diez operaciones públicas coordinadas son `getCurrentBatch`, `updateUserPro
 
 En PostgreSQL:
 
-1. Se comprueba la disponibilidad y se atiende la compatibilidad con escrituras históricas diferidas.
+1. Se comprueba la disponibilidad de escritura de la base.
 2. Se abre una transacción `ReadCommitted` y se adquiere `pg_advisory_xact_lock(1128877637, 1)`.
 3. Después del bloqueo, se leen snapshot y tablas con el mismo cliente transaccional.
 4. Se valida y modifica una copia del estado; las escrituras relacionadas y el snapshot se guardan juntos.
@@ -118,7 +120,7 @@ En PostgreSQL:
 
 El bloqueo es común a la base, no al proceso ni al snapshot. Prisma espera hasta 10 segundos para adquirir una transacción; esta tiene un límite de 30 segundos, incluida la espera por el bloqueo. Los fallos Prisma se presentan como indisponibilidad temporal. La consulta de metadatos de una película añadida se prepara antes de entrar en la transacción.
 
-`database-transactions.mjs` comparte la misma clave de bloqueo entre el coordinador de la app, el seed, la reparación de metadatos y la limpieza técnica de Preview (incluida su ruta automática). Estos scripts guardan tablas y snapshots en una sola transacción. La reparación compara la revisión actual con la preparada antes de consultar TMDb y omite cambios concurrentes; la limpieza selecciona sus objetivos después de bloquear. El seed valida el archivo antes de escribir, pero conserva su semántica de sustitución y requiere una ventana planificada. **La consola SQL, las migraciones y las rutas históricas de bootstrap/reproducción no adquieren automáticamente este bloqueo.** El bloqueo global es adecuado para el grupo actual; debe reevaluarse antes de ampliar mucho el uso.
+`database-transactions.mjs` comparte la misma clave de bloqueo entre el coordinador de la app, el seed, la reparación de metadatos y la limpieza técnica de Preview (incluida su ruta automática). Estos scripts guardan tablas y snapshots en una sola transacción. La reparación compara la revisión actual con la preparada antes de consultar TMDb y omite cambios concurrentes; la limpieza selecciona sus objetivos después de bloquear. El seed valida el archivo antes de escribir, pero conserva su semántica de sustitución y requiere una ventana planificada. **La consola SQL y las migraciones no adquieren automáticamente este bloqueo.** Las rutas de importación automática y reproducción histórica del store se han retirado. El bloqueo global es adecuado para el grupo actual; debe reevaluarse antes de ampliar mucho el uso.
 
 Los exports, checkpoints y diagnósticos de integridad usan `withConsistentRead`: una transacción `RepeatableRead` con `SET TRANSACTION READ ONLY`, sin bloqueo consultivo. Las consultas comparten la instantánea de la primera lectura aunque se confirmen escrituras entre tablas. Tiene los mismos límites de adquisición y duración; no garantiza que los datos previos ya fueran íntegros. La escritura del archivo y las llamadas externas quedan fuera de la transacción. Las garantías y límites de las copias se detallan en [Operación](operacion.md#diagnóstico-y-copias).
 
