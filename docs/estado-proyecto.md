@@ -55,6 +55,12 @@ El modo archivo sin `DATABASE_URL` conserva su lectura y guardado local. Una bas
 
 Cualquier `runtime-write-queue.json` antiguo queda intacto. Su recuperación requiere revisar cada entrada frente a los datos actuales, sin reproducción masiva ni seed como atajo. La retirada no implica que esas entradas se hayan aplicado o conciliado; el procedimiento está en [Operación](operacion.md#archivos-de-escrituras-históricas).
 
+## Actualización de dependencias
+
+La auditoría de dependencias del 9 de septiembre de 2026 detectó avisos en las versiones instaladas de Next.js, Sharp y Vitest. Se actualizan Next.js y su configuración ESLint a 16.3.4, Sharp a partir de 0.35.4 (incluido el override) y Vitest a partir de 4.1.11. Referencias: [Next.js en Windows](https://github.com/advisories/GHSA-p293-qw3h-jr36), [optimización AVIF](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4), [Sharp/libheif](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c) y [Vitest](https://github.com/advisories/GHSA-82fw-gwwq-j7x9). La verificación de entrega incluye de nuevo auditoría, compilación y pruebas locales, PostgreSQL y navegador.
+
+La prueba HTTP envía el parámetro de caché que Next exige a las peticiones RSC y verifica que la respuesta sea realmente `text/x-component` antes de comprobar que no contiene credenciales. Mantiene el rechazo de redirecciones inesperadas y los controles de permisos y revocación.
+
 ## Copias y herramientas administrativas
 
 Exports y checkpoints leen todas las tablas desde una instantánea PostgreSQL coherente de solo lectura, sin detener las mutaciones de la app. Las copias nuevas registran esa garantía en sus metadatos; el checksum sigue verificando el archivo por separado. Los diagnósticos de integridad y la comparación de restauración comparten este mecanismo.

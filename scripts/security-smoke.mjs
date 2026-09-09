@@ -42,7 +42,13 @@ const server = spawn(process.execPath, [resolve("node_modules/next/dist/bin/next
   { env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
 server.stdout.on("data", chunk => { output += chunk; });
 server.stderr.on("data", chunk => { output += chunk; });
-const read = (path, cookie, extra = {}) => fetch(base + path, { redirect: "manual", headers: { ...(cookie ? { cookie } : {}), ...extra } });
+const read = (path, cookie, extra = {}) => {
+  const url = new URL(path, base);
+  // Next validates the RSC cache key. With no router/prefetch headers its value
+  // is empty; supplying it prevents a canonical redirect before rendering.
+  if (extra.RSC === "1") url.searchParams.set("_rsc", "");
+  return fetch(url, { redirect: "manual", headers: { ...(cookie ? { cookie } : {}), ...extra } });
+};
 async function post(path, fields, cookie) {
   const body = new FormData();
   for (const [key, value] of Object.entries(fields)) body.set(key, value);
@@ -80,7 +86,8 @@ try {
   for (const path of ["/grupo", "/perfil", "/grupo/member-beta", "/peliculas/security-film"]) {
     for (const [cookie, extra] of [[alpha, {}], [alpha, { RSC: "1" }], [admin, {}], [admin, { RSC: "1" }]]) {
       const response = await read(path, cookie, extra);
-      assert.equal(response.status, 200, `page available: ${path}`);
+      assert.equal(response.status, 200, `page available: ${path} (RSC=${extra.RSC ?? "0"}, location=${response.headers.get("location")})`);
+      if (extra.RSC === "1") assert.ok(response.headers.get("content-type")?.includes("text/x-component"), `RSC response: ${path}`);
       const body = await response.text();
       assert.ok(!body.includes("passwordHash"), `no credential property in ${path}`);
       for (const user of users) assert.ok(!body.includes(user.passwordHash), `no hash in ${path}`);
