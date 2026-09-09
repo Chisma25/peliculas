@@ -3,14 +3,7 @@ import { cleanTechnicalMovies } from "@/lib/database-maintenance.mjs";
 import {
   isMovie,
   mapMovieRecordsToStateMovies,
-  mapWatchRecordsToStateEntries,
-  removePendingMovieFromDatabase,
-  syncMoviesToDatabase,
-  syncPendingMoviesToDatabase,
-  syncWatchEntriesToDatabase,
-  upsertMovieToDatabase,
-  upsertPendingMovieToDatabase,
-  upsertWatchEntryToDatabase
+  mapWatchRecordsToStateEntries
 } from "@/lib/movies/records";
 import { createMovieService } from "@/lib/movies/service";
 import { createDashboardPageReader } from "@/lib/pages/dashboard";
@@ -19,13 +12,10 @@ import { createMovieDetailPageReader } from "@/lib/pages/movie-detail";
 import { createPendingPageReader } from "@/lib/pages/pending";
 import { createProfilePageReader } from "@/lib/pages/profiles";
 
-import { mapRatingRecordsToStateEntries, syncRatingsToDatabase, upsertRatingToDatabase } from "@/lib/ratings/records";
+import { mapRatingRecordsToStateEntries } from "@/lib/ratings/records";
 import { createRatingService } from "@/lib/ratings/service";
 import {
-  insertWeeklyBatchToDatabase,
-  mapWeeklyBatchRecordsToStateEntries,
-  syncWeeklyBatchesToDatabase,
-  updateWeeklyBatchSelectionInDatabase
+  mapWeeklyBatchRecordsToStateEntries
 } from "@/lib/recommendations/records";
 import { createRecommendationService } from "@/lib/recommendations/service";
 import { createSuggestionReader } from "@/lib/recommendations/suggestions";
@@ -48,12 +38,9 @@ import {
 import { seedState } from "@/lib/demo-data";
 import { assertDatabaseEnvironmentSafety } from "@/lib/environment-safety";
 import {
-  loadDeferredWriteQueue,
   readLocalState,
-  saveDeferredWriteQueue,
   saveLocalState,
-  saveLocalStateStrict,
-  type DeferredDatabaseWrite
+  saveLocalStateStrict
 } from "@/lib/local-state-storage";
 import { loadManualHistorySeed } from "@/lib/manual-history";
 import { createLocalMutationQueue, withDatabaseMutation } from "@/lib/mutation-lock";
@@ -71,18 +58,14 @@ import {
   USER_RECORD_WITH_AVATAR_SELECT,
   ensureUserCredentials,
   mapUserRecordsToStateUsers,
-  readUsersFromDatabase,
-  syncUsersToDatabase,
-  upsertUserToDatabase
+  readUsersFromDatabase
 } from "@/lib/users/records";
 import { createUserService } from "@/lib/users/service";
 const SNAPSHOT_ID = process.env.APP_SNAPSHOT_ID || "main";
 
 const DATABASE_READ_BACKOFF_MS = 1000 * 60;
-const DATABASE_WRITE_BACKOFF_MS = 1000 * 60;
 const DATABASE_QUOTA_BACKOFF_MS = 1000 * 60 * 30;
 const LIVE_STATE_CACHE_TTL_MS = 1000 * 60 * 10;
-const DEFERRED_WRITE_FLUSH_TTL_MS = 1000 * 60;
 
 const REMOVED_TEST_USER_IDS = new Set(["user_xisma25"]);
 
@@ -92,7 +75,6 @@ let snapshotUsersWithAvatarsMemoryCache: TimedCache<User[]> | null = null;
 let databaseReadBackoffUntil = 0;
 let databaseWriteBackoffUntil = 0;
 let liveStateMemoryCache: TimedCache<AppState> | null = null;
-let lastDeferredWriteFlushAt = 0;
 let previewDataHygienePromise: Promise<void> | null = null;
 
 const {
@@ -496,15 +478,6 @@ function markDatabaseReadFailure(scope: string, error: unknown) {
   failClosedAfterDatabaseReadError();
 }
 
-function markDatabaseWriteFailure(scope: string, error: unknown) {
-  const backoffMs = getBackoffDuration(error, DATABASE_WRITE_BACKOFF_MS);
-  databaseWriteBackoffUntil = Date.now() + backoffMs;
-  if (isDatabaseQuotaExceededError(error)) {
-    databaseReadBackoffUntil = Math.max(databaseReadBackoffUntil, Date.now() + backoffMs);
-  }
-  console.error(`[store] Database write failed in ${scope}.`, error);
-}
-
 function loadLocalStateFromDisk() {
   const state = readLocalState(isAppState, ensureStateIntegrity);
   if (state) {
@@ -653,10 +626,6 @@ async function loadUsersForRead(options: { includeAvatarUrls?: boolean } = {}): 
     }
   }
 
-  if (shouldAttemptDatabaseWrite() && users.length > 0) {
-    await syncUsersToDatabase(users).catch((error) => markDatabaseWriteFailure("users backfill", error));
-  }
-
   return users;
 }
 
@@ -697,70 +666,6 @@ async function loadMovieBySlugFromDatabase(slug: string) {
     markDatabaseReadFailure("movie by slug read", error);
     return null;
   }
-}
-
-async function applyDeferredDatabaseWrite(write: DeferredDatabaseWrite) {
-  switch (write.type) {
-    case "user-upsert":
-      await upsertUserToDatabase(write.user);
-      return;
-    case "movie-upsert":
-      await upsertMovieToDatabase(write.movie);
-      return;
-    case "pending-upsert":
-      await upsertPendingMovieToDatabase(write.groupId, write.movieId, new Date(write.addedAt));
-      return;
-    case "pending-remove":
-      await removePendingMovieFromDatabase(write.groupId, write.movieId);
-      return;
-    case "watch-upsert":
-      await upsertWatchEntryToDatabase(write.entry);
-      return;
-    case "rating-upsert":
-      await upsertRatingToDatabase(write.rating);
-      return;
-    case "weekly-batch-upsert":
-      await insertWeeklyBatchToDatabase(write.batch);
-      return;
-    case "weekly-batch-selection":
-      await updateWeeklyBatchSelectionInDatabase(write.batchId, write.selectedMovieId);
-      return;
-    case "snapshot-backup":
-      await saveDatabaseState(write.state);
-      return;
-  }
-}
-
-async function flushDeferredDatabaseWrites() {
-  if (!shouldAttemptDatabaseWrite()) {
-    return false;
-  }
-
-  if (Date.now() - lastDeferredWriteFlushAt < DEFERRED_WRITE_FLUSH_TTL_MS) {
-    return true;
-  }
-
-  const queue = loadDeferredWriteQueue();
-  if (queue.length === 0) {
-    lastDeferredWriteFlushAt = Date.now();
-    return true;
-  }
-
-  lastDeferredWriteFlushAt = Date.now();
-
-  for (let index = 0; index < queue.length; index += 1) {
-    try {
-      await applyDeferredDatabaseWrite(queue[index]);
-    } catch (error) {
-      saveDeferredWriteQueue(queue.slice(index));
-      markDatabaseWriteFailure("deferred write flush", error);
-      return false;
-    }
-  }
-
-  saveDeferredWriteQueue([]);
-  markDatabaseWriteHealthy();
-  return true;
 }
 
 async function loadSnapshotStateUncached(client?: Prisma.TransactionClient) {
@@ -812,13 +717,12 @@ async function loadDatabaseStateUncached(client?: Prisma.TransactionClient) {
     return ensureStateIntegrity(mergeNormalizedState(baseState, normalizedCollections));
   } catch (error) {
     if (client) throw error;
-    markDatabaseReadFailure("normalized state bootstrap", error);
+    markDatabaseReadFailure("normalized state read", error);
     return null;
   }
 }
 
-async function saveDatabaseState(state: AppState, client?: Prisma.TransactionClient) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
+async function saveDatabaseState(state: AppState, database: Prisma.TransactionClient) {
   const compactState = toCompactSnapshotState(state);
   await database.appSnapshot.upsert({
     where: {
@@ -842,34 +746,10 @@ async function loadAppStateUncached() {
       return databaseState;
     }
 
-    if (!shouldAttemptDatabaseRead()) {
-      return loadFallbackState();
-    }
-
-    const initial = loadFallbackState();
-
-    try {
-      await Promise.all([
-        syncUsersToDatabase(initial.users),
-        syncMoviesToDatabase(initial.movies)
-      ]);
-      await Promise.all([
-        syncRatingsToDatabase(initial.ratings),
-        syncPendingMoviesToDatabase(initial.group.id, initial.pendingMovieIds),
-        syncWatchEntriesToDatabase(initial.group.id, initial.watchEntries),
-        syncWeeklyBatchesToDatabase(initial.group.id, initial.weeklyBatches)
-      ]);
-      await saveDatabaseState(initial);
-      invalidatePersistentStateCache();
-      markDatabaseReadHealthy();
-      markDatabaseWriteHealthy();
-      rememberLiveState(initial);
-      return initial;
-    } catch (error) {
-      markDatabaseReadFailure("database bootstrap", error);
-      markDatabaseWriteFailure("database bootstrap", error);
-      return initial;
-    }
+    // Development may read a local fallback during an outage. Importing that
+    // state into PostgreSQL is an explicit administrative operation.
+    failClosedAfterDatabaseReadError();
+    return loadFallbackState();
   }
 
   const localState = loadLocalStateFromDisk();
@@ -892,10 +772,6 @@ async function loadAppStateForRead() {
     if (liveState) {
       return liveState;
     }
-  }
-
-  if (shouldAttemptDatabaseWrite()) {
-    await flushDeferredDatabaseWrites();
   }
 
   if (usesDatabase) {
@@ -952,7 +828,6 @@ async function mutateState<T>(action: (state: AppState, persist: PersistMutation
     await commitStateChangeAtomically({
       usesDatabase,
       canWriteDatabase: shouldAttemptDatabaseWrite(),
-      flushDeferredWrites: flushDeferredDatabaseWrites,
       runDatabaseTransaction: async () => {
         await ensurePreviewDataHygiene();
         const { prisma } = await import("@/lib/prisma");

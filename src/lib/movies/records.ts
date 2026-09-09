@@ -2,8 +2,7 @@ import type { Prisma } from "@prisma/client";
 import type { Movie, WatchEntry } from "@/lib/types";
 import { parseWatchDate } from "@/lib/record-dates";
 
-// Normal mutations use the transaction client supplied by the shared coordinator.
-// Bulk sync functions are retained for replaying legacy deferred writes.
+// Every write requires the transaction client supplied by the shared coordinator.
 
 export function mapWatchRecordsToStateEntries(records: Array<{
   id: string;
@@ -42,30 +41,8 @@ export function mapMovieRecordsToStateMovies(records: Array<{ data: unknown }>):
   return records.map((entry) => entry.data).filter(isMovie);
 }
 
-export async function syncMoviesToDatabase(movies: Movie[]) {
-  const { prisma } = await import("@/lib/prisma");
-
-  await prisma.$transaction(
-    movies.map((movie) =>
-      prisma.movieRecord.upsert({
-        where: { id: movie.id },
-        create: {
-          id: movie.id,
-          slug: movie.slug,
-          data: movie
-        },
-        update: {
-          slug: movie.slug,
-          data: movie
-        }
-      })
-    )
-  );
-}
-
-export async function upsertMovieToDatabase(movie: Movie, client?: Prisma.TransactionClient) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.movieRecord.upsert({
+export async function upsertMovieToDatabase(movie: Movie, client: Prisma.TransactionClient) {
+  await client.movieRecord.upsert({
     where: { id: movie.id },
     create: {
       id: movie.id,
@@ -79,57 +56,13 @@ export async function upsertMovieToDatabase(movie: Movie, client?: Prisma.Transa
   });
 }
 
-export async function syncPendingMoviesToDatabase(groupId: string, pendingMovieIds: string[]) {
-  const { prisma } = await import("@/lib/prisma");
-
-  await prisma.$transaction([
-    prisma.pendingMovie.deleteMany({ where: { groupId } }),
-    ...(pendingMovieIds.length > 0
-      ? [
-          prisma.pendingMovie.createMany({
-            data: pendingMovieIds.map((movieId, index) => ({
-              groupId,
-              movieId,
-              addedAt: new Date(Date.now() - index * 1000)
-            })),
-            skipDuplicates: true
-          })
-        ]
-      : [])
-  ]);
-}
-
-export async function syncWatchEntriesToDatabase(groupId: string, watchEntries: WatchEntry[]) {
-  const { prisma } = await import("@/lib/prisma");
-
-  await prisma.$transaction([
-    prisma.watchEntryRecord.deleteMany({ where: { groupId } }),
-    ...(watchEntries.length > 0
-      ? [
-          prisma.watchEntryRecord.createMany({
-            data: watchEntries.map((entry, index) => ({
-              id: entry.id,
-              movieId: entry.movieId,
-              groupId: entry.groupId,
-              watchedOn: parseWatchDate(entry.watchedOn),
-              selectedForWeek: entry.selectedForWeek,
-              createdAt: parseWatchDate(entry.watchedOn) ?? new Date(Date.now() - index * 1000)
-            })),
-            skipDuplicates: true
-          })
-        ]
-      : [])
-  ]);
-}
-
 export async function upsertPendingMovieToDatabase(
   groupId: string,
   movieId: string,
-  addedAt = new Date(),
-  client?: Prisma.TransactionClient
+  addedAt: Date,
+  client: Prisma.TransactionClient
 ) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.pendingMovie.upsert({
+  await client.pendingMovie.upsert({
     where: {
       groupId_movieId: {
         groupId,
@@ -147,9 +80,8 @@ export async function upsertPendingMovieToDatabase(
   });
 }
 
-export async function removePendingMovieFromDatabase(groupId: string, movieId: string, client?: Prisma.TransactionClient) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.pendingMovie.deleteMany({
+export async function removePendingMovieFromDatabase(groupId: string, movieId: string, client: Prisma.TransactionClient) {
+  await client.pendingMovie.deleteMany({
     where: {
       groupId,
       movieId
@@ -157,9 +89,8 @@ export async function removePendingMovieFromDatabase(groupId: string, movieId: s
   });
 }
 
-export async function upsertWatchEntryToDatabase(entry: WatchEntry, client?: Prisma.TransactionClient) {
-  const database = client ?? (await import("@/lib/prisma")).prisma;
-  await database.watchEntryRecord.upsert({
+export async function upsertWatchEntryToDatabase(entry: WatchEntry, client: Prisma.TransactionClient) {
+  await client.watchEntryRecord.upsert({
     where: {
       id: entry.id
     },

@@ -61,6 +61,8 @@ Sustituye `SHA_COMPLETO` por el commit de `main` tras la fusión, no por el de l
 
 Este procedimiento es para una base nueva y vacía. No es el proceso de actualización.
 
+La app no importa el archivo local al detectar una base vacía ni repuebla usuarios desde un snapshot. Configurar `DATABASE_URL` activa las lecturas de PostgreSQL; cualquier importación inicial sigue siendo una operación explícita con datos revisados.
+
 1. Preparar las conexiones y variables del entorno, empezando por Preview.
 2. Revisar el estado local que se importará: usuarios, permisos, notas y películas. No usar una copia de prueba como datos reales.
 3. En una terminal limpia y desde la raíz, aplicar el esquema al destino verificado:
@@ -106,7 +108,13 @@ En Producción usar su propio archivo y hacerlo antes del despliegue de código 
 
 Si esta migración de relaciones falla por datos inválidos o por un bloqueo, conservar el error, verificar que la transacción se deshizo y resolver la causa; marcar **solo esa ejecución fallida** con `migrate resolve --rolled-back 20260907000100_relational_integrity` antes de reintentar. No marcar como fallida una migración aplicada correctamente. Para volver al código anterior pueden mantenerse estas relaciones, compatibles con las operaciones normales. Si fuera necesario retirar las restricciones, preparar una nueva migración compensatoria y actualizar Prisma; no editar ni borrar el historial aplicado ni restaurar los datos encima de escrituras posteriores.
 
-Antes de modificar datos, crear una copia y preparar una vuelta atrás. La reparación de metadatos y la limpieza de Preview adquieren el bloqueo de las mutaciones normales y vuelven a comprobar sus objetivos dentro de la transacción. El seed también lo adquiere, pero reemplaza datos con el archivo elegido: usar una ventana planificada sin escrituras para revisar esa sustitución. La consola SQL, las migraciones y la reproducción de escrituras históricas no adquieren automáticamente este bloqueo; requieren coordinación del operador. La app no tiene un interruptor de mantenimiento documentado.
+Antes de modificar datos, crear una copia y preparar una vuelta atrás. La reparación de metadatos y la limpieza de Preview adquieren el bloqueo de las mutaciones normales y vuelven a comprobar sus objetivos dentro de la transacción. El seed también lo adquiere, pero reemplaza datos con el archivo elegido: usar una ventana planificada sin escrituras para revisar esa sustitución. La consola SQL y las migraciones no adquieren automáticamente este bloqueo; requieren coordinación del operador. Las rutas históricas de importación y reproducción automática de la app se han retirado. La app no tiene un interruptor de mantenimiento documentado.
+
+### Archivos de escrituras históricas
+
+Versiones antiguas podían conservar operaciones en `APP_DATA_DIR/runtime-write-queue.json` o `data/runtime-write-queue.json`. La app actual no genera entradas ni lee, reproduce o borra ese archivo. Su presencia no bloquea las lecturas ni los guardados actuales.
+
+Si encuentras uno, consérvalo en almacenamiento privado: puede contener datos personales y hashes. Antes de recuperar cualquier entrada, crea una copia del estado actual y compara sus valores con los registros vigentes, incluidos cambios de credenciales, notas y películas eliminadas. El archivo no ofrece información suficiente para asumir que todas sus entradas siguen pendientes o que tienen prioridad sobre lo guardado después. Recupera solo los cambios revisados mediante las operaciones actuales o una reparación específica preparada para ese caso. No reproduzcas la cola en bloque ni uses un seed como atajo: podrían sustituir información más reciente. No hay una herramienta automática de conciliación de estas colas.
 
 ## Diagnóstico y copias
 

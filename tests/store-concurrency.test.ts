@@ -113,6 +113,32 @@ describe.each(databaseUrl ? ["local", "database"] as const : ["local"] as const)
     expect(saved.ratings[0].comment).toBe(`Save ${saved.ratings[0].score - 5}`);
   });
 
+  it.runIf(backend === "database")("preserves current profiles, ratings and activity when another instance finds a historical write queue", async () => {
+    const queuePath = join(directory, "runtime-write-queue.json");
+    const queueContent = JSON.stringify([
+      { type: "user-upsert", user: { ...state.users[0], name: "Obsolete queued name", passwordHash: "obsolete-hash" } },
+      { type: "rating-upsert", rating: {
+        id: "historical-rating", movieId: state.movies[0].id, userId: "alpha",
+        score: 1, comment: "Obsolete queued rating", watchedOn: "2025-01-01T00:00:00.000Z"
+      } },
+      { type: "snapshot-backup", state }
+    ], null, 2);
+    writeFileSync(queuePath, queueContent);
+
+    await store.updateUserProfile("alpha", { name: "Current profile", username: "alpha" });
+    await store.upsertRating({ movieId: state.movies[0].id, userId: "alpha", score: 8.75, comment: "Current rating" });
+    const beforeRead = await persisted();
+    expect(beforeRead.activity).toHaveLength(2);
+
+    // This independent process cache reads the database after modern writes
+    // have committed, while an older runtime queue remains on disk.
+    expect((await otherStore.listMembers()).find(user => user.id === "alpha")?.name).toBe("Current profile");
+    expect(await persisted()).toEqual(beforeRead);
+    expect(beforeRead.ratings).toEqual([expect.objectContaining({ score: 8.75, comment: "Current rating" })]);
+    expect(verifyPassword(originalPassword, beforeRead.users.find(user => user.id === "alpha")!.passwordHash)).toBe(true);
+    expect(readFileSync(queuePath, "utf8")).toBe(queueContent);
+  });
+
   it.each([false, true])("never leaves a watched film pending (watch first: %s)", async (watchFirst) => {
     await Promise.all(state.movies.flatMap(movie => {
       const add = () => store.addPendingMovie(movie);

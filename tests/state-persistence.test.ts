@@ -4,7 +4,6 @@ import { commitStateChangeAtomically, StatePersistenceUnavailableError } from "@
 
 function createDependencies() {
   return {
-    flushDeferredWrites: vi.fn(async () => true),
     runDatabaseTransaction: vi.fn(async () => undefined),
     writeLocalState: vi.fn(),
     publishCommittedState: vi.fn()
@@ -59,23 +58,6 @@ describe("commitStateChangeAtomically", () => {
       })
     ).rejects.toBeInstanceOf(StatePersistenceUnavailableError);
 
-    expect(dependencies.flushDeferredWrites).not.toHaveBeenCalled();
-    expect(dependencies.runDatabaseTransaction).not.toHaveBeenCalled();
-    expect(dependencies.publishCommittedState).not.toHaveBeenCalled();
-  });
-
-  it("does not publish a mutation if legacy deferred writes cannot be flushed", async () => {
-    const dependencies = createDependencies();
-    dependencies.flushDeferredWrites.mockResolvedValue(false);
-
-    await expect(
-      commitStateChangeAtomically({
-        usesDatabase: true,
-        canWriteDatabase: true,
-        ...dependencies
-      })
-    ).rejects.toBeInstanceOf(StatePersistenceUnavailableError);
-
     expect(dependencies.runDatabaseTransaction).not.toHaveBeenCalled();
     expect(dependencies.publishCommittedState).not.toHaveBeenCalled();
   });
@@ -97,7 +79,6 @@ describe("commitStateChangeAtomically", () => {
     });
 
     expect(order).toEqual(["write", "publish"]);
-    expect(dependencies.flushDeferredWrites).not.toHaveBeenCalled();
     expect(dependencies.runDatabaseTransaction).not.toHaveBeenCalled();
   });
 
